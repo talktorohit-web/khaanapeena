@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
-import { inr0, uid, upiLink, sentiment } from '../utils.js'
+import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
 
 // Customer-facing self-order page (#/qr?t=T5) — what guests see after scanning the table QR
 export default function QRMenu({ hash }) {
@@ -28,19 +28,22 @@ export default function QRMenu({ hash }) {
 
   const placeOrder = () => {
     const id = uid('o')
+    const lines = Object.entries(cart).map(([itemId, qty]) => {
+      const it = state.items.find((x) => x.id === itemId)
+      return { itemId, name: it.name, price: it.price, qty }
+    })
+    const totals = billTotals({ items: lines, payment: { discount: 0 } }, s)
+    const payable = s.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
     update((st) => {
       st.orders.push({
         id, billNo: null, type: 'qr', tableId, status: 'open',
-        items: Object.entries(cart).map(([itemId, qty]) => {
-          const it = st.items.find((x) => x.id === itemId)
-          return { itemId, name: it.name, price: it.price, qty }
-        }),
+        items: lines,
         createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
         payment: { method: null, discount: 0, amount: 0 }, source: 'qr',
       })
     })
     sendKot(id)
-    setPlaced({ id, total })
+    setPlaced({ id, total: payable })
     setCart({})
   }
 
@@ -61,7 +64,7 @@ export default function QRMenu({ hash }) {
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <div className="text-5xl mb-3">🎉</div>
           <h2 className="text-xl font-black text-ink-900">Order sent to kitchen!</h2>
-          <p className="text-sm text-stone-500 mt-1 mb-4">Sit back — it's being prepared. Total: <b>{inr0(total || placed.total)}</b></p>
+          <p className="text-sm text-stone-500 mt-1 mb-4">Sit back — it's being prepared. Total (incl. GST): <b>{inr0(placed.total)}</b></p>
           <a href={upiLink(s, placed.total, `Table ${tableId || ''} self-order`)} className="bg-leaf-600 text-white font-bold rounded-xl px-5 py-3 text-sm mb-2 w-full">📲 Pay {inr0(placed.total)} via UPI</a>
           <p className="text-[11px] text-stone-400 mb-6">or pay at the counter</p>
 

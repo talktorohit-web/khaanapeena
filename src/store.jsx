@@ -24,6 +24,20 @@ export function StoreProvider({ children }) {
     try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* storage full */ }
   }, [state])
 
+  // cross-tab sync: the customer QR-menu view runs in its own tab against the
+  // same localStorage — adopt writes from other tabs so orders aren't lost
+  useEffect(() => {
+    const fn = (e) => {
+      if (e.key !== KEY || !e.newValue) return
+      try {
+        const v = JSON.parse(e.newValue)
+        if (v && v.v === 1) setState(v)
+      } catch { /* ignore malformed */ }
+    }
+    window.addEventListener('storage', fn)
+    return () => window.removeEventListener('storage', fn)
+  }, [])
+
   const api = useMemo(() => {
     const update = (fn) => setState((prev) => {
       const draft = structuredClone(prev)
@@ -66,7 +80,8 @@ export function StoreProvider({ children }) {
       if (!o) return
       o.payment = { method, discount }
       const totals = billTotals(o, s.settings)
-      o.payment.amount = totals.total
+      // composition scheme: no GST collected on the bill
+      o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
       o.status = 'paid'
       o.paidAt = Date.now()
       o.billNo = s.counters.billNo++

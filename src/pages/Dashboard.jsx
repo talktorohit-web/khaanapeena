@@ -12,7 +12,7 @@ export default function Dashboard() {
   const todaySales = todayOrders.reduce((s, o) => s + (o.payment?.amount || 0), 0)
   const avgBill = todayOrders.length ? Math.round(todaySales / todayOrders.length) : 0
 
-  const openOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'new'].includes(o.status))
+  const openOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'served', 'new'].includes(o.status))
   const occupiedTables = new Set(openOrders.filter((o) => o.tableId).map((o) => o.tableId))
   const lowStock = state.ingredients.filter((g) => g.stock <= g.minStock)
 

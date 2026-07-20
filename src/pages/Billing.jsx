@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink, fmtTime } from '../utils.js'
+import { inr, inr0, billTotals, upiLink } from '../utils.js'
 import QRCode from 'qrcode'
 
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
@@ -82,36 +82,37 @@ export default function Billing() {
   }
 
   const parseVoice = (text) => {
-    const words = text.toLowerCase().split(/[\s,]+/)
-    const added = []
-    let qty = 1
-    let i = 0
-    while (i < words.length) {
-      const w = words[i]
-      if (/^\d+$/.test(w)) { qty = parseInt(w); i++; continue }
-      if (NUM_WORDS[w]) { qty = NUM_WORDS[w]; i++; continue }
-      // try to match longest item name starting at i
-      let best = null
-      for (const item of state.items) {
-        const names = [item.name.toLowerCase(), (item.nameHi || '')]
-        for (const nm of names) {
-          if (!nm) continue
-          const first = nm.split(/[\s(]+/)[0]
-          if (first && (w.includes(first) || first.includes(w)) && w.length > 2) {
-            const rest = text.toLowerCase()
-            if (rest.includes(first)) best = item
-          }
-        }
-        if (best) break
+    // match full item names (longest first) against the transcript, consuming each
+    // occurrence so "butter chicken" can't also match "chicken tikka"
+    let remaining = ' ' + text.toLowerCase() + ' '
+    const sorted = [...state.items].sort((a, b) => b.name.length - a.name.length)
+    const matches = []
+    for (const item of sorted) {
+      const names = [item.name.toLowerCase().replace(/\s*\(.*?\)/g, '').trim(), (item.nameHi || '').trim()].filter(Boolean)
+      for (const nm of names) {
+        const idx = remaining.indexOf(nm)
+        if (idx < 0) continue
+        const before = remaining.slice(0, idx).trim().split(/\s+/)
+        const lastW = before[before.length - 1] || ''
+        const qty = /^\d+$/.test(lastW) ? parseInt(lastW) : NUM_WORDS[lastW] || 1
+        matches.push({ item, qty })
+        remaining = remaining.slice(0, idx) + ' ' + remaining.slice(idx + nm.length)
+        break
       }
-      if (best) {
-        for (let k = 0; k < qty; k++) addItem(best)
-        added.push(`${qty}× ${best.name}`)
-        qty = 1
-      }
-      i++
     }
-    return added
+    if (!matches.length) return []
+    let id = orderId
+    if (!order) { id = newOrder({ type: 'takeaway' }); setOrderId(id) }
+    update((s) => {
+      const o = s.orders.find((x) => x.id === id)
+      if (!o) return
+      matches.forEach(({ item, qty }) => {
+        const li = o.items.find((x) => x.itemId === item.id && !x.deducted)
+        if (li) li.qty += qty
+        else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty })
+      })
+    })
+    return matches.map((m) => `${m.qty}× ${m.item.name}`)
   }
 
   const totals = order ? billTotals(order, state.settings) : null
@@ -173,15 +174,19 @@ export default function Billing() {
           </div>
           {order && (
             <div className="flex items-center gap-2 mt-2">
-              <select
-                value={order.type}
-                onChange={(e) => update((s) => { const o = s.orders.find((x) => x.id === orderId); if (o) { o.type = e.target.value; if (e.target.value !== 'dine') o.tableId = null } })}
-                className="text-xs border border-stone-200 rounded-lg px-2 py-1"
-              >
-                <option value="dine">{t('dineIn')}</option>
-                <option value="takeaway">{t('takeaway')}</option>
-                <option value="delivery">{t('delivery')}</option>
-              </select>
+              {['dine', 'takeaway', 'delivery'].includes(order.type) ? (
+                <select
+                  value={order.type}
+                  onChange={(e) => update((s) => { const o = s.orders.find((x) => x.id === orderId); if (o) { o.type = e.target.value; if (e.target.value !== 'dine') o.tableId = null } })}
+                  className="text-xs border border-stone-200 rounded-lg px-2 py-1"
+                >
+                  <option value="dine">{t('dineIn')}</option>
+                  <option value="takeaway">{t('takeaway')}</option>
+                  <option value="delivery">{t('delivery')}</option>
+                </select>
+              ) : (
+                <Badge color="purple">{order.type.toUpperCase()}{order.tableId ? ` · ${order.tableId}` : ''}</Badge>
+              )}
               {order.type === 'dine' && (
                 <select
                   value={order.tableId || ''}
@@ -208,9 +213,9 @@ export default function Billing() {
                   <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <QtyBtn onClick={() => changeQty(li, -1)}>−</QtyBtn>
+                  <QtyBtn disabled={li.deducted} onClick={() => changeQty(li, -1)}>−</QtyBtn>
                   <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                  <QtyBtn onClick={() => changeQty(li, 1)}>＋</QtyBtn>
+                  <QtyBtn disabled={li.deducted} onClick={() => changeQty(li, 1)}>＋</QtyBtn>
                 </div>
                 <div className="w-14 text-right text-[13px] font-bold">{inr0(li.price * li.qty)}</div>
               </div>
@@ -261,8 +266,8 @@ export default function Billing() {
 const CatChip = ({ active, onClick, children }) => (
   <button onClick={onClick} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${active ? 'bg-ink-900 text-white' : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'}`}>{children}</button>
 )
-const QtyBtn = ({ onClick, children }) => (
-  <button onClick={onClick} className="w-6 h-6 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm leading-none">{children}</button>
+const QtyBtn = ({ onClick, disabled, children }) => (
+  <button onClick={onClick} disabled={disabled} title={disabled ? 'Sent to kitchen — add a fresh line instead' : undefined} className="w-6 h-6 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm leading-none disabled:opacity-30 disabled:cursor-not-allowed">{children}</button>
 )
 const Row = ({ l, v, muted, cls = '' }) => (
   <div className={`flex justify-between ${muted ? 'text-stone-400 text-xs' : 'text-stone-600'} ${cls}`}><span>{l}</span><span>{v}</span></div>

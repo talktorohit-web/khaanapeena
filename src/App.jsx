@@ -54,7 +54,7 @@ export default function App() {
 
   const Page = PAGES[page] || Dashboard
   const openKots = state.orders.filter((o) => o.status === 'kot').length
-  const pendingOnline = state.orders.filter((o) => (o.type === 'zomato' || o.type === 'swiggy') && o.status === 'new').length
+  const pendingOnline = state.orders.filter((o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type) && o.status === 'new').length
 
   return (
     <div className="flex h-screen overflow-hidden">

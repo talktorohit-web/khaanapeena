@@ -42,11 +42,6 @@ export default function KDS() {
 function Ticket({ o, action, actionLabel, actionCls }) {
   const mins = minsSince(o.kotAt)
   const late = mins > 15
-  const stations = {}
-  o.items.forEach((li) => {
-    const st = li.station || 'kitchen'
-    ;(stations[st] = stations[st] || []).push(li)
-  })
   return (
     <div className={`rounded-xl border-2 p-3 ${late ? 'border-red-400 bg-red-50' : 'border-stone-200'}`}>
       <div className="flex items-center justify-between mb-2">
@@ -55,7 +50,7 @@ function Ticket({ o, action, actionLabel, actionCls }) {
       </div>
       {o.items.map((li, i) => (
         <div key={i} className="flex justify-between text-[13px] py-0.5">
-          <span>{li.name}{li.notes && <span className="text-[10px] text-purple-600 block">📝 {li.notes}</span>}</span>
+          <span>{li.name}</span>
           <b>× {li.qty}</b>
         </div>
       ))}

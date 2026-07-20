@@ -48,6 +48,9 @@ export function Donut({ data, size = 130 }) {
     <div className="flex items-center gap-4">
       <svg viewBox="0 0 120 120" style={{ width: size, height: size }}>
         {data.map((d, i) => {
+          if (d.value / total >= 0.999) {
+            return <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={CAT[i % CAT.length]} strokeWidth="16" />
+          }
           const a0 = (acc / total) * 2 * Math.PI - Math.PI / 2
           acc += d.value
           const a1 = (acc / total) * 2 * Math.PI - Math.PI / 2

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Badge, Empty, btnPrimary, btnGhost, inputCls } from '../components.jsx'
-import { inr0, uid, minsSince, dayKey } from '../utils.js'
+import { inr0, uid, minsSince } from '../utils.js'
 
 const CHANNELS = {
   zomato: { label: 'Zomato', color: 'red', commission: 23 },
