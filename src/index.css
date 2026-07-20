@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-saffron-50: #fff8ed;
+  --color-saffron-100: #ffefd4;
+  --color-saffron-200: #ffdba8;
+  --color-saffron-300: #ffc071;
+  --color-saffron-400: #ff9a38;
+  --color-saffron-500: #ff7d12;
+  --color-saffron-600: #f06008;
+  --color-saffron-700: #c74809;
+  --color-saffron-800: #9e3910;
+  --color-saffron-900: #7f3110;
+  --color-leaf-500: #16a34a;
+  --color-leaf-600: #15803d;
+  --color-ink-800: #1c1917;
+  --color-ink-900: #12100e;
+}
+
+html { font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+body { background: #f7f5f2; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+
+@keyframes kp-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+.kp-pulse { animation: kp-pulse 1.6s ease-in-out infinite; }
+
+@media print {
+  body * { visibility: hidden; }
+  #kp-print, #kp-print * { visibility: visible; }
+  #kp-print { position: absolute; left: 0; top: 0; width: 72mm; font-family: "Courier New", monospace; font-size: 11px; color: #000; }
+}
