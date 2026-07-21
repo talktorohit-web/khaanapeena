@@ -1,6 +1,6 @@
 // KhaanaPeena service worker — offline-first app shell.
 // Billing must keep working when the restaurant's internet drops.
-const CACHE = 'khaanapeena-v3'
+const CACHE = 'khaanapeena-v4'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
@@ -13,6 +13,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
+  if (!url.protocol.startsWith('http')) return // never intercept file:// or app schemes
   if (url.origin !== location.origin) return // let cross-origin (fonts/CDN) pass through
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {

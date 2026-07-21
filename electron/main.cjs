@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu } = require('electron')
+const { app, BrowserWindow, shell, Menu, session } = require('electron')
 const path = require('path')
 
 function createWindow() {
@@ -26,7 +26,12 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // a service worker registered on file:// (by older builds) intercepts and can
+  // brick every page load — always clear SW state before opening the window
+  try {
+    await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] })
+  } catch { /* nothing to clear */ }
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
