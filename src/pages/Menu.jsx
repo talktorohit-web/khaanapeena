@@ -74,7 +74,7 @@ function ItemModal({ item, onClose }) {
       <Field label="Name (English)"><input value={f.name} onChange={(e) => set('name', e.target.value)} className={inputCls} /></Field>
       <Field label="Name (Hindi)"><input value={f.nameHi} onChange={(e) => set('nameHi', e.target.value)} className={inputCls} /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Price (₹)"><input type="number" value={f.price} onChange={(e) => set('price', e.target.value)} className={inputCls} /></Field>
+        <Field label="Price (₹)"><input type="number" min="0" value={f.price} onChange={(e) => set('price', e.target.value)} className={inputCls} /></Field>
         <Field label="Category">
           <select value={f.catId} onChange={(e) => set('catId', e.target.value)} className={inputCls}>
             {state.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -93,7 +93,7 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
-      <button onClick={save} disabled={!f.name || !f.price} className={btnPrimary + ' w-full'}>Save</button>
+      <button onClick={save} disabled={!f.name || !(+f.price > 0)} className={btnPrimary + ' w-full'}>Save</button>
     </Modal>
   )
 }

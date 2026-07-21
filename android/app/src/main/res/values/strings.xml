@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">KhaanaPeena</string>
+    <string name="title_activity_main">KhaanaPeena</string>
+    <string name="package_name">com.khaanapeena.app</string>
+    <string name="custom_url_scheme">com.khaanapeena.app</string>
+</resources>

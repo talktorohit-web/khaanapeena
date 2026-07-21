@@ -42,14 +42,14 @@ export default function Waste() {
           <Field label="What was wasted?"><input value={f.itemName} onChange={(e) => setF({ ...f, itemName: e.target.value })} placeholder="e.g. Dal Makhani leftover" className={inputCls} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Quantity"><input value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} placeholder="2 kg" className={inputCls} /></Field>
-            <Field label="Loss value (₹)"><input type="number" value={f.lossValue} onChange={(e) => setF({ ...f, lossValue: e.target.value })} className={inputCls} /></Field>
+            <Field label="Loss value (₹)"><input type="number" min="0" value={f.lossValue} onChange={(e) => setF({ ...f, lossValue: e.target.value })} className={inputCls} /></Field>
           </div>
           <Field label="Reason">
             <select value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} className={inputCls}>
               {REASONS.map((r) => <option key={r}>{r}</option>)}
             </select>
           </Field>
-          <button onClick={add} disabled={!f.itemName || !f.lossValue} className={btnPrimary + ' w-full'}>Log it</button>
+          <button onClick={add} disabled={!f.itemName || !(+f.lossValue > 0)} className={btnPrimary + ' w-full'}>Log it</button>
         </div>
 
         <div className="space-y-4">

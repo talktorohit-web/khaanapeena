@@ -1,0 +1,8 @@
+{
+  "appId": "com.khaanapeena.app",
+  "appName": "KhaanaPeena",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#12100e"
+  }
+}

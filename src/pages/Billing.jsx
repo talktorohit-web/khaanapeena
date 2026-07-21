@@ -2,13 +2,23 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink } from '../utils.js'
+import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
 
 export default function Billing() {
   const { state, t, update, newOrder, sendKot, settleOrder } = useStore()
+  const { focusOrderId, clearFocus } = useNav()
   const [orderId, setOrderId] = useState(null)
+
+  // when another page (Tables, Dashboard) sends us here for a specific order, select it
+  useEffect(() => {
+    if (focusOrderId) {
+      setOrderId(focusOrderId)
+      clearFocus()
+    }
+  }, [focusOrderId])
   const [cat, setCat] = useState('all')
   const [q, setQ] = useState('')
   const [vegOnly, setVegOnly] = useState(false)
@@ -18,7 +28,8 @@ export default function Billing() {
   const [voiceMsg, setVoiceMsg] = useState('')
   const recRef = useRef(null)
 
-  const activeOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'served'].includes(o.status))
+  // aggregator/WhatsApp orders are settled from Online Orders/KDS, not the POS tab strip
+  const activeOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'served'].includes(o.status) && !['zomato', 'swiggy', 'whatsapp'].includes(o.type))
   const order = state.orders.find((o) => o.id === orderId && o.status !== 'paid')
 
   const hour = new Date().getHours()

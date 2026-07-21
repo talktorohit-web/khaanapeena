@@ -2,14 +2,22 @@ import React, { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge } from '../components.jsx'
 import { inr0, minsSince, billTotals } from '../utils.js'
+import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
 export default function Tables() {
   const { state, t, newOrder } = useStore()
+  const { goTo } = useNav()
   const [qrTable, setQrTable] = useState(null)
   const areas = [...new Set(state.tables.map((tb) => tb.area))]
 
   const orderFor = (tid) => state.orders.find((o) => o.tableId === tid && ['open', 'kot', 'ready', 'served', 'new'].includes(o.status))
+
+  // open an available table straight into billing with a fresh dine-in order
+  const openTable = (tb) => {
+    const id = newOrder({ type: 'dine', tableId: tb.id })
+    goTo('billing', { orderId: id })
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -26,7 +34,8 @@ export default function Tables() {
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
             {state.tables.filter((tb) => tb.area === area).map((tb) => {
               const o = orderFor(tb.id)
-              const amt = o ? billTotals(o, state.settings).total : 0
+              const tt = o ? billTotals(o, state.settings) : null
+              const amt = o ? (state.settings.gstScheme === 'composition' ? Math.round(tt.taxable) : tt.total) : 0
               return (
                 <div key={tb.id} className={`rounded-2xl p-3 border-2 transition-all ${o ? 'bg-saffron-500 border-saffron-600 text-white' : 'bg-white border-stone-200'}`}>
                   <div className="flex items-center justify-between">
@@ -34,14 +43,15 @@ export default function Tables() {
                     <span className={`text-[10px] ${o ? 'text-white/80' : 'text-stone-400'}`}>{tb.seats} 🪑</span>
                   </div>
                   {o ? (
-                    <div className="mt-1 text-xs">
+                    <button onClick={() => goTo('billing', { orderId: o.id })} className="mt-1 text-xs text-left w-full">
                       <div className="font-bold">{inr0(amt)}</div>
                       <div className="text-white/80">{o.items.reduce((s, i) => s + i.qty, 0)} items · {minsSince(o.createdAt)}m</div>
                       <Badge color={o.status === 'ready' ? 'green' : 'amber'}>{o.status.toUpperCase()}</Badge>
-                    </div>
+                      <div className="text-[10px] text-white/90 mt-1 font-bold">Tap to open bill →</div>
+                    </button>
                   ) : (
                     <div className="mt-1 space-y-1">
-                      <button onClick={() => newOrder({ type: 'dine', tableId: tb.id })} className="w-full text-[11px] font-bold bg-saffron-50 text-saffron-700 rounded-lg py-1 hover:bg-saffron-100">＋ {t('newOrder')}</button>
+                      <button onClick={() => openTable(tb)} className="w-full text-[11px] font-bold bg-saffron-50 text-saffron-700 rounded-lg py-1 hover:bg-saffron-100">＋ {t('newOrder')}</button>
                       <button onClick={() => setQrTable(tb)} className="w-full text-[11px] font-bold bg-stone-100 text-stone-600 rounded-lg py-1 hover:bg-stone-200">📱 {t('qrMenu')}</button>
                     </div>
                   )}

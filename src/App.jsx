@@ -15,6 +15,7 @@ import Staff from './pages/Staff.jsx'
 import Settings from './pages/Settings.jsx'
 import QRMenu from './pages/QRMenu.jsx'
 import { LANGS } from './i18n.js'
+import { NavContext } from './nav.jsx'
 
 const NAV = [
   { id: 'dashboard', icon: '📊', key: 'dashboard' },
@@ -41,6 +42,7 @@ const PAGES = {
 export default function App() {
   const { state, t, update } = useStore()
   const [page, setPage] = useState('dashboard')
+  const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
 
   useEffect(() => {
@@ -48,6 +50,13 @@ export default function App() {
     window.addEventListener('hashchange', fn)
     return () => window.removeEventListener('hashchange', fn)
   }, [])
+
+  // navigate between pages, optionally handing off an order to focus on
+  const goTo = (p, opts = {}) => {
+    setPage(p)
+    setFocusOrderId(opts.orderId ?? null)
+  }
+  const clearFocus = () => setFocusOrderId(null)
 
   // Customer-facing QR ordering route: #/qr?t=T5
   if (hash.startsWith('#/qr')) return <QRMenu hash={hash} />
@@ -57,6 +66,7 @@ export default function App() {
   const pendingOnline = state.orders.filter((o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type) && o.status === 'new').length
 
   return (
+    <NavContext.Provider value={{ page, goTo, focusOrderId, clearFocus }}>
     <div className="flex h-screen overflow-hidden">
       <aside className="w-56 shrink-0 bg-ink-900 text-stone-300 flex flex-col">
         <div className="px-4 py-5 border-b border-white/10">
@@ -69,7 +79,7 @@ export default function App() {
           {NAV.map((n) => (
             <button
               key={n.id}
-              onClick={() => setPage(n.id)}
+              onClick={() => goTo(n.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                 page === n.id ? 'bg-saffron-600 text-white' : 'hover:bg-white/5'
               }`}
@@ -96,5 +106,6 @@ export default function App() {
         <Page />
       </main>
     </div>
+    </NavContext.Provider>
   )
 }

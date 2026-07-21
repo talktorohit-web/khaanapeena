@@ -1,0 +1,12 @@
+{
+  "appId": "com.khaanapeena.desktop",
+  "productName": "KhaanaPeena",
+  "directories": { "output": "release", "buildResources": "build" },
+  "files": ["dist/**/*", "electron/**/*", "package.json"],
+  "win": {
+    "target": [{ "target": "portable", "arch": ["x64"] }],
+    "icon": "build/icon.png"
+  },
+  "portable": { "artifactName": "KhaanaPeena-Desktop.exe" },
+  "compression": "normal"
+}

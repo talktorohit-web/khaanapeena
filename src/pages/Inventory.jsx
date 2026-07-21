@@ -88,10 +88,10 @@ function PurchaseModal({ ing, onClose, onSave }) {
   const [cost, setCost] = useState(ing.costPerUnit)
   return (
     <Modal open onClose={onClose} title={`Purchase — ${ing.name}`}>
-      <Field label={`Quantity (${ing.unit})`}><input type="number" value={qty} onChange={(e) => setQty(e.target.value)} className={inputCls} autoFocus /></Field>
-      <Field label={`Cost per ${ing.unit} (₹)`}><input type="number" value={cost} onChange={(e) => setCost(+e.target.value)} className={inputCls} /></Field>
+      <Field label={`Quantity (${ing.unit})`}><input type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} className={inputCls} autoFocus /></Field>
+      <Field label={`Cost per ${ing.unit} (₹)`}><input type="number" min="0" value={cost} onChange={(e) => setCost(Math.max(0, +e.target.value || 0))} className={inputCls} /></Field>
       <div className="text-xs text-stone-400 mb-3">Total: {inr0((+qty || 0) * cost)}</div>
-      <button onClick={() => onSave(+qty, +cost)} disabled={!+qty} className={btnPrimary + ' w-full'}>Add to stock</button>
+      <button onClick={() => onSave(+qty, +cost)} disabled={!(+qty > 0)} className={btnPrimary + ' w-full'}>Add to stock</button>
     </Modal>
   )
 }

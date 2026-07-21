@@ -5,12 +5,20 @@ import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
 
 // Customer-facing self-order page (#/qr?t=T5) — what guests see after scanning the table QR
 export default function QRMenu({ hash }) {
-  const { state, update, sendKot } = useStore()
+  const { state, update, sendKot, settleOrder } = useStore()
   const tableId = new URLSearchParams(hash.split('?')[1] || '').get('t')
   const [cart, setCart] = useState({})
   const [placed, setPlaced] = useState(null)
+  const [paid, setPaid] = useState(false)
   const [vegOnly, setVegOnly] = useState(false)
   const [fb, setFb] = useState({ rating: 0, text: '', sent: false })
+
+  // guest self-pays via UPI — optimistically record it so the bill closes and
+  // shows up in the owner's Reports/Dashboard (real UPI intent doesn't return a result)
+  const payNow = () => {
+    if (placed && !paid) settleOrder(placed.id, { method: 'upi' })
+    setPaid(true)
+  }
 
   const s = state.settings
   const items = state.items.filter((i) => i.available && (!vegOnly || i.veg))
@@ -65,8 +73,12 @@ export default function QRMenu({ hash }) {
           <div className="text-5xl mb-3">🎉</div>
           <h2 className="text-xl font-black text-ink-900">Order sent to kitchen!</h2>
           <p className="text-sm text-stone-500 mt-1 mb-4">Sit back — it's being prepared. Total (incl. GST): <b>{inr0(placed.total)}</b></p>
-          <a href={upiLink(s, placed.total, `Table ${tableId || ''} self-order`)} className="bg-leaf-600 text-white font-bold rounded-xl px-5 py-3 text-sm mb-2 w-full">📲 Pay {inr0(placed.total)} via UPI</a>
-          <p className="text-[11px] text-stone-400 mb-6">or pay at the counter</p>
+          {paid ? (
+            <div className="bg-leaf-600 text-white font-bold rounded-xl px-5 py-3 text-sm mb-2 w-full">✅ Payment received — dhanyavaad!</div>
+          ) : (
+            <a href={upiLink(s, placed.total, `Table ${tableId || ''} self-order`)} onClick={payNow} className="bg-leaf-600 text-white font-bold rounded-xl px-5 py-3 text-sm mb-2 w-full">📲 Pay {inr0(placed.total)} via UPI</a>
+          )}
+          <p className="text-[11px] text-stone-400 mb-6">{paid ? 'Your bill is settled.' : 'or pay at the counter'}</p>
 
           <div className="bg-white rounded-2xl p-4 w-full">
             {fb.sent ? (
@@ -84,7 +96,7 @@ export default function QRMenu({ hash }) {
               </>
             )}
           </div>
-          <button onClick={() => setPlaced(null)} className="mt-4 text-saffron-700 text-sm font-bold">← Order more</button>
+          <button onClick={() => { setPlaced(null); setPaid(false) }} className="mt-4 text-saffron-700 text-sm font-bold">← Order more</button>
         </div>
       ) : (
         <>

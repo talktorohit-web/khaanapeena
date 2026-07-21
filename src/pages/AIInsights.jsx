@@ -3,9 +3,11 @@ import { useStore } from '../store.jsx'
 import { Badge } from '../components.jsx'
 import { Bars } from '../charts.jsx'
 import { inr0, dayKey, forecastNext7, FESTIVALS_2026, todayISO, fmtDate } from '../utils.js'
+import { useNav } from '../nav.jsx'
 
 export default function AIInsights() {
   const { state, t } = useStore()
+  const { goTo } = useNav()
 
   const paid = state.orders.filter((o) => o.status === 'paid')
 
@@ -77,13 +79,13 @@ export default function AIInsights() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card title="🛒 Reorder now" sub="Will run out within 4 days at current pace">
+        <Card title="🛒 Reorder now" sub="Will run out within 4 days — tap to purchase in Inventory">
           {insights.reorder.length === 0 && <p className="text-sm text-stone-400">Stock levels healthy ✓</p>}
           {insights.reorder.map(({ g, daysLeft }) => (
-            <div key={g.id} className="flex items-center justify-between py-1.5 border-b border-stone-50 text-sm">
+            <button key={g.id} onClick={() => goTo('inventory')} className="w-full flex items-center justify-between py-1.5 border-b border-stone-50 text-sm hover:bg-stone-50 rounded-lg px-1 -mx-1 transition-colors text-left">
               <span className="font-semibold">{g.name}</span>
-              <span>{g.stock} {g.unit} left · <b className="text-red-600">{daysLeft.toFixed(1)} days</b></span>
-            </div>
+              <span>{g.stock} {g.unit} left · <b className="text-red-600">{daysLeft.toFixed(1)} days</b> →</span>
+            </button>
           ))}
         </Card>
 

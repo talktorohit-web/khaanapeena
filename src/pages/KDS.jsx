@@ -16,6 +16,23 @@ export default function KDS() {
 
   const setStatus = (id, st) => update((s) => { const o = s.orders.find((x) => x.id === id); if (o) o.status = st })
 
+  // finishing a ready ticket: dine/takeaway/qr -> served; aggregator/WhatsApp -> completed & paid
+  // (online orders never pass through 'served', which would drop them out of Online Orders + recon)
+  const isOnline = (o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type)
+  const markDone = (o) => update((s) => {
+    const x = s.orders.find((y) => y.id === o.id)
+    if (!x) return
+    if (isOnline(x)) {
+      const sub = x.items.reduce((a, b) => a + b.price * b.qty, 0)
+      x.status = 'paid'
+      x.paidAt = Date.now()
+      x.billNo = s.counters.billNo++
+      x.payment = { method: 'online', discount: 0, amount: Math.round(sub * 1.05) }
+    } else {
+      x.status = 'served'
+    }
+  })
+
   return (
     <div className="p-6 h-full flex flex-col">
       <h1 className="text-2xl font-black text-ink-900 mb-4">{t('kitchen')}</h1>
@@ -31,7 +48,7 @@ export default function KDS() {
           <h3 className="font-bold text-leaf-600 mb-3">🛎️ {t('ready')} ({ready.length})</h3>
           {ready.length === 0 && <Empty icon="🍽️" text="Nothing waiting to be served" />}
           <div className="grid sm:grid-cols-2 gap-3">
-            {ready.map((o) => <Ticket key={o.id} o={o} action={() => setStatus(o.id, 'served')} actionLabel={`✓ ${t('served')}`} actionCls="bg-stone-700 hover:bg-stone-800" />)}
+            {ready.map((o) => <Ticket key={o.id} o={o} action={() => markDone(o)} actionLabel={isOnline(o) ? '🛵 Handed to rider' : `✓ ${t('served')}`} actionCls="bg-stone-700 hover:bg-stone-800" />)}
           </div>
         </div>
       </div>

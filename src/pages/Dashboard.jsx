@@ -3,9 +3,16 @@ import { useStore } from '../store.jsx'
 import { StatCard, Badge } from '../components.jsx'
 import { Bars, Donut } from '../charts.jsx'
 import { inr0, dayKey, todayISO, fmtDate, FESTIVALS_2026 } from '../utils.js'
+import { useNav } from '../nav.jsx'
 
 export default function Dashboard() {
   const { state, t } = useStore()
+  const { goTo } = useNav()
+  const openOrder = (o) => {
+    if (['zomato', 'swiggy', 'whatsapp'].includes(o.type)) goTo('online')
+    else if (o.status === 'kot' || o.status === 'ready') goTo('kds')
+    else goTo('billing', { orderId: o.id })
+  }
   const today = todayISO()
   const paid = state.orders.filter((o) => o.status === 'paid')
   const todayOrders = paid.filter((o) => dayKey(o.paidAt) === today)
@@ -74,13 +81,13 @@ export default function Dashboard() {
           {openOrders.length === 0 && <p className="text-sm text-stone-400">No open orders. Kitchen is quiet 😌</p>}
           <div className="space-y-2">
             {openOrders.slice(0, 6).map((o) => (
-              <div key={o.id} className="flex items-center justify-between text-sm border-b border-stone-50 pb-2">
-                <div>
+              <button key={o.id} onClick={() => openOrder(o)} className="w-full flex items-center justify-between text-sm border-b border-stone-50 pb-2 hover:bg-stone-50 rounded-lg px-1 -mx-1 transition-colors">
+                <div className="text-left">
                   <span className="font-semibold text-ink-900">{o.tableId ? `Table ${o.tableId}` : o.type === 'qr' ? 'QR order' : o.type}</span>
                   <span className="text-stone-400 text-xs ml-2">{o.items.reduce((s, i) => s + i.qty, 0)} items</span>
                 </div>
                 <Badge color={o.status === 'kot' ? 'amber' : o.status === 'ready' ? 'green' : o.status === 'new' ? 'red' : 'blue'}>{o.status.toUpperCase()}</Badge>
-              </div>
+              </button>
             ))}
           </div>
         </div>
