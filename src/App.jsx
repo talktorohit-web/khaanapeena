@@ -40,7 +40,7 @@ const PAGES = {
 }
 
 export default function App() {
-  const { state, t, update } = useStore()
+  const { state, t, update, cloud, cloudStatus } = useStore()
   const [page, setPage] = useState('dashboard')
   const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
@@ -92,6 +92,13 @@ export default function App() {
           ))}
         </nav>
         <div className="p-3 border-t border-white/10">
+          <button onClick={() => goTo('settings')} className="w-full flex items-center gap-1.5 text-[10px] font-bold mb-2 rounded-lg px-2 py-1 bg-white/5 hover:bg-white/10">
+            {cloud ? (
+              <><span className={cloudStatus === 'live' ? 'text-green-400' : cloudStatus === 'error' ? 'text-red-400' : 'text-amber-400 kp-pulse'}>●</span><span className="text-stone-300">☁️ {cloud.code}</span></>
+            ) : (
+              <><span className="text-stone-500">●</span><span className="text-stone-400">Local only — tap to sync</span></>
+            )}
+          </button>
           <select
             value={state.settings.lang}
             onChange={(e) => update((s) => { s.settings.lang = e.target.value })}

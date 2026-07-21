@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
-import { Field, inputCls, Toggle, btnGhost } from '../components.jsx'
+import { Field, inputCls, Toggle, btnGhost, btnPrimary, Badge } from '../components.jsx'
 import { LANGS } from '../i18n.js'
 
 export default function Settings() {
@@ -73,11 +73,63 @@ export default function Settings() {
         </div>
       </Section>
 
+      <CloudSection />
+
       <Section title="🧹 Demo data">
         <p className="text-xs text-stone-400 mb-2">Everything is stored on this device (works fully offline). Reset restores the sample restaurant.</p>
         <button onClick={() => { if (confirm('Reset all data to the demo seed?')) resetDemo() }} className={btnGhost}>↺ Reset demo data</button>
       </Section>
     </div>
+  )
+}
+
+function CloudSection() {
+  const { cloud, cloudStatus, cloudCreate, cloudJoin, cloudLeave } = useStore()
+  const [joinCode, setJoinCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const doCreate = async () => {
+    setBusy(true); setErr('')
+    try { await cloudCreate() } catch { setErr('Could not reach cloud — check internet') }
+    setBusy(false)
+  }
+  const doJoin = async () => {
+    setBusy(true); setErr('')
+    try { await cloudJoin(joinCode) } catch (e) { setErr(e.message || 'Join failed') }
+    setBusy(false)
+  }
+
+  return (
+    <Section title="☁️ Cloud sync — connect all devices">
+      {cloud ? (
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <Badge color={cloudStatus === 'live' ? 'green' : cloudStatus === 'error' ? 'red' : 'amber'}>
+              {cloudStatus === 'live' ? '● LIVE' : cloudStatus === 'error' ? '● OFFLINE' : '● CONNECTING'}
+            </Badge>
+            <span className="text-xs text-stone-500">{cloud.role === 'owner' ? 'This is the main POS device' : 'Joined device'}</span>
+          </div>
+          <p className="text-sm text-stone-600 mb-1">Restaurant code — enter this on every other device (PC, phone, kitchen screen):</p>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="font-mono text-xl font-black tracking-widest bg-stone-100 rounded-xl px-4 py-2">{cloud.code}</span>
+            <button onClick={() => navigator.clipboard?.writeText(cloud.code)} className={btnGhost}>Copy</button>
+          </div>
+          <p className="text-xs text-stone-400 mb-3">Bills, KOTs, menu and inventory sync live across every connected device. Table QR stickers now carry this code, so guest phones order straight into your kitchen.</p>
+          <button onClick={cloudLeave} className={btnGhost}>Disconnect this device</button>
+        </div>
+      ) : (
+        <div>
+          <p className="text-sm text-stone-600 mb-3">Right now this device works alone. Turn on cloud sync to connect the billing PC, kitchen screen and phones to one restaurant.</p>
+          <button onClick={doCreate} disabled={busy} className={btnPrimary + ' mr-2'}>{busy ? 'Creating…' : '☁️ Create Restaurant Cloud'}</button>
+          <div className="flex items-center gap-2 mt-3">
+            <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="Have a code? e.g. KPXXXXXXXX" className={inputCls + ' max-w-xs font-mono'} />
+            <button onClick={doJoin} disabled={busy || joinCode.length < 8} className={btnGhost}>Join</button>
+          </div>
+        </div>
+      )}
+      {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
+    </Section>
   )
 }
 

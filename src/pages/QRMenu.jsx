@@ -1,32 +1,46 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
 import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
+import { fetchMenu, pushGuestOrder, updateGuestOrder } from '../cloud.js'
 
-// Customer-facing self-order page (#/qr?t=T5) — what guests see after scanning the table QR
+// Customer-facing self-order page (#/qr?t=T5&c=KPXXXXXXXX)
+// - with &c= (cloud code): GUEST MODE — menu loads from the restaurant's cloud
+//   and orders sync straight into its kitchen, from any phone anywhere
+// - without: local mode (same device/tab as the POS)
 export default function QRMenu({ hash }) {
-  const { state, update, sendKot, settleOrder } = useStore()
-  const tableId = new URLSearchParams(hash.split('?')[1] || '').get('t')
+  const store = useStore()
+  const params = new URLSearchParams(hash.split('?')[1] || '')
+  const tableId = params.get('t')
+  const code = params.get('c')
+
+  const [remoteMeta, setRemoteMeta] = useState(null)
+  const [remoteErr, setRemoteErr] = useState(false)
+  useEffect(() => {
+    if (!code) return
+    fetchMenu(code)
+      .then((m) => (m ? setRemoteMeta(m) : setRemoteErr(true)))
+      .catch(() => setRemoteErr(true))
+  }, [code])
+
   const [cart, setCart] = useState({})
   const [placed, setPlaced] = useState(null)
   const [paid, setPaid] = useState(false)
   const [vegOnly, setVegOnly] = useState(false)
   const [fb, setFb] = useState({ rating: 0, text: '', sent: false })
 
-  // guest self-pays via UPI — optimistically record it so the bill closes and
-  // shows up in the owner's Reports/Dashboard (real UPI intent doesn't return a result)
-  const payNow = () => {
-    if (placed && !paid) settleOrder(placed.id, { method: 'upi' })
-    setPaid(true)
-  }
+  // data source: cloud meta in guest mode, local store otherwise
+  const src = code ? remoteMeta : store.state
+  const s = src?.settings
+  const allItems = src?.items || []
+  const categories = src?.categories || []
 
-  const s = state.settings
-  const items = state.items.filter((i) => i.available && (!vegOnly || i.veg))
+  const items = allItems.filter((i) => i.available && (!vegOnly || i.veg))
   const count = Object.values(cart).reduce((a, b) => a + b, 0)
-  const total = Object.entries(cart).reduce((sum, [id, qty]) => {
-    const it = state.items.find((x) => x.id === id)
+  const total = useMemo(() => Object.entries(cart).reduce((sum, [id, qty]) => {
+    const it = allItems.find((x) => x.id === id)
     return sum + (it ? it.price * qty : 0)
-  }, 0)
+  }, 0), [cart, allItems])
 
   const add = (id, d) => setCart((c) => {
     const n = { ...c, [id]: Math.max(0, (c[id] || 0) + d) }
@@ -34,30 +48,79 @@ export default function QRMenu({ hash }) {
     return n
   })
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     const id = uid('o')
     const lines = Object.entries(cart).map(([itemId, qty]) => {
-      const it = state.items.find((x) => x.id === itemId)
+      const it = allItems.find((x) => x.id === itemId)
       return { itemId, name: it.name, price: it.price, qty }
     })
     const totals = billTotals({ items: lines, payment: { discount: 0 } }, s)
     const payable = s.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
-    update((st) => {
-      st.orders.push({
-        id, billNo: null, type: 'qr', tableId, status: 'open',
-        items: lines,
-        createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
-        payment: { method: null, discount: 0, amount: 0 }, source: 'qr',
+
+    if (code) {
+      // guest mode: write the order to the restaurant's cloud as an already-fired KOT
+      const order = {
+        id, billNo: null, type: 'qr', tableId, status: 'kot', items: lines,
+        createdAt: Date.now(), kotAt: Date.now(), updatedAt: Date.now(),
+        paidAt: null, customerId: null,
+        payment: { method: null, discount: 0, amount: 0 }, source: 'qr-guest', kotNo: null,
+      }
+      try { await pushGuestOrder(code, order) } catch { alert('Could not reach the restaurant — please order at the counter'); return }
+    } else {
+      store.update((st) => {
+        st.orders.push({
+          id, billNo: null, type: 'qr', tableId, status: 'open', items: lines,
+          createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
+          payment: { method: null, discount: 0, amount: 0 }, source: 'qr',
+        })
       })
-    })
-    sendKot(id)
+      store.sendKot(id)
+    }
     setPlaced({ id, total: payable })
     setCart({})
   }
 
+  const payNow = () => {
+    if (placed && !paid) {
+      if (code) {
+        updateGuestOrder(code, placed.id, {
+          status: 'paid', paidAt: Date.now(), updatedAt: Date.now(),
+          payment: { method: 'upi', discount: 0, amount: placed.total },
+        }).catch(() => {})
+      } else {
+        store.settleOrder(placed.id, { method: 'upi' })
+      }
+    }
+    setPaid(true)
+  }
+
   const sendFeedback = () => {
-    update((st) => st.feedback.push({ id: uid('f'), rating: fb.rating, text: fb.text, sentiment: sentiment(fb.text, fb.rating), date: Date.now() }))
+    if (!code) {
+      store.update((st) => st.feedback.push({ id: uid('f'), rating: fb.rating, text: fb.text, sentiment: sentiment(fb.text, fb.rating), date: Date.now() }))
+    }
     setFb((p) => ({ ...p, sent: true }))
+  }
+
+  if (code && remoteErr) {
+    return (
+      <div className="min-h-screen bg-stone-100 flex items-center justify-center p-8 text-center">
+        <div>
+          <div className="text-4xl mb-3">😕</div>
+          <p className="font-bold text-ink-900">Restaurant not found</p>
+          <p className="text-sm text-stone-500 mt-1">This QR code isn't active. Please order at the counter.</p>
+        </div>
+      </div>
+    )
+  }
+  if (!src) {
+    return (
+      <div className="min-h-screen bg-stone-100 flex items-center justify-center p-8 text-center">
+        <div>
+          <div className="text-4xl mb-3 kp-pulse">🍛</div>
+          <p className="font-bold text-ink-900">Loading menu…</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +167,7 @@ export default function QRMenu({ hash }) {
             <button onClick={() => setVegOnly(!vegOnly)} className={`text-xs font-bold rounded-full px-3 py-1.5 border ${vegOnly ? 'bg-green-600 text-white border-green-600' : 'bg-white border-stone-200 text-stone-600'}`}>🟢 Veg only</button>
           </div>
           <div className="flex-1 px-3 pb-28">
-            {state.categories.map((c) => {
+            {categories.map((c) => {
               const its = items.filter((i) => i.catId === c.id)
               if (!its.length) return null
               return (

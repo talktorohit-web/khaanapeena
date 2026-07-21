@@ -6,7 +6,7 @@ import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
 export default function Tables() {
-  const { state, t, newOrder } = useStore()
+  const { state, t, newOrder, cloud } = useStore()
   const { goTo } = useNav()
   const [qrTable, setQrTable] = useState(null)
   const areas = [...new Set(state.tables.map((tb) => tb.area))]
@@ -61,14 +61,17 @@ export default function Tables() {
           </div>
         </div>
       ))}
-      {qrTable && <TableQRModal table={qrTable} onClose={() => setQrTable(null)} />}
+      {qrTable && <TableQRModal table={qrTable} cloud={cloud} onClose={() => setQrTable(null)} />}
     </div>
   )
 }
 
-function TableQRModal({ table, onClose }) {
+function TableQRModal({ table, cloud, onClose }) {
   const [qr, setQr] = useState(null)
-  const url = `${window.location.origin}${window.location.pathname}#/qr?t=${table.id}`
+  // with cloud sync on, guests order from the public site and their order syncs
+  // into this restaurant's kitchen; without it, the QR works on this device only
+  const base = cloud ? 'https://khaanapeena.web.app/' : `${window.location.origin}${window.location.pathname}`
+  const url = `${base}#/qr?t=${table.id}${cloud ? `&c=${cloud.code}` : ''}`
   useEffect(() => {
     QRCode.toDataURL(url, { width: 240, margin: 1 }).then(setQr)
   }, [url])
@@ -76,6 +79,7 @@ function TableQRModal({ table, onClose }) {
     <Modal open onClose={onClose} title={`Self-order QR — Table ${table.name}`}>
       <div className="flex flex-col items-center">
         {qr && <img src={qr} alt="QR" className="w-52 h-52" />}
+        {!cloud && <p className="text-[11px] text-amber-600 mt-2 text-center font-semibold">⚠ Cloud sync is off — this QR only works on this device. Turn on Cloud sync in Settings so guests' phones reach your kitchen.</p>}
         <p className="text-xs text-stone-500 mt-2 text-center">Print & stick on the table. Guests scan → browse menu → order & pay from their phone. Orders land straight in the kitchen.</p>
         <a href={url} className="text-saffron-700 text-xs font-bold mt-2 underline" target="_blank" rel="noreferrer">Open customer view ↗</a>
       </div>

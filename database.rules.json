@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "devices": {
+      ".read": "auth != null && auth.uid === 'poRhEoSx12gddYxsjlBLk79xrxz2'",
+      ".write": "auth != null && auth.uid === 'poRhEoSx12gddYxsjlBLk79xrxz2'",
+      "$id": {
+        "history": {
+          ".indexOn": ["time"]
+        }
+      }
+    },
+    "config": {
+      ".read": "auth != null && auth.uid === 'poRhEoSx12gddYxsjlBLk79xrxz2'",
+      ".write": "auth != null && auth.uid === 'poRhEoSx12gddYxsjlBLk79xrxz2'"
+    },
+    "kp_restaurants": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "$code.length >= 8"
+      }
+    }
+  }
+}

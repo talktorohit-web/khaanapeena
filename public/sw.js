@@ -1,6 +1,6 @@
 // KhaanaPeena service worker — offline-first app shell.
 // Billing must keep working when the restaurant's internet drops.
-const CACHE = 'khaanapeena-v2'
+const CACHE = 'khaanapeena-v3'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {
@@ -17,12 +17,23 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(req)
+      // network-first for page navigations so a new deploy shows up immediately;
+      // cache-first for hashed assets (immutable filenames)
+      if (req.mode === 'navigate') {
+        try {
+          const res = await fetch(req)
+          if (res && res.status === 200) cache.put(req, res.clone())
+          return res
+        } catch {
+          return cached || cache.match('./index.html')
+        }
+      }
       const network = fetch(req)
         .then((res) => {
           if (res && res.status === 200) cache.put(req, res.clone())
           return res
         })
-        .catch(() => cached || (req.mode === 'navigate' ? cache.match('./index.html') : Response.error()))
+        .catch(() => cached || Response.error())
       return cached || network
     })
   )
