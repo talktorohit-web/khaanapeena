@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
 import { inr0 } from './utils.js'
-
-// Categorical palette (validated: CVD-safe on light surface, fixed order — never cycled)
-export const CAT = ['#f06008', '#2563eb', '#16a34a', '#9333ea']
+import { CAT } from './palette.js'
 
 // Single-series bar chart: one hue (magnitude), thin marks, rounded data-ends, hover tooltip
 export function Bars({ data, height = 140, color = '#f06008', labelEvery = 1, fmt = inr0 }) {

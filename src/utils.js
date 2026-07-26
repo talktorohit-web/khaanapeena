@@ -18,6 +18,71 @@ export const fmtDate = (ts) =>
 
 export const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000)
 
+// ---- report date ranges ----
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+
+// returns { from, to (exclusive ms), label, bucket: 'hour'|'day'|'week' }
+export function reportRange(key, custom) {
+  const now = new Date()
+  const todayStart = startOfDay(now).getTime()
+  const DAY = 864e5
+  switch (key) {
+    case 'today': return { from: todayStart, to: now.getTime() + 1000, label: 'Today', bucket: 'hour' }
+    case 'yesterday': return { from: todayStart - DAY, to: todayStart, label: 'Yesterday', bucket: 'hour' }
+    case '7d': return { from: todayStart - 6 * DAY, to: now.getTime() + 1000, label: 'Last 7 days', bucket: 'day' }
+    case 'week': {
+      const dow = (now.getDay() + 6) % 7 // Monday = 0
+      return { from: todayStart - dow * DAY, to: now.getTime() + 1000, label: 'This week', bucket: 'day' }
+    }
+    case '30d': return { from: todayStart - 29 * DAY, to: now.getTime() + 1000, label: 'Last 30 days', bucket: 'day' }
+    case 'month': {
+      const m = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+      return { from: m, to: now.getTime() + 1000, label: 'This month', bucket: 'day' }
+    }
+    case 'all': return { from: 0, to: now.getTime() + 1000, label: 'All time', bucket: 'week' }
+    case 'custom': {
+      const from = custom?.from ? startOfDay(new Date(custom.from)).getTime() : todayStart
+      const to = custom?.to ? startOfDay(new Date(custom.to)).getTime() + DAY : now.getTime() + 1000
+      const span = (to - from) / DAY
+      return { from, to, label: 'Custom', bucket: span <= 2 ? 'hour' : span <= 62 ? 'day' : 'week' }
+    }
+    default: return { from: todayStart - 6 * DAY, to: now.getTime() + 1000, label: 'Last 7 days', bucket: 'day' }
+  }
+}
+
+// bucket a list of {ts, value} into ordered {label, value} points across [from,to)
+export function bucketize(points, range) {
+  const DAY = 864e5
+  const out = []
+  if (range.bucket === 'hour') {
+    for (let h = 0; h < 24; h++) out.push({ key: h, label: `${((h % 12) || 12)}${h < 12 ? 'a' : 'p'}`, value: 0 })
+    points.forEach((p) => { const h = new Date(p.ts).getHours(); out[h].value += p.value })
+    // trim to business hours span present, else 8am-11pm
+    return out.slice(8, 24)
+  }
+  if (range.bucket === 'day') {
+    const start = new Date(range.from); start.setHours(0, 0, 0, 0)
+    const end = Math.min(range.to, Date.now() + 1000)
+    const map = {}
+    for (let t = start.getTime(); t < end; t += DAY) {
+      const k = new Date(t).toISOString().slice(0, 10)
+      map[k] = { key: k, label: new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), value: 0 }
+    }
+    points.forEach((p) => { const k = new Date(p.ts).toISOString().slice(0, 10); if (map[k]) map[k].value += p.value })
+    return Object.values(map)
+  }
+  // week buckets
+  const map = {}
+  points.forEach((p) => {
+    const d = new Date(p.ts); const dow = (d.getDay() + 6) % 7
+    const monday = new Date(d); monday.setDate(d.getDate() - dow); monday.setHours(0, 0, 0, 0)
+    const k = monday.toISOString().slice(0, 10)
+    if (!map[k]) map[k] = { key: k, ts: monday.getTime(), label: 'w/o ' + monday.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), value: 0 }
+    map[k].value += p.value
+  })
+  return Object.values(map).sort((a, b) => a.ts - b.ts)
+}
+
 // GST for restaurants (India): composition/regular non-AC default 5% (2.5 CGST + 2.5 SGST), no ITC
 export function billTotals(order, settings) {
   const sub = order.items.reduce((s, it) => s + it.price * it.qty, 0)

@@ -120,17 +120,23 @@ function genHistory(items, customers) {
   const orders = []
   let billNo = 1
   const now = new Date()
-  for (let d = 35; d >= 1; d--) {
+  const nowHour = now.getHours()
+  for (let d = 35; d >= 0; d--) {
     const day = new Date(now)
     day.setDate(day.getDate() - d)
     const dow = day.getDay()
     const weekendBoost = dow === 0 || dow === 6 ? 1.5 : 1
-    const nOrders = Math.round((14 + rnd() * 10) * weekendBoost)
+    let nOrders = Math.round((14 + rnd() * 10) * weekendBoost)
+    // today (d=0) is only partly elapsed — scale the day's volume to the time so far
+    if (d === 0) nOrders = Math.max(2, Math.round(nOrders * Math.min(1, (nowHour + 1) / 22)))
     for (let o = 0; o < nOrders; o++) {
       const lunch = rnd() < 0.45
-      const hour = lunch ? 12 + Math.floor(rnd() * 3) : 19 + Math.floor(rnd() * 3)
+      let hour = lunch ? 12 + Math.floor(rnd() * 3) : 19 + Math.floor(rnd() * 3)
+      // for today, spread orders across elapsed hours (open ~9am) so none land in the future
+      if (d === 0) hour = Math.min(nowHour, 9 + Math.floor(rnd() * Math.max(1, nowHour - 8)))
       const ts = new Date(day)
       ts.setHours(hour, Math.floor(rnd() * 59), 0, 0)
+      if (ts.getTime() > now.getTime() - 60000) continue // never create a future bill
       const r = rnd()
       const type = r < 0.5 ? 'dine' : r < 0.65 ? 'takeaway' : r < 0.85 ? 'zomato' : 'swiggy'
       const nItems = 1 + Math.floor(rnd() * 4)
@@ -150,7 +156,8 @@ function genHistory(items, customers) {
         id: uid('o'), billNo: billNo++, type,
         tableId: type === 'dine' ? TABLES[Math.floor(rnd() * TABLES.length)].id : null,
         items: oItems, status: 'paid',
-        createdAt: ts.getTime(), kotAt: ts.getTime(), paidAt: ts.getTime() + 45 * 60000,
+        createdAt: ts.getTime(), kotAt: ts.getTime(),
+        paidAt: Math.min(now.getTime() - 20000, ts.getTime() + 45 * 60000),
         customerId: cust ? cust.id : null,
         payment: { method, discount: 0, amount: Math.round(sub * 1.05) },
       })
