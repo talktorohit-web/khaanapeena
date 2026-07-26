@@ -24,6 +24,7 @@ export default function Billing() {
   const [vegOnly, setVegOnly] = useState(false)
   const [settleOpen, setSettleOpen] = useState(false)
   const [printOrder, setPrintOrder] = useState(null)
+  const [cartOpen, setCartOpen] = useState(false) // mobile bottom-sheet toggle
   const [listening, setListening] = useState(false)
   const [voiceMsg, setVoiceMsg] = useState('')
   const recRef = useRef(null)
@@ -139,10 +140,13 @@ export default function Billing() {
 
   const totals = order ? billTotals(order, state.settings) : null
 
+  const cartCount = order ? order.items.reduce((s, i) => s + i.qty, 0) : 0
+  const cartTotal = totals ? (state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable)) : 0
+
   return (
     <div className="flex h-full">
       {/* LEFT: menu grid */}
-      <div className="flex-1 flex flex-col p-4 min-w-0">
+      <div className="flex-1 flex flex-col p-3 sm:p-4 min-w-0">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchItems')} className={inputCls + ' max-w-xs'} />
           <button onClick={() => setVegOnly(!vegOnly)} className={`${btnGhost} ${vegOnly ? '!bg-green-50 !border-green-300 !text-green-700' : ''}`}>🟢 {t('veg')}</button>
@@ -160,7 +164,7 @@ export default function Billing() {
             </CatChip>
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto content-start flex-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto content-start flex-1 pb-24 md:pb-2">
           {items.map((i) => (
             <button
               key={i.id}
@@ -179,8 +183,32 @@ export default function Billing() {
         </div>
       </div>
 
-      {/* RIGHT: order panel */}
-      <div className="w-[340px] shrink-0 bg-white border-l border-stone-100 flex flex-col">
+      {/* MOBILE: floating "view order" bar (above the app tab bar) */}
+      {cartCount > 0 && !cartOpen && (
+        <button
+          onClick={() => setCartOpen(true)}
+          className="md:hidden fixed inset-x-3 z-30 bg-ink-900 text-white rounded-2xl shadow-xl flex items-center justify-between px-4 py-3"
+          style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' }}
+        >
+          <span className="font-bold text-sm">🛒 {cartCount} item{cartCount > 1 ? 's' : ''}{order?.tableId ? ` · 🪑 ${order.tableId}` : ''}</span>
+          <span className="font-black">{inr0(cartTotal)} · View →</span>
+        </button>
+      )}
+
+      {/* MOBILE backdrop for the cart sheet */}
+      {cartOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/40" onClick={() => setCartOpen(false)} />}
+
+      {/* RIGHT: order panel — desktop side panel, mobile bottom sheet */}
+      <div className={`bg-white flex-col
+        ${cartOpen ? 'flex' : 'hidden'} md:flex
+        fixed inset-x-0 bottom-0 z-40 h-[86dvh] rounded-t-2xl shadow-2xl border-t border-stone-200
+        md:static md:h-full md:w-[340px] md:shrink-0 md:border-l md:border-t-0 md:rounded-none md:shadow-none`}>
+        {/* mobile sheet header */}
+        <div className="md:hidden flex items-center justify-between px-4 pt-3 pb-1">
+          <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-1.5" />
+          <span className="font-black text-ink-900">Current order</span>
+          <button onClick={() => setCartOpen(false)} className="text-stone-400 text-xl">✕</button>
+        </div>
         <div className="p-3 border-b border-stone-100">
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             <button title="New order (F2)" onClick={() => setOrderId(newOrder({ type: 'takeaway' }))} className="shrink-0 bg-saffron-600 text-white text-xs font-bold rounded-lg px-3 py-1.5">＋ {t('newOrder')} <span className="opacity-60 font-mono">F2</span></button>
@@ -276,6 +304,7 @@ export default function Billing() {
             settleOrder(orderId, payload)
             setSettleOpen(false)
             setOrderId(null)
+            setCartOpen(false)
           }}
           happyHourNow={happyHourNow}
         />

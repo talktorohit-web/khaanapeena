@@ -42,12 +42,16 @@ const PAGES = {
   ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 
+// screens shown in the mobile bottom tab bar (the rest live in the "More" drawer)
+const BOTTOM_NAV = ['dashboard', 'billing', 'tables', 'kds']
+
 export default function App() {
   const { state, t, update, cloud, cloudStatus } = useStore()
   const [page, setPage] = useState('dashboard')
   const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     const fn = () => setHash(window.location.hash)
@@ -59,6 +63,7 @@ export default function App() {
   const goTo = (p, opts = {}) => {
     setPage(p)
     setFocusOrderId(opts.orderId ?? null)
+    setDrawerOpen(false)
   }
   const clearFocus = () => setFocusOrderId(null)
 
@@ -83,10 +88,14 @@ export default function App() {
   const openKots = state.orders.filter((o) => o.status === 'kot').length
   const pendingOnline = state.orders.filter((o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type) && o.status === 'new').length
 
+  const cloudDot = cloud ? (cloudStatus === 'live' ? 'text-green-400' : cloudStatus === 'error' ? 'text-red-400' : 'text-amber-400 kp-pulse') : 'text-stone-500'
+  const currentLabel = t(NAV.find((n) => n.id === page)?.key || 'dashboard')
+
   return (
     <NavContext.Provider value={{ page, goTo, focusOrderId, clearFocus }}>
-    <div className="flex h-screen overflow-hidden">
-      <aside className="w-56 shrink-0 bg-ink-900 text-stone-300 flex flex-col">
+    <div className="flex h-[100dvh] overflow-hidden">
+      {/* ---- DESKTOP SIDEBAR (hidden on phones) ---- */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-ink-900 text-stone-300 flex-col">
         <div className="px-4 py-5 border-b border-white/10">
           <div className="text-xl font-black text-white tracking-tight">
             Khaana<span className="text-saffron-500">Peena</span>
@@ -107,7 +116,6 @@ export default function App() {
               <span className="flex-1 text-left">{t(n.key)}</span>
               {n.id === 'kds' && openKots > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">{openKots}</span>}
               {n.id === 'online' && pendingOnline > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full kp-pulse">{pendingOnline}</span>}
-              {/* shortcut hint — subtle, brightens on hover / active */}
               <span className={`text-[10px] font-mono font-bold rounded px-1 py-0.5 border transition-colors ${
                 page === n.id ? 'border-white/30 text-white/90' : 'border-white/10 text-stone-500 group-hover:border-white/25 group-hover:text-stone-300'
               }`}>{PAGE_KEYS[n.id]}</span>
@@ -116,11 +124,8 @@ export default function App() {
         </nav>
         <div className="p-3 border-t border-white/10">
           <button onClick={() => goTo('settings')} className="w-full flex items-center gap-1.5 text-[10px] font-bold mb-2 rounded-lg px-2 py-1 bg-white/5 hover:bg-white/10">
-            {cloud ? (
-              <><span className={cloudStatus === 'live' ? 'text-green-400' : cloudStatus === 'error' ? 'text-red-400' : 'text-amber-400 kp-pulse'}>●</span><span className="text-stone-300">☁️ {cloud.code}</span></>
-            ) : (
-              <><span className="text-stone-500">●</span><span className="text-stone-400">Local only — tap to sync</span></>
-            )}
+            <span className={cloudDot}>●</span>
+            <span className="text-stone-300 truncate">{cloud ? `☁️ ${cloud.code}` : 'Local only — tap to sync'}</span>
           </button>
           <select
             value={state.settings.lang}
@@ -137,9 +142,82 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto">
-        <Page />
-      </main>
+
+      {/* ---- MAIN COLUMN ---- */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* mobile top bar */}
+        <header className="md:hidden flex items-center justify-between bg-ink-900 text-white px-4 h-14 shrink-0 pt-[env(safe-area-inset-top)]">
+          <div className="min-w-0">
+            <div className="text-base font-black leading-none">Khaana<span className="text-saffron-500">Peena</span></div>
+            <div className="text-[10px] text-stone-400 truncate">{currentLabel}</div>
+          </div>
+          <button onClick={() => goTo('settings')} className="flex items-center gap-1 text-[11px] font-bold bg-white/10 rounded-full px-3 py-1.5">
+            <span className={cloudDot}>●</span>
+            <span className="text-stone-200">{cloud ? cloud.code : 'Sync'}</span>
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+          <Page />
+        </main>
+
+        {/* mobile bottom tab bar */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+          {BOTTOM_NAV.map((id) => {
+            const n = NAV.find((x) => x.id === id)
+            const active = page === id
+            return (
+              <button key={id} onClick={() => goTo(id)} className={`flex-1 flex flex-col items-center gap-0.5 py-2 relative ${active ? 'text-saffron-600' : 'text-stone-500'}`}>
+                <span className="text-xl leading-none">{n.icon}</span>
+                <span className="text-[10px] font-bold">{t(n.key)}</span>
+                {id === 'kds' && openKots > 0 && <span className="absolute top-1 right-1/4 bg-red-500 text-white text-[9px] font-bold px-1 rounded-full">{openKots}</span>}
+              </button>
+            )
+          })}
+          <button onClick={() => setDrawerOpen(true)} className="flex-1 flex flex-col items-center gap-0.5 py-2 relative text-stone-500">
+            <span className="text-xl leading-none">☰</span>
+            <span className="text-[10px] font-bold">More</span>
+            {pendingOnline > 0 && <span className="absolute top-1 right-1/4 bg-red-500 text-white text-[9px] font-bold px-1 rounded-full kp-pulse">{pendingOnline}</span>}
+          </button>
+        </nav>
+      </div>
+
+      {/* ---- MOBILE "MORE" DRAWER ---- */}
+      {drawerOpen && (
+        <div className="md:hidden fixed inset-0 z-40 flex" onClick={() => setDrawerOpen(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative ml-auto w-72 max-w-[85%] bg-ink-900 text-stone-300 h-full flex flex-col pt-[env(safe-area-inset-top)]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between">
+              <span className="text-lg font-black text-white">All screens</span>
+              <button onClick={() => setDrawerOpen(false)} className="text-stone-400 text-xl">✕</button>
+            </div>
+            <nav className="flex-1 overflow-y-auto py-2 px-2 grid grid-cols-2 gap-1.5 content-start">
+              {NAV.map((n) => {
+                const active = page === n.id
+                return (
+                  <button key={n.id} onClick={() => goTo(n.id)} className={`flex items-center gap-2 px-3 py-3 rounded-xl text-[13px] font-semibold ${active ? 'bg-saffron-600 text-white' : 'bg-white/5'}`}>
+                    <span className="text-base">{n.icon}</span>
+                    <span className="text-left leading-tight">{t(n.key)}</span>
+                    {n.id === 'kds' && openKots > 0 && <span className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1 rounded-full">{openKots}</span>}
+                    {n.id === 'online' && pendingOnline > 0 && <span className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1 rounded-full">{pendingOnline}</span>}
+                  </button>
+                )
+              })}
+            </nav>
+            <div className="p-3 border-t border-white/10">
+              <select
+                value={state.settings.lang}
+                onChange={(e) => update((s) => { s.settings.lang = e.target.value })}
+                className="w-full bg-white/10 text-stone-200 text-sm rounded-lg px-3 py-2.5 outline-none mb-2"
+              >
+                {LANGS.map((l) => <option key={l.code} value={l.code} className="text-ink-900">{l.label}</option>)}
+              </select>
+              <div className="text-[11px] text-stone-500 truncate">{state.settings.name}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
     </NavContext.Provider>

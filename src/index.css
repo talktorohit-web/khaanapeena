@@ -26,6 +26,9 @@ body { background: #f7f5f2; }
 @keyframes kp-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 .kp-pulse { animation: kp-pulse 1.6s ease-in-out infinite; }
 
+@keyframes kp-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.kp-sheet-up { animation: kp-sheet-up .22s ease-out; }
+
 @media print {
   body * { visibility: hidden; }
   #kp-print, #kp-print * { visibility: visible; }
