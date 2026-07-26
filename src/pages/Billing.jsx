@@ -36,6 +36,17 @@ export default function Billing() {
   const hh = state.settings.happyHour
   const happyHourNow = hh?.enabled && hour >= hh.from && hour < hh.to
 
+  // billing keyboard shortcuts: F2 new order, F4 send KOT, F9 settle
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'F2') { e.preventDefault(); setOrderId(newOrder({ type: 'takeaway' })) }
+      else if (e.key === 'F4') { if (order?.items.some((i) => !i.deducted)) { e.preventDefault(); sendKot(orderId) } }
+      else if (e.key === 'F9') { if (order?.items.length) { e.preventDefault(); setSettleOpen(true) } }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [order, orderId])
+
   const items = useMemo(() => {
     const ql = q.toLowerCase()
     return state.items.filter(
@@ -172,7 +183,7 @@ export default function Billing() {
       <div className="w-[340px] shrink-0 bg-white border-l border-stone-100 flex flex-col">
         <div className="p-3 border-b border-stone-100">
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            <button onClick={() => setOrderId(newOrder({ type: 'takeaway' }))} className="shrink-0 bg-saffron-600 text-white text-xs font-bold rounded-lg px-3 py-1.5">＋ {t('newOrder')}</button>
+            <button title="New order (F2)" onClick={() => setOrderId(newOrder({ type: 'takeaway' }))} className="shrink-0 bg-saffron-600 text-white text-xs font-bold rounded-lg px-3 py-1.5">＋ {t('newOrder')} <span className="opacity-60 font-mono">F2</span></button>
             {activeOrders.map((o) => (
               <button
                 key={o.id}
@@ -250,9 +261,9 @@ export default function Billing() {
               <span>{t('total')}</span><span>{inr0(state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable))}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2">
-              <button onClick={() => sendKot(orderId)} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')}</button>
-              <button onClick={() => setPrintOrder(order)} className="bg-stone-700 hover:bg-stone-800 text-white font-bold rounded-xl py-2.5 text-xs">🖨️ {t('printBill')}</button>
-              <button onClick={() => setSettleOpen(true)} disabled={!order.items.length} className="bg-leaf-600 hover:bg-leaf-500 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">💳 {t('settle')}</button>
+              <button title="Send KOT (F4)" onClick={() => sendKot(orderId)} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')} <span className="opacity-60 font-mono">F4</span></button>
+              <button title="Print bill" onClick={() => setPrintOrder(order)} className="bg-stone-700 hover:bg-stone-800 text-white font-bold rounded-xl py-2.5 text-xs">🖨️ {t('printBill')}</button>
+              <button title="Settle / Pay (F9)" onClick={() => setSettleOpen(true)} disabled={!order.items.length} className="bg-leaf-600 hover:bg-leaf-500 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">💳 {t('settle')} <span className="opacity-60 font-mono">F9</span></button>
             </div>
           </div>
         )}

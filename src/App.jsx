@@ -16,6 +16,9 @@ import Settings from './pages/Settings.jsx'
 import QRMenu from './pages/QRMenu.jsx'
 import { LANGS } from './i18n.js'
 import { NavContext } from './nav.jsx'
+import { Kbd } from './components.jsx'
+import ShortcutsHelp from './ShortcutsHelp.jsx'
+import { PAGE_KEYS, KEY_TO_PAGE, isTyping } from './shortcuts.js'
 
 const NAV = [
   { id: 'dashboard', icon: '📊', key: 'dashboard' },
@@ -44,6 +47,7 @@ export default function App() {
   const [page, setPage] = useState('dashboard')
   const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   useEffect(() => {
     const fn = () => setHash(window.location.hash)
@@ -57,6 +61,20 @@ export default function App() {
     setFocusOrderId(opts.orderId ?? null)
   }
   const clearFocus = () => setFocusOrderId(null)
+
+  // global keyboard shortcuts — page nav + help (ignored while typing / QR view)
+  useEffect(() => {
+    if (hash.startsWith('#/qr')) return
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); setHelpOpen((v) => !v); return }
+      if (e.key === 'Escape') { setHelpOpen(false); return }
+      const target = KEY_TO_PAGE[e.key.toLowerCase()]
+      if (target) { e.preventDefault(); goTo(target) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [hash])
 
   // Customer-facing QR ordering route: #/qr?t=T5
   if (hash.startsWith('#/qr')) return <QRMenu hash={hash} />
@@ -80,7 +98,8 @@ export default function App() {
             <button
               key={n.id}
               onClick={() => goTo(n.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+              title={`${t(n.key)}  —  shortcut: ${PAGE_KEYS[n.id]}`}
+              className={`group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                 page === n.id ? 'bg-saffron-600 text-white' : 'hover:bg-white/5'
               }`}
             >
@@ -88,6 +107,10 @@ export default function App() {
               <span className="flex-1 text-left">{t(n.key)}</span>
               {n.id === 'kds' && openKots > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">{openKots}</span>}
               {n.id === 'online' && pendingOnline > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full kp-pulse">{pendingOnline}</span>}
+              {/* shortcut hint — subtle, brightens on hover / active */}
+              <span className={`text-[10px] font-mono font-bold rounded px-1 py-0.5 border transition-colors ${
+                page === n.id ? 'border-white/30 text-white/90' : 'border-white/10 text-stone-500 group-hover:border-white/25 group-hover:text-stone-300'
+              }`}>{PAGE_KEYS[n.id]}</span>
             </button>
           ))}
         </nav>
@@ -106,12 +129,18 @@ export default function App() {
           >
             {LANGS.map((l) => <option key={l.code} value={l.code} className="text-ink-900">{l.label}</option>)}
           </select>
-          <div className="text-[10px] text-stone-500 mt-2 truncate">{state.settings.name}</div>
+          <div className="flex items-center justify-between mt-2">
+            <div className="text-[10px] text-stone-500 truncate">{state.settings.name}</div>
+            <button onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (press ?)" className="flex items-center gap-1 text-[10px] text-stone-400 hover:text-white shrink-0">
+              ⌨️ <Kbd dim>?</Kbd>
+            </button>
+          </div>
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto">
         <Page />
       </main>
+      <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
     </NavContext.Provider>
   )

@@ -1,6 +1,21 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+
+// a keyboard key cap, e.g. <Kbd>F4</Kbd>
+export function Kbd({ children, dim }) {
+  return (
+    <kbd className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md border text-[11px] font-bold font-mono leading-none ${dim ? 'border-white/15 bg-white/5 text-stone-400' : 'border-stone-300 bg-stone-50 text-stone-600 shadow-[0_1px_0_rgba(0,0,0,0.06)]'}`}>
+      {children}
+    </kbd>
+  )
+}
 
 export function Modal({ open, onClose, title, children, wide }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
