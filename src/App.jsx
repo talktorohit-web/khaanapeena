@@ -14,6 +14,7 @@ import Waste from './pages/Waste.jsx'
 import Staff from './pages/Staff.jsx'
 import Settings from './pages/Settings.jsx'
 import QRMenu from './pages/QRMenu.jsx'
+import Login from './pages/Login.jsx'
 import { LANGS } from './i18n.js'
 import { NavContext } from './nav.jsx'
 import { Kbd } from './components.jsx'
@@ -46,12 +47,21 @@ const PAGES = {
 const BOTTOM_NAV = ['dashboard', 'billing', 'tables', 'kds']
 
 export default function App() {
-  const { state, t, update, cloud, cloudStatus } = useStore()
+  const { state, t, update, cloud, cloudStatus, authUser, authReady } = useStore()
   const [page, setPage] = useState('dashboard')
   const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
   const [helpOpen, setHelpOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // demo (no-account) mode: explicit '1' opts in, '0' forces the login screen
+  // (set on sign-out). With neither flag, grandfather anyone who already has
+  // data so existing users aren't suddenly locked out by the new login gate.
+  const [demo, setDemo] = useState(() => {
+    const f = localStorage.getItem('khaanapeena_demo')
+    if (f === '1') return true
+    if (f === '0') return false
+    return !!localStorage.getItem('khaanapeena_v1')
+  })
 
   useEffect(() => {
     const fn = () => setHash(window.location.hash)
@@ -81,8 +91,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [hash])
 
-  // Customer-facing QR ordering route: #/qr?t=T5
+  // Customer-facing QR ordering route: #/qr?t=T5 (never gated by login)
   if (hash.startsWith('#/qr')) return <QRMenu hash={hash} />
+
+  // wait for Firebase to resolve the saved session before deciding
+  if (!authReady) {
+    return <div className="min-h-[100dvh] flex items-center justify-center bg-stone-50 text-3xl kp-pulse">🍛</div>
+  }
+  // not signed in and not in demo → show the login screen
+  if (!authUser && !demo) {
+    return <Login onDemo={() => { localStorage.setItem('khaanapeena_demo', '1'); setDemo(true) }} />
+  }
 
   const Page = PAGES[page] || Dashboard
   const openKots = state.orders.filter((o) => o.status === 'kot').length

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin } from '../utils.js'
+import { printBill, printKOT } from '../print.js'
 import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
@@ -31,6 +32,7 @@ export default function Billing() {
   const [settleOpen, setSettleOpen] = useState(false)
   const [printOrder, setPrintOrder] = useState(null)
   const [cartOpen, setCartOpen] = useState(false) // mobile bottom-sheet toggle
+  const [printMsg, setPrintMsg] = useState('')
   const [listening, setListening] = useState(false)
   const [voiceMsg, setVoiceMsg] = useState('')
   const recRef = useRef(null)
@@ -148,6 +150,27 @@ export default function Billing() {
 
   const cartCount = order ? order.items.reduce((s, i) => s + i.qty, 0) : 0
   const cartTotal = totals ? (state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable)) : 0
+
+  const flashPrint = (m) => { setPrintMsg(m); setTimeout(() => setPrintMsg(''), 3500) }
+
+  // Send KOT to kitchen, then print the just-added items to the kitchen printer
+  const doSendKot = async () => {
+    if (!order) return
+    const newItems = order.items.filter((i) => !i.deducted)
+    const kotOrder = { ...order, items: newItems, kotNo: state.counters?.kotNo, kotAt: Date.now() }
+    sendKot(orderId)
+    const res = await printKOT(kotOrder, state.settings)
+    if (res.ok) flashPrint('🖨️ KOT sent to kitchen printer')
+    else if (res.reason && res.reason !== 'browser') flashPrint('⚠️ KOT print failed: ' + res.reason)
+  }
+
+  // Try the thermal printer; fall back to the printable HTML receipt
+  const doPrintBill = async () => {
+    if (!order || !totals) return
+    const res = await printBill(order, state.settings, totals)
+    if (res.ok) flashPrint('🖨️ Bill printed')
+    else setPrintOrder(order)
+  }
 
   return (
     <div className="flex h-full">
@@ -324,10 +347,11 @@ export default function Billing() {
               <span>{t('total')}</span><span>{inr0(state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable))}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2">
-              <button title="Send KOT (F4)" onClick={() => sendKot(orderId)} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')} <span className="opacity-60 font-mono">F4</span></button>
-              <button title="Print bill" onClick={() => setPrintOrder(order)} className="bg-stone-700 hover:bg-stone-800 text-white font-bold rounded-xl py-2.5 text-xs">🖨️ {t('printBill')}</button>
+              <button title="Send KOT (F4)" onClick={doSendKot} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')} <span className="opacity-60 font-mono">F4</span></button>
+              <button title="Print bill" onClick={doPrintBill} className="bg-stone-700 hover:bg-stone-800 text-white font-bold rounded-xl py-2.5 text-xs">🖨️ {t('printBill')}</button>
               <button title="Settle / Pay (F9)" onClick={() => setSettleOpen(true)} disabled={!order.items.length} className="bg-leaf-600 hover:bg-leaf-500 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">💳 {t('settle')} <span className="opacity-60 font-mono">F9</span></button>
             </div>
+            {printMsg && <div className="text-[11px] text-center mt-1 text-stone-500">{printMsg}</div>}
           </div>
         )}
       </div>

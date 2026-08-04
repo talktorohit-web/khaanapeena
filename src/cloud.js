@@ -10,11 +10,11 @@ import { initializeApp, getApps } from 'firebase/app'
 import { getDatabase, ref, get, set, update as dbUpdate, onValue, off } from 'firebase/database'
 
 const CFG = {
-  apiKey: 'AIzaSyANAlCju_w5uwc06IYqQYz_AHJ__iuGGEI',
+  apiKey: 'AIzaSyA_CyEUErQ9I1Cs0gAGP6hPmhq9AUbo_R8',
   authDomain: 'nexuschat-ccb15.firebaseapp.com',
   projectId: 'nexuschat-ccb15',
   databaseURL: 'https://nexuschat-ccb15-default-rtdb.firebaseio.com',
-  appId: '1:79966594070:web:c63a939a5a5b4a7e1b4137',
+  appId: '1:79966594070:web:1e122ae6db3764811b4137',
 }
 
 const db = () => getDatabase(getApps().length ? getApps()[0] : initializeApp(CFG))

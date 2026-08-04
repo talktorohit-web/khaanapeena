@@ -6,6 +6,7 @@ import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote,
 } from './cloud.js'
+import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant } from './auth.js'
 
 const KEY = 'khaanapeena_v1'
 const Ctx = createContext(null)
@@ -42,7 +43,17 @@ export function StoreProvider({ children }) {
   const [state, setState] = useState(load)
   const [cloud, setCloud] = useState(loadCloudCfg)
   const [cloudStatus, setCloudStatus] = useState('idle') // idle | syncing | live | error
+  const [authUser, setAuthUser] = useState(null) // { uid, email } | null
+  const [authReady, setAuthReady] = useState(false)
   const lastPushRef = useRef(0)
+
+  // watch Firebase auth state (persists across app restarts)
+  useEffect(() => {
+    let unsub = () => {}
+    try { unsub = onAuth((u) => { setAuthUser(u); setAuthReady(true) }) }
+    catch { setAuthReady(true) } // offline / auth unavailable → let the app run in demo
+    return () => unsub()
+  }, [])
 
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* storage full */ }
@@ -225,12 +236,62 @@ export function StoreProvider({ children }) {
       setCloudStatus('idle')
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, cloudCreate, cloudJoin, cloudLeave }
+    // adopt a restaurant as its owner (used after sign-in)
+    const adoptAsOwner = async (code) => {
+      const remote = await fetchCloud(code)
+      if (!remote || !remote.meta) return false
+      setState(joinRemote(remote))
+      const cfg = { code, role: 'owner' }
+      saveCloudCfg(cfg)
+      setCloud(cfg)
+      return true
+    }
+
+    // ---- account flows ----
+    // sign up: create the account, spin up this owner's cloud restaurant, bind it to the uid
+    const signUpFlow = async (email, password, restaurantName) => {
+      const cred = await signUp(email, password)
+      const uid = cred.user.uid
+      const base = JSON.parse(localStorage.getItem(KEY)) || makeSeed()
+      if (restaurantName) base.settings.name = restaurantName
+      base.metaUpdatedAt = Date.now()
+      setState(base) // reflect the entered name locally too
+      const code = await createCloud(base)
+      await setUserRestaurant(uid, code, restaurantName || base.settings.name)
+      const cfg = { code, role: 'owner' }
+      saveCloudCfg(cfg)
+      setCloud(cfg)
+    }
+
+    // sign in: load this owner's bound restaurant (or create one if they have none)
+    const signInFlow = async (email, password) => {
+      const cred = await signIn(email, password)
+      const uid = cred.user.uid
+      const rec = await getUserRestaurant(uid)
+      if (rec?.code) {
+        const ok = await adoptAsOwner(rec.code)
+        if (!ok) { const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed()); await setUserRestaurant(uid, code, ''); saveCloudCfg({ code, role: 'owner' }); setCloud({ code, role: 'owner' }) }
+      } else {
+        const seedData = JSON.parse(localStorage.getItem(KEY)) || makeSeed()
+        const code = await createCloud(seedData)
+        await setUserRestaurant(uid, code, seedData.settings.name)
+        saveCloudCfg({ code, role: 'owner' })
+        setCloud({ code, role: 'owner' })
+      }
+    }
+
+    const authLogout = async () => {
+      try { await logout() } catch { /* ignore */ }
+      cloudLeave()
+      setAuthUser(null)
+    }
+
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])
 
-  return <Ctx.Provider value={{ state, t, cloud, cloudStatus, ...api }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ state, t, cloud, cloudStatus, authUser, authReady, ...api }}>{children}</Ctx.Provider>
 }
 
 export const useStore = () => useContext(Ctx)

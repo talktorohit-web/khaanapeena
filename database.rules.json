@@ -19,6 +19,12 @@
         ".write": true,
         ".validate": "$code.length >= 8"
       }
+    },
+    "kp_users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
     }
   }
 }

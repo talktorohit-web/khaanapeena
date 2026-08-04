@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { Field, inputCls, Toggle, btnGhost, btnPrimary, Badge } from '../components.jsx'
 import { LANGS } from '../i18n.js'
 import { verifyManagerPin } from '../utils.js'
+import { printTest, inElectron } from '../print.js'
 
 export default function Settings() {
   const { state, t, update, resetDemo } = useStore()
@@ -13,6 +14,8 @@ export default function Settings() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-black text-ink-900 mb-5">{t('settings')}</h1>
+
+      <AccountSection />
 
       <Section title="🏪 Restaurant profile">
         <div className="grid sm:grid-cols-2 gap-x-4">
@@ -74,6 +77,8 @@ export default function Settings() {
         </div>
       </Section>
 
+      <PrinterSection />
+
       <SecuritySection />
 
       <CloudSection />
@@ -83,6 +88,107 @@ export default function Settings() {
         <button onClick={() => { if (confirm('Reset all data to the demo seed?')) resetDemo() }} className={btnGhost}>↺ Reset demo data</button>
       </Section>
     </div>
+  )
+}
+
+function AccountSection() {
+  const { authUser, authLogout } = useStore()
+  const [busy, setBusy] = useState(false)
+  const signOut = async () => {
+    setBusy(true)
+    await authLogout()
+    localStorage.setItem('khaanapeena_demo', '0') // force the login screen
+    window.location.reload()
+  }
+  const toLogin = () => { localStorage.setItem('khaanapeena_demo', '0'); window.location.reload() }
+  return (
+    <Section title="👤 Account">
+      {authUser ? (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold text-ink-900">{authUser.email}</div>
+            <div className="text-xs text-stone-400">Signed in — your restaurant syncs to this account.</div>
+          </div>
+          <button onClick={signOut} disabled={busy} className={btnGhost}>{busy ? 'Signing out…' : 'Sign out'}</button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold text-ink-900">Demo mode (no account)</div>
+            <div className="text-xs text-stone-400">Data lives on this device only. Create an account to sync across devices and keep it safe.</div>
+          </div>
+          <button onClick={toLogin} className={btnPrimary}>Sign in / Create account</button>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function PrinterSection() {
+  const { state, update } = useStore()
+  const p = state.settings.printer || { enabled: false, mode: 'browser', ip: '', port: 9100, width: 48, kitchenIp: '' }
+  const setP = (k, v) => update((s) => {
+    s.settings.printer = { ...(s.settings.printer || {}), [k]: v }
+  })
+  const [msg, setMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const test = async () => {
+    setBusy(true); setMsg(null)
+    const res = await printTest(state.settings)
+    setBusy(false)
+    if (res.ok) setMsg({ ok: true, text: 'Test receipt sent to the printer ✓' })
+    else if (res.reason === 'browser') setMsg({ ok: false, text: 'Pick a printer type above (Network / USB / Bluetooth), then test.' })
+    else setMsg({ ok: false, text: 'Could not print: ' + res.reason })
+  }
+
+  return (
+    <Section title="🖨️ Thermal printer">
+      <p className="text-xs text-stone-400 mb-3">Print bills and kitchen tickets (KOT) on an 80mm/58mm thermal printer. Network (LAN) printing needs the Windows desktop app; USB &amp; Bluetooth work in Chrome/Edge and the desktop app. If left off, KhaanaPeena uses the normal print dialog.</p>
+      <div className="flex items-center gap-3 mb-3">
+        <Toggle on={!!p.enabled} onChange={(v) => setP('enabled', v)} />
+        <span className="text-sm text-stone-600">Use a thermal printer</span>
+      </div>
+      {p.enabled && (
+        <>
+          <div className="grid sm:grid-cols-2 gap-x-4">
+            <Field label="Connection">
+              <select value={p.mode} onChange={(e) => setP('mode', e.target.value)} className={inputCls}>
+                <option value="network">Network / LAN {inElectron() ? '' : '(desktop app only)'}</option>
+                <option value="usb">USB (WebUSB)</option>
+                <option value="bluetooth">Bluetooth (BLE)</option>
+                <option value="browser">Off — use print dialog</option>
+              </select>
+            </Field>
+            <Field label="Paper width">
+              <select value={p.width} onChange={(e) => setP('width', +e.target.value)} className={inputCls}>
+                <option value={48}>80 mm (48 chars)</option>
+                <option value={32}>58 mm (32 chars)</option>
+              </select>
+            </Field>
+          </div>
+          {p.mode === 'network' && (
+            <div className="grid sm:grid-cols-3 gap-x-4">
+              <Field label="Printer IP address">
+                <input value={p.ip} onChange={(e) => setP('ip', e.target.value.trim())} placeholder="192.168.1.50" className={inputCls + ' font-mono'} />
+              </Field>
+              <Field label="Port">
+                <input type="number" value={p.port} onChange={(e) => setP('port', +e.target.value || 9100)} className={inputCls + ' font-mono'} />
+              </Field>
+              <Field label="Kitchen printer IP (optional)">
+                <input value={p.kitchenIp} onChange={(e) => setP('kitchenIp', e.target.value.trim())} placeholder="same as bill printer" className={inputCls + ' font-mono'} />
+              </Field>
+            </div>
+          )}
+          {p.mode === 'usb' && <p className="text-xs text-stone-400 mb-2">On first print, the browser asks you to pick the USB printer. Uses raw ESC/POS.</p>}
+          {p.mode === 'bluetooth' && <p className="text-xs text-amber-600 mb-2">Bluetooth (BLE) support varies by printer model; if your printer isn't found, use Network or USB.</p>}
+          <div className="flex items-center gap-3 mt-1">
+            <button onClick={test} disabled={busy} className={btnGhost}>{busy ? 'Printing…' : '🧾 Test print'}</button>
+            {msg && <span className={`text-xs ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</span>}
+          </div>
+        </>
+      )}
+    </Section>
   )
 }
 

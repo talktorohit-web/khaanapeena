@@ -84,7 +84,7 @@ export default function Dashboard() {
               <button key={o.id} onClick={() => openOrder(o)} className="w-full flex items-center justify-between text-sm border-b border-stone-50 pb-2 hover:bg-stone-50 rounded-lg px-1 -mx-1 transition-colors">
                 <div className="text-left">
                   <span className="font-semibold text-ink-900">{o.tableId ? `Table ${o.tableId}` : o.type === 'qr' ? 'QR order' : o.type}</span>
-                  <span className="text-stone-400 text-xs ml-2">{o.items.reduce((s, i) => s + i.qty, 0)} items</span>
+                  <span className="text-stone-400 text-xs ml-2">{(o.items || []).reduce((s, i) => s + i.qty, 0)} items</span>
                 </div>
                 <Badge color={o.status === 'kot' ? 'amber' : o.status === 'ready' ? 'green' : o.status === 'new' ? 'red' : 'blue'}>{o.status.toUpperCase()}</Badge>
               </button>
