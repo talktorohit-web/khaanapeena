@@ -223,6 +223,26 @@ function SalesReport({ state, range }) {
         </div>
       </div>
 
+      {(() => {
+        const voids = (state.voidLog || []).filter((v) => v.at >= range.from && v.at < range.to).sort((a, b) => b.at - a.at)
+        if (!voids.length) return null
+        const totalVoid = voids.reduce((s, v) => s + (v.amount || 0), 0)
+        return (
+          <div className="bg-white rounded-2xl p-5 border border-stone-100 mb-4">
+            <h3 className="font-bold text-ink-900 mb-1">🔒 Manager rectifications / voids</h3>
+            <p className="text-xs text-stone-400 mb-3">Items removed after they were punched to the kitchen · {voids.length} void{voids.length > 1 ? 's' : ''} · {inr0(totalVoid)} value</p>
+            <div className="max-h-56 overflow-y-auto">
+              {voids.map((v) => (
+                <div key={v.id} className="flex items-center justify-between text-sm py-1.5 border-b border-stone-50">
+                  <div><span className="font-semibold">{v.qty}× {v.item}</span> <span className="text-xs text-stone-400">{v.tableId ? `· 🪑 ${v.tableId} ` : ''}· by {v.by}</span></div>
+                  <div className="text-right"><span className="text-red-600 font-bold">−{inr0(v.amount)}</span><span className="text-[10px] text-stone-400 block">{new Date(v.at).toLocaleString('en-IN')}</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="grid lg:grid-cols-3 gap-4 mb-4">
         <div className="bg-white rounded-2xl p-5 border border-stone-100">
           <h3 className="font-bold text-ink-900 mb-1">By day of week</h3>

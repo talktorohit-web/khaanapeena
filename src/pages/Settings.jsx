@@ -73,6 +73,15 @@ export default function Settings() {
         </div>
       </Section>
 
+      <Section title="🔒 Security — manager PIN">
+        <p className="text-xs text-stone-400 mb-3">Required to rectify items already sent to the kitchen (edit/void a punched bill). Staff with a Manager/Admin role can also authorise with their own PIN.</p>
+        <div className="grid sm:grid-cols-2 gap-x-4">
+          <Field label="Manager PIN (4–6 digits)">
+            <input type="text" inputMode="numeric" value={s.managerPin || ''} onChange={(e) => set('managerPin', e.target.value.replace(/\D/g, '').slice(0, 6))} className={inputCls + ' font-mono tracking-widest'} placeholder="1111" />
+          </Field>
+        </div>
+      </Section>
+
       <CloudSection />
 
       <Section title="🧹 Demo data">

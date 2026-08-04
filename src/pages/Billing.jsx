@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink } from '../utils.js'
+import { inr, inr0, billTotals, upiLink, verifyManagerPin } from '../utils.js'
 import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
 
 export default function Billing() {
-  const { state, t, update, newOrder, sendKot, settleOrder } = useStore()
+  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine } = useStore()
   const { focusOrderId, clearFocus } = useNav()
   const [orderId, setOrderId] = useState(null)
+  const [editUnlock, setEditUnlock] = useState(false) // manager unlocked editing of punched items
+  const [authManager, setAuthManager] = useState(null)
+  const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
 
   // when another page (Tables, Dashboard) sends us here for a specific order, select it
   useEffect(() => {
@@ -19,6 +22,9 @@ export default function Billing() {
       clearFocus()
     }
   }, [focusOrderId])
+
+  // relock manager editing whenever the selected order changes
+  useEffect(() => { setEditUnlock(false); setAuthManager(null) }, [orderId])
   const [cat, setCat] = useState('all')
   const [q, setQ] = useState('')
   const [vegOnly, setVegOnly] = useState(false)
@@ -250,6 +256,17 @@ export default function Billing() {
               <Badge color={order.status === 'kot' ? 'amber' : order.status === 'ready' ? 'green' : 'blue'}>{order.status.toUpperCase()}</Badge>
             </div>
           )}
+          {order && order.items.some((i) => i.deducted) && (
+            editUnlock ? (
+              <button onClick={() => { setEditUnlock(false); setAuthManager(null) }} className="w-full mt-2 text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 rounded-lg py-1.5">
+                🔓 Manager mode{authManager ? ` · ${authManager.name}` : ''} — tap to lock
+              </button>
+            ) : (
+              <button onClick={() => setPinAsk({ title: 'Manager PIN — edit punched items', onOk: (m) => { setEditUnlock(true); setAuthManager(m); setPinAsk(null) } })} className="w-full mt-2 text-[11px] font-bold bg-stone-100 text-stone-600 border border-stone-200 rounded-lg py-1.5">
+                🔒 Rectify punched items (manager)
+              </button>
+            )
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
@@ -263,9 +280,27 @@ export default function Billing() {
                   <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <QtyBtn disabled={li.deducted} onClick={() => changeQty(li, -1)}>−</QtyBtn>
-                  <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                  <QtyBtn disabled={li.deducted} onClick={() => changeQty(li, 1)}>＋</QtyBtn>
+                  {li.deducted ? (
+                    editUnlock ? (
+                      <>
+                        <QtyBtn onClick={() => rectifyLine(orderId, li, -1, authManager)}>−</QtyBtn>
+                        <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                        <button title="Void this line" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
+                      </>
+                    ) : (
+                      <>
+                        <QtyBtn disabled>−</QtyBtn>
+                        <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                        <QtyBtn disabled>＋</QtyBtn>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <QtyBtn onClick={() => changeQty(li, -1)}>−</QtyBtn>
+                      <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                      <QtyBtn onClick={() => changeQty(li, 1)}>＋</QtyBtn>
+                    </>
+                  )}
                 </div>
                 <div className="w-14 text-right text-[13px] font-bold">{inr0(li.price * li.qty)}</div>
               </div>
@@ -310,7 +345,39 @@ export default function Billing() {
         />
       )}
       {printOrder && <BillPrint order={printOrder} onClose={() => setPrintOrder(null)} />}
+      {pinAsk && (
+        <ManagerPinModal
+          title={pinAsk.title}
+          onClose={() => setPinAsk(null)}
+          verify={(pin) => verifyManagerPin(state, pin)}
+          onOk={pinAsk.onOk}
+        />
+      )}
     </div>
+  )
+}
+
+function ManagerPinModal({ title, onClose, verify, onOk }) {
+  const [pin, setPin] = useState('')
+  const [err, setErr] = useState('')
+  const submit = () => {
+    const m = verify(pin)
+    if (m) onOk(m)
+    else { setErr('Wrong PIN'); setPin('') }
+  }
+  return (
+    <Modal open onClose={onClose} title={`🔒 ${title}`}>
+      <p className="text-xs text-stone-500 mb-3">Only a manager can change items already sent to the kitchen. Enter the manager PIN to authorise.</p>
+      <input
+        type="password" inputMode="numeric" autoFocus value={pin}
+        onChange={(e) => { setPin(e.target.value.replace(/\D/g, '').slice(0, 6)); setErr('') }}
+        onKeyDown={(e) => e.key === 'Enter' && submit()}
+        placeholder="••••" className={inputCls + ' text-center text-2xl tracking-[0.5em] font-mono'}
+      />
+      {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
+      <button onClick={submit} disabled={pin.length < 4} className={btnPrimary + ' w-full mt-4'}>Authorise</button>
+      <p className="text-[10px] text-stone-400 mt-2 text-center">Change this PIN in Settings → Security. Demo PIN: 1111</p>
+    </Modal>
   )
 }
 

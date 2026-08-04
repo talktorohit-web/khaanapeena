@@ -18,6 +18,16 @@ export const fmtDate = (ts) =>
 
 export const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000)
 
+// manager authorization: matches the settings Manager PIN, or any staff member
+// with a manager/admin/owner role whose PIN matches. Returns {name} or null.
+export function verifyManagerPin(state, pin) {
+  const p = String(pin || '').trim()
+  if (!p) return null
+  if (state.settings.managerPin && p === String(state.settings.managerPin)) return { name: 'Manager' }
+  const st = (state.staff || []).find((s) => String(s.pin) === p && /manager|admin|owner/i.test(s.role || ''))
+  return st ? { name: st.name } : null
+}
+
 // ---- report date ranges ----
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 

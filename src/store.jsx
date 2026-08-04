@@ -171,6 +171,35 @@ export function StoreProvider({ children }) {
       setState(makeSeed())
     }
 
+    // manager-authorized correction of a punched (KOT'd) line: reduce qty or remove.
+    // Restores the recipe stock that was deducted, and records a void-log entry.
+    // delta: a negative number to decrement, or 'remove' to void the whole line.
+    const rectifyLine = (orderId, line, delta, manager) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o) return
+      const li = o.items.find((x) => x.itemId === line.itemId && !!x.deducted === !!line.deducted)
+      if (!li) return
+      const oldQty = li.qty
+      const newQty = delta === 'remove' ? 0 : Math.max(0, oldQty + delta)
+      const removed = oldQty - newQty
+      if (removed <= 0) return
+      if (li.deducted) {
+        const item = s.items.find((i) => i.id === li.itemId)
+        item?.recipe?.forEach(({ ingId, qty }) => {
+          const ing = s.ingredients.find((g) => g.id === ingId)
+          if (ing) ing.stock = +(ing.stock + qty * removed).toFixed(3)
+        })
+      }
+      s.voidLog = s.voidLog || []
+      s.voidLog.push({
+        id: uid('v'), at: Date.now(), orderId, tableId: o.tableId || null,
+        item: li.name, qty: removed, amount: li.price * removed, by: manager?.name || 'Manager',
+      })
+      if (newQty <= 0) o.items = o.items.filter((x) => x !== li)
+      else { li.qty = newQty; li.updatedAt = Date.now() }
+      o.updatedAt = Date.now()
+    })
+
     // ---- cloud actions ----
     const cloudCreate = async () => {
       const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed())
@@ -196,7 +225,7 @@ export function StoreProvider({ children }) {
       setCloudStatus('idle')
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, cloudCreate, cloudJoin, cloudLeave }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, cloudCreate, cloudJoin, cloudLeave }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

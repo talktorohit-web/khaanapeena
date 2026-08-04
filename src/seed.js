@@ -186,6 +186,7 @@ export function makeSeed() {
       phone: '0181-2223344', gstin: '03ABCDE1234F1Z5', fssai: '12123456789012',
       gstScheme: 'regular', gstRate: 5, serviceCharge: 0,
       upiId: 'sharmajidadhaba@okhdfcbank', lang: 'en',
+      managerPin: '1111',
       loyaltyEarnPer100: 1, loyaltyRedeemValue: 1,
       happyHour: { enabled: true, from: 15, to: 18, discountPct: 10 },
     },
