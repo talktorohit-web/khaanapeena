@@ -1,13 +1,18 @@
 // KhaanaPeena cloud backend — Firebase Realtime Database sync.
 //
 // Data layout:  kp_restaurants/{code}
-//   meta            everything except orders (settings, menu, inventory, CRM…) — LWW by metaUpdatedAt
-//   orders/{id}     one node per order — LWW per order by updatedAt
+//   owner          owner uid (present once an account claims it → hardened rules)
+//   members/{uid}  authorized devices/staff
+//   counters       { billNo, kotNo } — allocated by atomic transactions (no dup invoices)
+//   meta           everything except orders (settings, menu, inventory, CRM…) — owner-only
+//   orders/{id}    one node per order — members full access; guests may create qr-guest orders
+//   public         world-readable menu snapshot for guest QR ordering
 //
-// The restaurant code is the access capability (demo-grade auth). Devices join
-// with the code; the POS that created the cloud is the "owner".
+// A restaurant with no `owner` is "legacy/demo": open rules, code = the capability.
+// Once an account claims it (owner set), only the owner/members can touch meta &
+// customer data; guests can still read `public` and create their own orders.
 import { initializeApp, getApps } from 'firebase/app'
-import { getDatabase, ref, get, set, update as dbUpdate, onValue, off } from 'firebase/database'
+import { getDatabase, ref, get, set, update as dbUpdate, onValue, off, runTransaction } from 'firebase/database'
 
 const CFG = {
   apiKey: 'AIzaSyA_CyEUErQ9I1Cs0gAGP6hPmhq9AUbo_R8',
@@ -65,11 +70,52 @@ export function mergeRemote(local, remote) {
   return { ...base, orders }
 }
 
-export async function createCloud(state) {
+// world-readable menu snapshot for guests (never includes customers/staff/inventory)
+export function menuSnapshot(state) {
+  const s = state.settings || {}
+  return {
+    settings: {
+      name: s.name || '', tagline: s.tagline || '', address: s.address || '', phone: s.phone || '',
+      fssai: s.fssai || '', gstin: s.gstin || '', upiId: s.upiId || '', gstScheme: s.gstScheme || 'regular',
+      gstRate: s.gstRate ?? 5, serviceCharge: s.serviceCharge || 0, happyHour: s.happyHour || {}, lang: s.lang || 'en',
+    },
+    categories: state.categories || [],
+    items: (state.items || []).filter((i) => i.available),
+  }
+}
+
+export async function createCloud(state, ownerUid) {
   const code = newCode()
   const { meta, ordersById } = splitState(state)
-  await set(ref(db(), `kp_restaurants/${code}`), { meta, orders: ordersById })
+  const node = {
+    meta,
+    orders: ordersById,
+    counters: { billNo: state.counters?.billNo || 1, kotNo: state.counters?.kotNo || 1 },
+    public: menuSnapshot(state),
+  }
+  if (ownerUid) { node.owner = ownerUid; node.members = { [ownerUid]: true } }
+  await set(ref(db(), `kp_restaurants/${code}`), node)
   return code
+}
+
+// claim a legacy restaurant for an owner account (sets owner+member if unset)
+export async function claimRestaurant(code, ownerUid) {
+  if (!ownerUid || !code) return
+  const snap = await get(ref(db(), `kp_restaurants/${code}/owner`))
+  if (!snap.exists()) {
+    await dbUpdate(ref(db(), `kp_restaurants/${code}`), { owner: ownerUid, [`members/${ownerUid}`]: true })
+  }
+}
+
+// atomic, server-authoritative counter — eliminates duplicate bill/KOT numbers
+export async function nextCounter(code, name) {
+  const r = ref(db(), `kp_restaurants/${code}/counters/${name}`)
+  const res = await runTransaction(r, (cur) => (typeof cur === 'number' ? cur : 0) + 1)
+  return res.snapshot.val()
+}
+
+export async function publishPublic(code, state) {
+  await set(ref(db(), `kp_restaurants/${code}/public`), menuSnapshot(state))
 }
 
 export async function fetchCloud(code) {
@@ -96,13 +142,18 @@ export async function pushChanges(code, state, lastPush) {
   return true
 }
 
-// guest phone (QR menu) helpers — no local store adoption, direct cloud ops
+// guest phone (QR menu) helpers — no local store adoption, direct cloud ops.
+// Reads the world-readable `public` snapshot; falls back to `meta` for legacy
+// restaurants that predate the public node.
 export async function fetchMenu(code) {
-  const snap = await get(ref(db(), `kp_restaurants/${code}/meta`))
-  return snap.exists() ? snap.val() : null
+  const pub = await get(ref(db(), `kp_restaurants/${code}/public`))
+  if (pub.exists()) return pub.val()
+  const meta = await get(ref(db(), `kp_restaurants/${code}/meta`))
+  return meta.exists() ? meta.val() : null
 }
 export async function pushGuestOrder(code, order) {
-  await set(ref(db(), `kp_restaurants/${code}/orders/${order.id}`), order)
+  // must carry source:'qr-guest' — the security rules only let guests create these
+  await set(ref(db(), `kp_restaurants/${code}/orders/${order.id}`), { ...order, source: 'qr-guest' })
 }
 export async function updateGuestOrder(code, orderId, fields) {
   await dbUpdate(ref(db(), `kp_restaurants/${code}/orders/${orderId}`), fields)

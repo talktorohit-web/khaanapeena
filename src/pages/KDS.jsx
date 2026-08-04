@@ -4,7 +4,7 @@ import { Empty, Badge } from '../components.jsx'
 import { minsSince, fmtTime } from '../utils.js'
 
 export default function KDS() {
-  const { state, t, update } = useStore()
+  const { state, t, update, settleOrder } = useStore()
   const [, tick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 15000)
@@ -19,19 +19,11 @@ export default function KDS() {
   // finishing a ready ticket: dine/takeaway/qr -> served; aggregator/WhatsApp -> completed & paid
   // (online orders never pass through 'served', which would drop them out of Online Orders + recon)
   const isOnline = (o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type)
-  const markDone = (o) => update((s) => {
-    const x = s.orders.find((y) => y.id === o.id)
-    if (!x) return
-    if (isOnline(x)) {
-      const sub = x.items.reduce((a, b) => a + b.price * b.qty, 0)
-      x.status = 'paid'
-      x.paidAt = Date.now()
-      x.billNo = s.counters.billNo++
-      x.payment = { method: 'online', discount: 0, amount: Math.round(sub * 1.05) }
-    } else {
-      x.status = 'served'
-    }
-  })
+  const markDone = (o) => {
+    // online orders complete & pay (server-numbered bill); dine/takeaway -> served
+    if (isOnline(o)) settleOrder(o.id, { method: 'online' })
+    else setStatus(o.id, 'served')
+  }
 
   return (
     <div className="p-6 h-full flex flex-col">

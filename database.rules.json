@@ -15,9 +15,16 @@
     },
     "kp_restaurants": {
       "$code": {
-        ".read": true,
-        ".write": true,
-        ".validate": "$code.length >= 8"
+        ".read": "!data.child('owner').exists() || (auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists()))",
+        ".write": "!data.exists() || !data.child('owner').exists() || (auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists()))",
+        "public": {
+          ".read": true
+        },
+        "orders": {
+          "$oid": {
+            ".write": "!data.exists() && newData.child('source').val() === 'qr-guest'"
+          }
+        }
       }
     },
     "kp_users": {

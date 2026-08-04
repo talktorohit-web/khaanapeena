@@ -4,7 +4,7 @@ import { makeT } from './i18n.js'
 import { uid, billTotals } from './utils.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
-  pushChanges, mergeRemote, joinRemote,
+  pushChanges, mergeRemote, joinRemote, nextCounter, claimRestaurant, publishPublic,
 } from './cloud.js'
 import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant } from './auth.js'
 
@@ -46,6 +46,9 @@ export function StoreProvider({ children }) {
   const [authUser, setAuthUser] = useState(null) // { uid, email } | null
   const [authReady, setAuthReady] = useState(false)
   const lastPushRef = useRef(0)
+  const lastPublicRef = useRef(0)
+  const authUserRef = useRef(null)
+  useEffect(() => { authUserRef.current = authUser }, [authUser])
 
   // watch Firebase auth state (persists across app restarts)
   useEffect(() => {
@@ -112,6 +115,11 @@ export function StoreProvider({ children }) {
       const since = lastPushRef.current
       lastPushRef.current = Date.now()
       pushChanges(cloud.code, state, since).catch(() => setCloudStatus('error'))
+      // owner keeps the world-readable guest menu in sync when meta changes
+      if (cloud.role === 'owner' && (state.metaUpdatedAt || 0) > lastPublicRef.current) {
+        lastPublicRef.current = state.metaUpdatedAt || Date.now()
+        publishPublic(cloud.code, state).catch(() => {})
+      }
     }, 400)
     return () => clearTimeout(timer)
   }, [state, cloud?.code])
@@ -136,25 +144,38 @@ export function StoreProvider({ children }) {
       return id
     }
 
-    const sendKot = (orderId) => update((s) => {
-      const o = s.orders.find((x) => x.id === orderId)
-      if (!o || !o.items.length) return
-      o.status = 'kot'
-      o.kotAt = Date.now()
-      o.kotNo = s.counters.kotNo++
-      // auto-deduct inventory from recipes
-      o.items.forEach((li) => {
-        if (li.deducted) return
-        const item = s.items.find((i) => i.id === li.itemId)
-        item?.recipe?.forEach(({ ingId, qty }) => {
-          const ing = s.ingredients.find((g) => g.id === ingId)
-          if (ing) ing.stock = Math.max(0, +(ing.stock - qty * li.qty).toFixed(3))
-        })
-        li.deducted = true
-      })
-    })
+    // KOT number comes from the atomic server counter when cloud-connected,
+    // else a local counter (single device, no race). Same pattern for bills.
+    const allocNumber = async (name) => {
+      const code = loadCloudCfg()?.code
+      if (code) { try { return await nextCounter(code, name) } catch { /* offline → local */ } }
+      return null
+    }
 
-    const settleOrder = (orderId, { method, discount = 0, customerId = null, redeemPoints = 0 }) => update((s) => {
+    const sendKot = async (orderId) => {
+      const kotNo = await allocNumber('kotNo')
+      update((s) => {
+        const o = s.orders.find((x) => x.id === orderId)
+        if (!o || !o.items.length) return
+        o.status = 'kot'
+        o.kotAt = Date.now()
+        o.kotNo = kotNo != null ? kotNo : s.counters.kotNo++
+        // auto-deduct inventory from recipes
+        o.items.forEach((li) => {
+          if (li.deducted) return
+          const item = s.items.find((i) => i.id === li.itemId)
+          item?.recipe?.forEach(({ ingId, qty }) => {
+            const ing = s.ingredients.find((g) => g.id === ingId)
+            if (ing) ing.stock = Math.max(0, +(ing.stock - qty * li.qty).toFixed(3))
+          })
+          li.deducted = true
+        })
+      })
+    }
+
+    const settleOrder = async (orderId, { method, discount = 0, customerId = null, redeemPoints = 0 }) => {
+      const billNo = await allocNumber('billNo')
+      update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
       if (!o) return
       o.payment = { method, discount }
@@ -163,7 +184,7 @@ export function StoreProvider({ children }) {
       o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
       o.status = 'paid'
       o.paidAt = Date.now()
-      o.billNo = s.counters.billNo++
+      o.billNo = billNo != null ? billNo : s.counters.billNo++
       o.customerId = customerId || o.customerId
       if (o.customerId) {
         const c = s.customers.find((x) => x.id === o.customerId)
@@ -175,7 +196,8 @@ export function StoreProvider({ children }) {
           c.lastVisit = Date.now()
         }
       }
-    })
+      })
+    }
 
     const resetDemo = () => {
       localStorage.removeItem(KEY)
@@ -213,7 +235,9 @@ export function StoreProvider({ children }) {
 
     // ---- cloud actions ----
     const cloudCreate = async () => {
-      const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed())
+      const uid = authUserRef.current?.uid || null // claim it if signed in
+      const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed(), uid)
+      if (uid) await setUserRestaurant(uid, code, '')
       const cfg = { code, role: 'owner' }
       saveCloudCfg(cfg)
       setCloud(cfg)
@@ -236,11 +260,14 @@ export function StoreProvider({ children }) {
       setCloudStatus('idle')
     }
 
-    // adopt a restaurant as its owner (used after sign-in)
-    const adoptAsOwner = async (code) => {
+    // adopt a restaurant as its owner (used after sign-in); claim + publish menu
+    const adoptAsOwner = async (code, uid) => {
       const remote = await fetchCloud(code)
       if (!remote || !remote.meta) return false
-      setState(joinRemote(remote))
+      const adopted = joinRemote(remote)
+      setState(adopted)
+      if (uid) { try { await claimRestaurant(code, uid) } catch { /* rules */ } }
+      try { await publishPublic(code, adopted) } catch { /* rules */ }
       const cfg = { code, role: 'owner' }
       saveCloudCfg(cfg)
       setCloud(cfg)
@@ -256,7 +283,7 @@ export function StoreProvider({ children }) {
       if (restaurantName) base.settings.name = restaurantName
       base.metaUpdatedAt = Date.now()
       setState(base) // reflect the entered name locally too
-      const code = await createCloud(base)
+      const code = await createCloud(base, uid) // owner-bound + hardened from birth
       await setUserRestaurant(uid, code, restaurantName || base.settings.name)
       const cfg = { code, role: 'owner' }
       saveCloudCfg(cfg)
@@ -268,16 +295,12 @@ export function StoreProvider({ children }) {
       const cred = await signIn(email, password)
       const uid = cred.user.uid
       const rec = await getUserRestaurant(uid)
-      if (rec?.code) {
-        const ok = await adoptAsOwner(rec.code)
-        if (!ok) { const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed()); await setUserRestaurant(uid, code, ''); saveCloudCfg({ code, role: 'owner' }); setCloud({ code, role: 'owner' }) }
-      } else {
-        const seedData = JSON.parse(localStorage.getItem(KEY)) || makeSeed()
-        const code = await createCloud(seedData)
-        await setUserRestaurant(uid, code, seedData.settings.name)
-        saveCloudCfg({ code, role: 'owner' })
-        setCloud({ code, role: 'owner' })
-      }
+      if (rec?.code && (await adoptAsOwner(rec.code, uid))) return
+      const seedData = JSON.parse(localStorage.getItem(KEY)) || makeSeed()
+      const code = await createCloud(seedData, uid)
+      await setUserRestaurant(uid, code, seedData.settings.name)
+      saveCloudCfg({ code, role: 'owner' })
+      setCloud({ code, role: 'owner' })
     }
 
     const authLogout = async () => {

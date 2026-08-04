@@ -15,7 +15,7 @@ const SAMPLE_ITEMS = [
 ]
 
 export default function OnlineOrders() {
-  const { state, t, update, sendKot } = useStore()
+  const { state, t, update, sendKot, settleOrder } = useStore()
   const [tab, setTab] = useState('live')
   const [wa, setWa] = useState('')
   const [waMsg, setWaMsg] = useState('')
@@ -48,13 +48,7 @@ export default function OnlineOrders() {
     sendKot(o.id)
   }
   const reject = (o) => update((s) => { const x = s.orders.find((y) => y.id === o.id); if (x) x.status = 'cancelled' })
-  const complete = (o) => update((s) => {
-    const x = s.orders.find((y) => y.id === o.id)
-    if (!x) return
-    const sub = x.items.reduce((a, b) => a + b.price * b.qty, 0)
-    x.status = 'paid'; x.paidAt = Date.now(); x.billNo = s.counters.billNo++
-    x.payment = { method: 'online', discount: 0, amount: Math.round(sub * 1.05) }
-  })
+  const complete = (o) => settleOrder(o.id, { method: 'online' }) // server-numbered bill
 
   // WhatsApp bot: parse pasted message into an order
   const parseWa = () => {
