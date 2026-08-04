@@ -376,7 +376,7 @@ function ManagerPinModal({ title, onClose, verify, onOk }) {
       />
       {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
       <button onClick={submit} disabled={pin.length < 4} className={btnPrimary + ' w-full mt-4'}>Authorise</button>
-      <p className="text-[10px] text-stone-400 mt-2 text-center">Change this PIN in Settings → Security. Demo PIN: 1111</p>
+      <p className="text-[10px] text-stone-400 mt-2 text-center">Set or change the PIN in Settings → Security.</p>
     </Modal>
   )
 }

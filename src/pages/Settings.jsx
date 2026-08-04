@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Field, inputCls, Toggle, btnGhost, btnPrimary, Badge } from '../components.jsx'
 import { LANGS } from '../i18n.js'
+import { verifyManagerPin } from '../utils.js'
 
 export default function Settings() {
   const { state, t, update, resetDemo } = useStore()
@@ -73,14 +74,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="🔒 Security — manager PIN">
-        <p className="text-xs text-stone-400 mb-3">Required to rectify items already sent to the kitchen (edit/void a punched bill). Staff with a Manager/Admin role can also authorise with their own PIN.</p>
-        <div className="grid sm:grid-cols-2 gap-x-4">
-          <Field label="Manager PIN (4–6 digits)">
-            <input type="text" inputMode="numeric" value={s.managerPin || ''} onChange={(e) => set('managerPin', e.target.value.replace(/\D/g, '').slice(0, 6))} className={inputCls + ' font-mono tracking-widest'} placeholder="1111" />
-          </Field>
-        </div>
-      </Section>
+      <SecuritySection />
 
       <CloudSection />
 
@@ -89,6 +83,64 @@ export default function Settings() {
         <button onClick={() => { if (confirm('Reset all data to the demo seed?')) resetDemo() }} className={btnGhost}>↺ Reset demo data</button>
       </Section>
     </div>
+  )
+}
+
+function SecuritySection() {
+  const { state, update } = useStore()
+  const isSet = !!state.settings.managerPin
+  const [open, setOpen] = useState(false)
+  const [cur, setCur] = useState('')
+  const [nw, setNw] = useState('')
+  const [cf, setCf] = useState('')
+  const [msg, setMsg] = useState(null) // { ok, text }
+
+  const onlyDigits = (v) => v.replace(/\D/g, '').slice(0, 6)
+  const reset = () => { setCur(''); setNw(''); setCf(''); setMsg(null) }
+
+  const save = () => {
+    // must know the current PIN (if one is set)
+    if (isSet && String(cur) !== String(state.settings.managerPin)) { setMsg({ ok: false, text: 'Current PIN is incorrect' }); return }
+    if (nw.length < 4) { setMsg({ ok: false, text: 'New PIN must be at least 4 digits' }); return }
+    if (nw !== cf) { setMsg({ ok: false, text: "New PIN and confirmation don't match" }); return }
+    update((s) => { s.settings.managerPin = nw })
+    reset()
+    setOpen(false)
+    setMsg({ ok: true, text: 'Manager PIN changed ✓' })
+  }
+
+  return (
+    <Section title="🔒 Security — manager PIN">
+      <p className="text-xs text-stone-400 mb-3">Required to rectify items already sent to the kitchen (edit/void a punched bill). Staff with a Manager/Admin role can also authorise with their own PIN.</p>
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-sm text-stone-600">Manager PIN</span>
+        <span className="font-mono tracking-[0.3em] text-lg text-stone-400">••••</span>
+        <Badge color={isSet ? 'green' : 'red'}>{isSet ? 'Set' : 'Not set'}</Badge>
+        {!open && <button onClick={() => { reset(); setOpen(true) }} className={btnGhost + ' ml-auto'}>Change PIN</button>}
+      </div>
+
+      {open && (
+        <div className="bg-stone-50 rounded-xl p-4 mt-2 max-w-sm">
+          {isSet && (
+            <Field label="Current PIN">
+              <input type="password" inputMode="numeric" autoComplete="off" value={cur} onChange={(e) => { setCur(onlyDigits(e.target.value)); setMsg(null) }} className={inputCls + ' font-mono tracking-widest'} placeholder="••••" />
+            </Field>
+          )}
+          <Field label="New PIN (4–6 digits)">
+            <input type="password" inputMode="numeric" autoComplete="new-password" value={nw} onChange={(e) => { setNw(onlyDigits(e.target.value)); setMsg(null) }} className={inputCls + ' font-mono tracking-widest'} placeholder="••••" />
+          </Field>
+          <Field label="Confirm new PIN">
+            <input type="password" inputMode="numeric" autoComplete="new-password" value={cf} onChange={(e) => { setCf(onlyDigits(e.target.value)); setMsg(null) }} onKeyDown={(e) => e.key === 'Enter' && save()} className={inputCls + ' font-mono tracking-widest'} placeholder="••••" />
+          </Field>
+          {msg && !msg.ok && <p className="text-xs text-red-600 mb-2">{msg.text}</p>}
+          <div className="flex gap-2">
+            <button onClick={save} className={btnPrimary}>Save new PIN</button>
+            <button onClick={() => { reset(); setOpen(false) }} className={btnGhost}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {msg && msg.ok && <p className="text-xs text-green-600 mt-1">{msg.text}</p>}
+    </Section>
   )
 }
 
