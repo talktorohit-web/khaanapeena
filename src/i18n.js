@@ -15,6 +15,7 @@ const D = {
   inventory: ['Inventory', 'इन्वेंटरी', 'ਇਨਵੈਂਟਰੀ'],
   customers: ['Customers', 'ग्राहक', 'ਗਾਹਕ'],
   reports: ['Reports', 'रिपोर्ट', 'ਰਿਪੋਰਟ'],
+  register: ['Cash Register', 'कैश रजिस्टर', 'ਕੈਸ਼ ਰਜਿਸਟਰ'],
   ai: ['AI Insights', 'AI इनसाइट्स', 'AI ਇਨਸਾਈਟਸ'],
   waste: ['Waste Tracker', 'वेस्ट ट्रैकर', 'ਵੇਸਟ ਟਰੈਕਰ'],
   staff: ['Staff', 'स्टाफ', 'ਸਟਾਫ'],

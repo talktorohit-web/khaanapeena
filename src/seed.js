@@ -207,8 +207,19 @@ export function makeSeed() {
       { id: uid('f'), rating: 2, text: 'Service was slow, food came cold', sentiment: 'negative', date: Date.now() - 1 * 864e5 },
     ],
     reservations: makeReservations(),
+    shifts: makeShifts(),
     counters: { billNo, kotNo: 1 },
   }
+}
+
+function makeShifts() {
+  const y = Date.now() - 864e5 // yesterday
+  return [{
+    id: uid('sh'), openedAt: y, openedBy: 'Suresh Yadav', openingFloat: 2000,
+    cashMovements: [{ id: uid('cm'), at: y + 3 * 3600e3, type: 'out', amount: 500, reason: 'Vegetable purchase', by: 'Suresh Yadav' }],
+    closedAt: y + 11 * 3600e3, closedBy: 'Suresh Yadav', status: 'closed',
+    z: { cash: 8450, upi: 12300, card: 3200, online: 5600, gross: 29550, bills: 41, discounts: 150, cashIn: 0, cashOut: 500, openingFloat: 2000, expectedCash: 9950, countedCash: 9900, variance: -50 },
+  }]
 }
 
 function makeReservations() {

@@ -108,4 +108,37 @@ export function buildKOT(order, width = 48) {
   return e.cut().done()
 }
 
+// ---- X-report (mid-shift peek) / Z-report (shift close) ----
+export function buildShiftReport(shift, tot, settings, width = 48, isX = false) {
+  const e = new Esc(width)
+  e.align('center').size(true).bold(true).line(settings.name).size(false)
+  e.bold(true).line(isX ? 'X-REPORT (mid-shift)' : 'Z-REPORT (shift close)').bold(false)
+  e.align('left').rule()
+  e.line('Opened: ' + new Date(shift.openedAt).toLocaleString('en-IN'))
+  if (shift.openedBy) e.line('Cashier: ' + shift.openedBy)
+  if (!isX && shift.closedAt) e.line('Closed: ' + new Date(shift.closedAt).toLocaleString('en-IN'))
+  e.rule()
+  e.bold(true).line('SALES').bold(false)
+  e.row('Cash', money(tot.cash))
+  e.row('UPI', money(tot.upi))
+  e.row('Card', money(tot.card))
+  e.row('Online', money(tot.online))
+  e.bold(true).row('Gross sales', money(tot.gross)).bold(false)
+  e.row('Bills', String(tot.bills))
+  e.row('Discounts', money(tot.discounts))
+  e.rule()
+  e.bold(true).line('CASH DRAWER').bold(false)
+  e.row('Opening float', money(tot.openingFloat))
+  e.row('+ Cash sales', money(tot.cash))
+  e.row('+ Cash in', money(tot.cashIn))
+  e.row('- Cash out', money(tot.cashOut))
+  e.bold(true).row('Expected in drawer', money(tot.expectedCash)).bold(false)
+  if (!isX) {
+    e.row('Counted', money(tot.countedCash))
+    e.size(true).bold(true).row(tot.variance >= 0 ? 'OVER' : 'SHORT', money(Math.abs(tot.variance))).bold(false).size(false)
+  }
+  e.rule().align('center').line('Powered by KhaanaPeena').feed(1)
+  return e.cut().done()
+}
+
 export { sanitize }

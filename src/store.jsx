@@ -204,6 +204,31 @@ export function StoreProvider({ children }) {
       setState(makeSeed())
     }
 
+    // ---- cash register / shifts ----
+    const openShift = (openingFloat, by) => update((s) => {
+      s.shifts = s.shifts || []
+      if (s.shifts.some((x) => x.status === 'open')) return // one open register at a time
+      s.shifts.push({
+        id: uid('sh'), openedAt: Date.now(), openedBy: by || '', openingFloat: +openingFloat || 0,
+        cashMovements: [], status: 'open', closedAt: null, closedBy: null, z: null,
+      })
+    })
+    const addCashMovement = (type, amount, reason, by) => update((s) => {
+      const sh = (s.shifts || []).find((x) => x.status === 'open')
+      if (!sh) return
+      sh.cashMovements = sh.cashMovements || []
+      sh.cashMovements.push({ id: uid('cm'), at: Date.now(), type, amount: +amount || 0, reason: reason || '', by: by || '' })
+    })
+    // close = generate the Z-report: snapshot totals so history is immutable
+    const closeShift = (countedCash, by, zSnapshot) => update((s) => {
+      const sh = (s.shifts || []).find((x) => x.status === 'open')
+      if (!sh) return
+      sh.closedAt = Date.now()
+      sh.closedBy = by || ''
+      sh.status = 'closed'
+      sh.z = { ...zSnapshot, countedCash: +countedCash || 0, variance: (+countedCash || 0) - (zSnapshot?.expectedCash || 0) }
+    })
+
     // ---- reservations / table bookings ----
     const addReservation = (r) => update((s) => {
       s.reservations = s.reservations || []
@@ -337,7 +362,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

@@ -10,6 +10,7 @@ import MenuPage from './pages/Menu.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Customers from './pages/Customers.jsx'
 import Reports from './pages/Reports.jsx'
+import Register from './pages/Register.jsx'
 import AIInsights from './pages/AIInsights.jsx'
 import Waste from './pages/Waste.jsx'
 import Staff from './pages/Staff.jsx'
@@ -33,6 +34,7 @@ const NAV = [
   { id: 'inventory', icon: '📦', key: 'inventory' },
   { id: 'customers', icon: '👥', key: 'customers' },
   { id: 'reports', icon: '📈', key: 'reports' },
+  { id: 'register', icon: '💵', key: 'register' },
   { id: 'ai', icon: '✨', key: 'ai' },
   { id: 'waste', icon: '🗑️', key: 'waste' },
   { id: 'staff', icon: '🧑‍💼', key: 'staff' },
@@ -42,7 +44,7 @@ const NAV = [
 const PAGES = {
   dashboard: Dashboard, billing: Billing, tables: Tables, reservations: Reservations, kds: KDS,
   online: OnlineOrders, menu: MenuPage, inventory: Inventory, customers: Customers, reports: Reports,
-  ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
+  register: Register, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 
 // screens shown in the mobile bottom tab bar (the rest live in the "More" drawer)

@@ -95,7 +95,7 @@ export async function sendToPrinter(bytes, cfg, override = {}) {
 }
 
 // ---- high-level helpers used by the app ----
-import { buildBill, buildKOT } from './escpos.js'
+import { buildBill, buildKOT, buildShiftReport } from './escpos.js'
 
 const cfgOf = (settings) => settings.printer || DEFAULT_PRINTER
 
@@ -110,6 +110,12 @@ export async function printKOT(order, settings) {
   if (!cfg.enabled || cfg.mode === 'browser') return { ok: false, reason: 'browser' }
   const override = cfg.mode === 'network' && cfg.kitchenIp ? { ip: cfg.kitchenIp } : {}
   return sendToPrinter(buildKOT(order, cfg.width || 48), cfg, override)
+}
+
+export async function printShiftReport(shift, tot, settings, isX = false) {
+  const cfg = cfgOf(settings)
+  if (!cfg.enabled || cfg.mode === 'browser') return { ok: false, reason: 'browser' }
+  return sendToPrinter(buildShiftReport(shift, tot, settings, cfg.width || 48, isX), cfg)
 }
 
 // a tiny test receipt for the Settings "Test print" button

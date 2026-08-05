@@ -18,6 +18,26 @@ export const fmtDate = (ts) =>
 
 export const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000)
 
+// cash-register shift totals — sales during the shift window + drawer math.
+// Used live for the X-report (open shift) and snapshotted into the Z-report on close.
+export function shiftTotals(shift, orders) {
+  const from = shift.openedAt || 0
+  const to = shift.closedAt || Date.now() + 1000
+  const paid = (orders || []).filter((o) => o.status === 'paid' && o.paidAt >= from && o.paidAt < to)
+  const mode = (m) => paid.filter((o) => (o.payment?.method || 'cash') === m).reduce((s, o) => s + (o.payment?.amount || 0), 0)
+  const cash = mode('cash'), upi = mode('upi'), card = mode('card'), online = mode('online')
+  const cashIn = (shift.cashMovements || []).filter((m) => m.type === 'in').reduce((s, m) => s + (m.amount || 0), 0)
+  const cashOut = (shift.cashMovements || []).filter((m) => m.type === 'out').reduce((s, m) => s + (m.amount || 0), 0)
+  const openingFloat = shift.openingFloat || 0
+  return {
+    cash, upi, card, online, gross: cash + upi + card + online,
+    bills: paid.length,
+    discounts: paid.reduce((s, o) => s + (o.payment?.discount || 0), 0),
+    cashIn, cashOut, openingFloat,
+    expectedCash: openingFloat + cash + cashIn - cashOut, // what should be in the drawer
+  }
+}
+
 // manager authorization: matches the settings Manager PIN, or any staff member
 // with a manager/admin/owner role whose PIN matches. Returns {name} or null.
 export function verifyManagerPin(state, pin) {
