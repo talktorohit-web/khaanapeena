@@ -22,7 +22,7 @@
         },
         "orders": {
           "$oid": {
-            ".write": "!data.exists() && newData.child('source').val() === 'qr-guest'"
+            ".write": "!data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists()"
           }
         }
       }

@@ -157,8 +157,10 @@ export default function Billing() {
   const doSendKot = async () => {
     if (!order) return
     const newItems = order.items.filter((i) => !i.deducted)
-    const kotOrder = { ...order, items: newItems, kotNo: state.counters?.kotNo, kotAt: Date.now() }
-    sendKot(orderId)
+    // use the number sendKot actually issues (server counter when cloud-connected),
+    // not the local seed value — otherwise every cloud KOT prints a stale "#1"
+    const kotNo = await sendKot(orderId)
+    const kotOrder = { ...order, items: newItems, kotNo, kotAt: Date.now() }
     const res = await printKOT(kotOrder, state.settings)
     if (res.ok) flashPrint('🖨️ KOT sent to kitchen printer')
     else if (res.reason && res.reason !== 'browser') flashPrint('⚠️ KOT print failed: ' + res.reason)

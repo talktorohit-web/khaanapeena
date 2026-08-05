@@ -87,8 +87,10 @@ export function bucketize(points, range) {
   if (range.bucket === 'hour') {
     for (let h = 0; h < 24; h++) out.push({ key: h, label: `${((h % 12) || 12)}${h < 12 ? 'a' : 'p'}`, value: 0 })
     points.forEach((p) => { const h = new Date(p.ts).getHours(); out[h].value += p.value })
-    // trim to business hours span present, else 8am-11pm
-    return out.slice(8, 24)
+    // trim to the active span: start at the earliest hour with sales (never later
+    // than 8am so a normal day still opens at 8) — keeps early breakfast/tiffin sales
+    const firstActive = out.findIndex((b) => b.value > 0)
+    return out.slice(firstActive === -1 ? 8 : Math.min(8, firstActive), 24)
   }
   if (range.bucket === 'day') {
     const start = new Date(range.from); start.setHours(0, 0, 0, 0)
@@ -115,7 +117,9 @@ export function bucketize(points, range) {
 
 // GST for restaurants (India): composition/regular non-AC default 5% (2.5 CGST + 2.5 SGST), no ITC
 export function billTotals(order, settings) {
-  const sub = order.items.reduce((s, it) => s + it.price * it.qty, 0)
+  // items can be absent when a cloud order round-trips through RTDB (empty arrays
+  // are dropped by Firebase) — guard so bill math never throws on a partial payload
+  const sub = (order.items || []).reduce((s, it) => s + it.price * it.qty, 0)
   const discount = order.payment?.discount || 0
   const taxable = Math.max(0, sub - discount)
   const gstRate = settings.gstRate ?? 5

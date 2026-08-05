@@ -48,7 +48,9 @@ export function StoreProvider({ children }) {
   const lastPushRef = useRef(0)
   const lastPublicRef = useRef(0)
   const authUserRef = useRef(null)
+  const stateRef = useRef(state) // latest state, for reading counters synchronously in async actions
   useEffect(() => { authUserRef.current = authUser }, [authUser])
+  useEffect(() => { stateRef.current = state }, [state])
 
   // watch Firebase auth state (persists across app restarts)
   useEffect(() => {
@@ -88,7 +90,7 @@ export function StoreProvider({ children }) {
         if (cloud.role === 'owner') {
           merged.orders.forEach((o) => {
             if (!['kot', 'ready', 'served', 'paid'].includes(o.status)) return
-            o.items.forEach((li) => {
+            ;(o.items || []).forEach((li) => {
               if (li.deducted) return
               const item = merged.items.find((i) => i.id === li.itemId)
               item?.recipe?.forEach(({ ingId, qty }) => {
@@ -152,14 +154,20 @@ export function StoreProvider({ children }) {
       return null
     }
 
+    // returns the KOT number actually issued, so the caller prints the right one
+    // (server counter when online, local otherwise — never the stale seed value)
     const sendKot = async (orderId) => {
-      const kotNo = await allocNumber('kotNo')
+      const server = await allocNumber('kotNo')
+      const issued = server != null ? server : (stateRef.current.counters?.kotNo || 1)
       update((s) => {
         const o = s.orders.find((x) => x.id === orderId)
         if (!o || !o.items.length) return
         o.status = 'kot'
         o.kotAt = Date.now()
-        o.kotNo = kotNo != null ? kotNo : s.counters.kotNo++
+        o.kotNo = issued
+        // keep the local counter past the number we just issued (server or local)
+        // so an offline settle later never re-issues a used number
+        s.counters.kotNo = Math.max(s.counters.kotNo || 1, issued + 1)
         // auto-deduct inventory from recipes
         o.items.forEach((li) => {
           if (li.deducted) return
@@ -171,10 +179,12 @@ export function StoreProvider({ children }) {
           li.deducted = true
         })
       })
+      return issued
     }
 
     const settleOrder = async (orderId, { method, discount = 0, customerId = null, redeemPoints = 0 }) => {
-      const billNo = await allocNumber('billNo')
+      const server = await allocNumber('billNo')
+      const issued = server != null ? server : (stateRef.current.counters?.billNo || 1)
       update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
       if (!o) return
@@ -184,13 +194,18 @@ export function StoreProvider({ children }) {
       o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
       o.status = 'paid'
       o.paidAt = Date.now()
-      o.billNo = billNo != null ? billNo : s.counters.billNo++
+      o.billNo = issued
+      // advance the local counter past the issued number so an offline bill later
+      // can't duplicate an invoice number already used (server or local)
+      s.counters.billNo = Math.max(s.counters.billNo || 1, issued + 1)
       o.customerId = customerId || o.customerId
       if (o.customerId) {
         const c = s.customers.find((x) => x.id === o.customerId)
         if (c) {
           c.visits++
-          c.totalSpend += totals.total
+          // record what the customer actually paid (composition bills charge only
+          // the taxable value — using totals.total would inflate spend/loyalty)
+          c.totalSpend += o.payment.amount
           c.points += Math.floor(totals.taxable / 100) * (s.settings.loyaltyEarnPer100 || 1)
           if (redeemPoints) c.points = Math.max(0, c.points - redeemPoints)
           c.lastVisit = Date.now()
@@ -240,10 +255,14 @@ export function StoreProvider({ children }) {
     })
     // seat a booking: open a dine-in order on its table and mark it seated
     const seatReservation = (id, tableId) => {
+      // already seated? return the existing order — never create a duplicate/orphan
+      // (guards against a double-tap on "Seat" before the button re-renders)
+      const existing = (stateRef.current.reservations || []).find((x) => x.id === id)
+      if (existing && existing.status === 'seated' && existing.orderId) return existing.orderId
       const oid = uid('o')
       update((s) => {
         const r = (s.reservations || []).find((x) => x.id === id)
-        if (!r) return
+        if (!r || r.status === 'seated') return
         const tid = tableId || r.tableId || null
         s.orders.push({
           id: oid, billNo: null, type: 'dine', tableId: tid, items: [], status: 'open',
@@ -302,6 +321,9 @@ export function StoreProvider({ children }) {
       if (!remote || !remote.meta) throw new Error('Restaurant code not found')
       const adopted = joinRemote(remote)
       setState(adopted)
+      // we just adopted the cloud's state — mark it as already-pushed so the first
+      // debounced push doesn't re-upload this (possibly stale) snapshot over newer meta
+      lastPushRef.current = Date.now()
       const cfg = { code: code.trim().toUpperCase(), role: 'device' }
       saveCloudCfg(cfg)
       setCloud(cfg)
@@ -319,6 +341,7 @@ export function StoreProvider({ children }) {
       if (!remote || !remote.meta) return false
       const adopted = joinRemote(remote)
       setState(adopted)
+      lastPushRef.current = Date.now() // adopted cloud state; don't echo it back over newer meta
       if (uid) { try { await claimRestaurant(code, uid) } catch { /* rules */ } }
       try { await publishPublic(code, adopted) } catch { /* rules */ }
       const cfg = { code, role: 'owner' }

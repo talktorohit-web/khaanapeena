@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { StatCard, btnGhost, Badge, Empty } from '../components.jsx'
 import { Bars, Donut, HBars } from '../charts.jsx'
-import { inr0, inr, reportRange, bucketize } from '../utils.js'
+import { inr0, inr, reportRange, bucketize, billTotals } from '../utils.js'
 
 const RANGE_KEYS = [
   ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 days'],
@@ -77,11 +77,15 @@ function SalesReport({ state, range }) {
     [state.orders, range]
   )
 
+  const scheme = state.settings.gstScheme || 'regular'
+  const gstRate = state.settings.gstRate ?? 5
   const gross = paid.reduce((s, o) => s + (o.payment?.amount || 0), 0)
   const discount = paid.reduce((s, o) => s + (o.payment?.discount || 0), 0)
   const bills = paid.length
   const avg = bills ? Math.round(gross / bills) : 0
-  const netTaxable = Math.round(gross / 1.05)
+  // taxable value computed from each bill (not gross/1.05) — correct for composition
+  // (no GST), service charge, and non-5% GST rates
+  const netTaxable = Math.round(paid.reduce((s, o) => s + billTotals(o, state.settings).taxable, 0))
 
   // payment mode breakdown
   const modeRows = MODES.map((m) => {
@@ -125,14 +129,22 @@ function SalesReport({ state, range }) {
   const eco = paid.filter((o) => ['zomato', 'swiggy'].includes(o.type))
   const ownGross = own.reduce((s, o) => s + (o.payment?.amount || 0), 0)
   const ecoGross = eco.reduce((s, o) => s + (o.payment?.amount || 0), 0)
-  const ownTaxable = Math.round(ownGross / 1.05)
-  const ownGst = ownGross - ownTaxable
+  // aggregate taxable + GST from each own-channel bill; composition collects no GST
+  const ownAgg = own.reduce((a, o) => {
+    const bt = billTotals(o, state.settings)
+    a.taxable += bt.taxable
+    if (scheme !== 'composition') { a.cgst += bt.cgst; a.sgst += bt.sgst }
+    return a
+  }, { taxable: 0, cgst: 0, sgst: 0 })
+  const ownTaxable = Math.round(ownAgg.taxable)
+  const ownCgst = Math.round(ownAgg.cgst)
+  const ownSgst = Math.round(ownAgg.sgst)
 
   const exportBills = () => {
     const rows = [['Bill No', 'Date', 'Time', 'Type', 'Table', 'Items', 'Payment mode', 'Discount', 'Amount (₹)']]
     ;[...paid].sort((a, b) => a.paidAt - b.paidAt).forEach((o) => rows.push([
       o.billNo, new Date(o.paidAt).toLocaleDateString('en-IN'), new Date(o.paidAt).toLocaleTimeString('en-IN'),
-      o.type, o.tableId || '', o.items.map((i) => `${i.qty}x ${i.name}`).join('; '),
+      o.type, o.tableId || '', (o.items || []).map((i) => `${i.qty}x ${i.name}`).join('; '),
       o.payment?.method || '', o.payment?.discount || 0, o.payment?.amount || 0,
     ]))
     rows.push([])
@@ -256,10 +268,20 @@ function SalesReport({ state, range }) {
         </div>
         <div className="bg-white rounded-2xl p-5 border border-stone-100">
           <h3 className="font-bold text-ink-900 mb-2">GST summary</h3>
-          <Row l="Your gross (own)" v={inr0(ownGross)} />
-          <Row l="Taxable value" v={inr0(ownTaxable)} />
-          <Row l="CGST @2.5%" v={inr0(Math.round(ownGst / 2))} />
-          <Row l="SGST @2.5%" v={inr0(Math.round(ownGst / 2))} />
+          {scheme === 'composition' ? (
+            <>
+              <Row l="Your gross (own)" v={inr0(ownGross)} />
+              <Row l="GST charged" v="₹0 (not collected)" />
+              <p className="text-[10px] text-stone-400 mt-1">Composition scheme — no GST is charged to customers; you pay a fixed composition levy on turnover instead.</p>
+            </>
+          ) : (
+            <>
+              <Row l="Your gross (own)" v={inr0(ownGross)} />
+              <Row l="Taxable value" v={inr0(ownTaxable)} />
+              <Row l={`CGST @${gstRate / 2}%`} v={inr0(ownCgst)} />
+              <Row l={`SGST @${gstRate / 2}%`} v={inr0(ownSgst)} />
+            </>
+          )}
           <div className="border-t border-stone-100 my-2" />
           <Row l="Via Zomato/Swiggy" v={inr0(ecoGross)} />
           <p className="text-[10px] text-stone-400 mt-1">Aggregator deposits GST on their sales under Sec 9(5) — not payable by you.</p>
