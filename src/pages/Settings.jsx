@@ -251,19 +251,14 @@ function SecuritySection() {
 }
 
 function CloudSection() {
-  const { cloud, cloudStatus, cloudCreate, cloudJoin, cloudLeave } = useStore()
-  const [joinCode, setJoinCode] = useState('')
+  const { cloud, cloudStatus, authUser, reconnectCloud } = useStore()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const doCreate = async () => {
+  const toLogin = () => { localStorage.setItem('khaanapeena_demo', '0'); window.location.reload() }
+  const doReconnect = async () => {
     setBusy(true); setErr('')
-    try { await cloudCreate() } catch { setErr('Could not reach cloud — check internet') }
-    setBusy(false)
-  }
-  const doJoin = async () => {
-    setBusy(true); setErr('')
-    try { await cloudJoin(joinCode) } catch (e) { setErr(e.message || 'Join failed') }
+    try { await reconnectCloud() } catch (e) { setErr(e.message || 'Could not sync — check internet') }
     setBusy(false)
   }
 
@@ -275,24 +270,25 @@ function CloudSection() {
             <Badge color={cloudStatus === 'live' ? 'green' : cloudStatus === 'error' ? 'red' : 'amber'}>
               {cloudStatus === 'live' ? '● LIVE' : cloudStatus === 'error' ? '● OFFLINE' : '● CONNECTING'}
             </Badge>
-            <span className="text-xs text-stone-500">{cloud.role === 'owner' ? 'This is the main POS device' : 'Joined device'}</span>
+            <span className="text-xs text-stone-500">Synced to {authUser?.email || 'your account'}</span>
           </div>
-          <p className="text-sm text-stone-600 mb-1">Restaurant code — enter this on every other device (PC, phone, kitchen screen):</p>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="font-mono text-xl font-black tracking-widest bg-stone-100 rounded-xl px-4 py-2">{cloud.code}</span>
+          <p className="text-sm text-stone-600 mb-2">To add another device — billing PC, kitchen screen, a manager's phone — install KhaanaPeena there and <b>sign in with this same email</b>. Everything syncs automatically; there are no codes to type or share.</p>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="text-xs text-stone-500">Restaurant code (only for your table QR menus):</span>
+            <span className="font-mono text-sm font-black tracking-widest bg-stone-100 rounded-lg px-3 py-1.5">{cloud.code}</span>
             <button onClick={() => navigator.clipboard?.writeText(cloud.code)} className={btnGhost}>Copy</button>
           </div>
-          <p className="text-xs text-stone-400 mb-3">Bills, KOTs, menu and inventory sync live across every connected device. Table QR stickers now carry this code, so guest phones order straight into your kitchen.</p>
-          <button onClick={cloudLeave} className={btnGhost}>Disconnect this device</button>
+          <p className="text-xs text-stone-400">🔒 Your bills, menu, inventory and customer data are locked to your account — only devices signed in as you can open them. Guests who scan a table QR can view the menu and place an order, and nothing more.</p>
+        </div>
+      ) : authUser ? (
+        <div>
+          <p className="text-sm text-stone-600 mb-3">You're signed in as <b>{authUser.email}</b>, but this device isn't syncing yet.</p>
+          <button onClick={doReconnect} disabled={busy} className={btnPrimary}>{busy ? 'Connecting…' : '☁️ Sync this device'}</button>
         </div>
       ) : (
         <div>
-          <p className="text-sm text-stone-600 mb-3">Right now this device works alone. Turn on cloud sync to connect the billing PC, kitchen screen and phones to one restaurant.</p>
-          <button onClick={doCreate} disabled={busy} className={btnPrimary + ' mr-2'}>{busy ? 'Creating…' : '☁️ Create Restaurant Cloud'}</button>
-          <div className="flex items-center gap-2 mt-3">
-            <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="Have a code? e.g. KPXXXXXXXX" className={inputCls + ' max-w-xs font-mono'} />
-            <button onClick={doJoin} disabled={busy || joinCode.length < 8} className={btnGhost}>Join</button>
-          </div>
+          <p className="text-sm text-stone-600 mb-3">Cloud sync keeps every device — billing PC, kitchen screen, phones — on one live copy of your data. It needs a free account, which is also what keeps your data private to you.</p>
+          <button onClick={toLogin} className={btnPrimary}>Sign in / Create account</button>
         </div>
       )}
       {err && <p className="text-xs text-red-600 mt-2">{err}</p>}

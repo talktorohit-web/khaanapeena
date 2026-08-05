@@ -306,13 +306,31 @@ export function StoreProvider({ children }) {
     })
 
     // ---- cloud actions ----
+    // cloud sync is tied to an account — a restaurant node is always owner-bound so
+    // only devices signed in as the owner (or an added member) can read/write it
     const cloudCreate = async () => {
-      const uid = authUserRef.current?.uid || null // claim it if signed in
+      const uid = authUserRef.current?.uid
+      if (!uid) throw new Error('Sign in first — cloud sync is tied to your account')
       const code = await createCloud(JSON.parse(localStorage.getItem(KEY)) || makeSeed(), uid)
-      if (uid) await setUserRestaurant(uid, code, '')
+      await setUserRestaurant(uid, code, '')
       const cfg = { code, role: 'owner' }
       saveCloudCfg(cfg)
       setCloud(cfg)
+      return code
+    }
+
+    // re-attach this signed-in device to its owner's restaurant (or create one if the
+    // account has none yet) — used when a device is authed but not currently syncing
+    const reconnectCloud = async () => {
+      const uid = authUserRef.current?.uid
+      if (!uid) throw new Error('Sign in first — cloud sync is tied to your account')
+      const rec = await getUserRestaurant(uid)
+      if (rec?.code && (await adoptAsOwner(rec.code, uid))) return rec.code
+      const seedData = JSON.parse(localStorage.getItem(KEY)) || makeSeed()
+      const code = await createCloud(seedData, uid)
+      await setUserRestaurant(uid, code, seedData.settings.name)
+      saveCloudCfg({ code, role: 'owner' })
+      setCloud({ code, role: 'owner' })
       return code
     }
 
@@ -385,7 +403,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

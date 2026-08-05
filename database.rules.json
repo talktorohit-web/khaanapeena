@@ -15,12 +15,27 @@
     },
     "kp_restaurants": {
       "$code": {
-        ".read": "!data.child('owner').exists() || (auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists()))",
-        ".write": "!data.exists() || !data.child('owner').exists() || (auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists()))",
+        ".read": "auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists())",
+        ".write": "!data.exists() && auth != null && newData.child('owner').val() === auth.uid",
+        "owner": {
+          ".write": "false"
+        },
+        "members": {
+          ".write": "auth != null && data.parent().child('owner').val() === auth.uid",
+          "$uid": { ".validate": "newData.isBoolean()" }
+        },
+        "meta": {
+          ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())"
+        },
+        "counters": {
+          ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())"
+        },
         "public": {
-          ".read": true
+          ".read": true,
+          ".write": "auth != null && data.parent().child('owner').val() === auth.uid"
         },
         "orders": {
+          ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())",
           "$oid": {
             ".write": "!data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists()"
           }
