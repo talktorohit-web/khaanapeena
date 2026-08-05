@@ -206,6 +206,18 @@ export function makeSeed() {
       { id: uid('f'), rating: 5, text: 'Butter chicken was amazing, best in Jalandhar!', sentiment: 'positive', date: Date.now() - 3 * 864e5 },
       { id: uid('f'), rating: 2, text: 'Service was slow, food came cold', sentiment: 'negative', date: Date.now() - 1 * 864e5 },
     ],
+    reservations: makeReservations(),
     counters: { billNo, kotNo: 1 },
   }
+}
+
+function makeReservations() {
+  const today = new Date().toISOString().slice(0, 10)
+  const tmr = new Date(Date.now() + 864e5).toISOString().slice(0, 10)
+  return [
+    { id: uid('res'), name: 'Rahul Sharma', phone: '9876500001', date: today, time: '13:00', partySize: 4, tableId: 'F1', status: 'booked', notes: 'Window seat if possible', createdAt: Date.now() - 3600e3 },
+    { id: uid('res'), name: 'Neha Joshi', phone: '9876500006', date: today, time: '20:00', partySize: 2, tableId: '', status: 'booked', notes: 'Anniversary 🎂', createdAt: Date.now() - 7200e3 },
+    { id: uid('res'), name: 'Gurpreet Singh', phone: '9811100022', date: today, time: '21:00', partySize: 6, tableId: 'F2', status: 'booked', notes: '', createdAt: Date.now() - 5400e3 },
+    { id: uid('res'), name: 'Amit Verma', phone: '9876500002', date: tmr, time: '19:30', partySize: 3, tableId: '', status: 'booked', notes: 'Birthday party', createdAt: Date.now() - 1800e3 },
+  ]
 }

@@ -204,6 +204,34 @@ export function StoreProvider({ children }) {
       setState(makeSeed())
     }
 
+    // ---- reservations / table bookings ----
+    const addReservation = (r) => update((s) => {
+      s.reservations = s.reservations || []
+      s.reservations.push({ id: uid('res'), status: 'booked', createdAt: Date.now(), ...r })
+    })
+    const updateReservation = (id, fields) => update((s) => {
+      const r = (s.reservations || []).find((x) => x.id === id)
+      if (r) Object.assign(r, fields)
+    })
+    // seat a booking: open a dine-in order on its table and mark it seated
+    const seatReservation = (id, tableId) => {
+      const oid = uid('o')
+      update((s) => {
+        const r = (s.reservations || []).find((x) => x.id === id)
+        if (!r) return
+        const tid = tableId || r.tableId || null
+        s.orders.push({
+          id: oid, billNo: null, type: 'dine', tableId: tid, items: [], status: 'open',
+          createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
+          payment: { method: null, discount: 0, amount: 0 }, source: 'reservation', kotNo: null,
+        })
+        r.status = 'seated'
+        r.orderId = oid
+        if (tid) r.tableId = tid
+      })
+      return oid
+    }
+
     // manager-authorized correction of a punched (KOT'd) line: reduce qty or remove.
     // Restores the recipe stock that was deducted, and records a void-log entry.
     // delta: a negative number to decrement, or 'remove' to void the whole line.
@@ -309,7 +337,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, cloudCreate, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

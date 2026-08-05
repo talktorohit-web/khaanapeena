@@ -14,6 +14,8 @@ export default function Dashboard() {
     else goTo('billing', { orderId: o.id })
   }
   const today = todayISO()
+  const ft = (tm) => { if (!tm) return ''; const [h, m] = tm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}` }
+  const todaysBookings = (state.reservations || []).filter((r) => r.date === today && r.status === 'booked').sort((a, b) => (a.time || '').localeCompare(b.time || ''))
   const paid = state.orders.filter((o) => o.status === 'paid')
   const todayOrders = paid.filter((o) => dayKey(o.paidAt) === today)
   const todaySales = todayOrders.reduce((s, o) => s + (o.payment?.amount || 0), 0)
@@ -91,6 +93,20 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        <button onClick={() => goTo('reservations')} className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 text-left hover:border-saffron-300 transition-colors">
+          <h3 className="font-bold text-ink-900 mb-3">📅 Today's bookings <Badge color="saffron">{todaysBookings.length}</Badge></h3>
+          {todaysBookings.length === 0 && <p className="text-sm text-stone-400">No table bookings yet today.</p>}
+          {todaysBookings.slice(0, 5).map((r) => (
+            <div key={r.id} className="flex items-center justify-between text-sm border-b border-stone-50 pb-2 mb-2 last:border-0 last:mb-0 last:pb-0">
+              <div>
+                <span className="font-semibold text-ink-900">{r.name}</span>
+                <span className="text-stone-400 text-xs ml-2">{r.partySize} pax{r.tableId ? ` · 🪑 ${r.tableId}` : ''}</span>
+              </div>
+              <span className="text-xs font-bold text-saffron-700">{ft(r.time)}</span>
+            </div>
+          ))}
+        </button>
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100">
           <h3 className="font-bold text-ink-900 mb-3">🪔 Festival radar <Badge color="purple">KhaanaPeena AI</Badge></h3>

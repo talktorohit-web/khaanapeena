@@ -6,6 +6,7 @@ export const PAGE_KEYS = {
   dashboard: 'D',
   billing: 'B',
   tables: 'T',
+  reservations: 'V',
   kds: 'K',
   online: 'O',
   menu: 'M',
@@ -34,9 +35,9 @@ export const SHORTCUT_GROUPS = [
   {
     title: 'Go to screen',
     items: [
-      ['D', 'Dashboard'], ['B', 'Billing (POS)'], ['T', 'Tables'], ['K', 'Kitchen (KDS)'],
-      ['O', 'Online Orders'], ['M', 'Menu'], ['I', 'Inventory'], ['C', 'Customers'],
-      ['R', 'Reports'], ['A', 'AI Insights'], ['W', 'Waste'], ['S', 'Staff'], [',', 'Settings'],
+      ['D', 'Dashboard'], ['B', 'Billing (POS)'], ['T', 'Tables'], ['V', 'Reservations'],
+      ['K', 'Kitchen (KDS)'], ['O', 'Online Orders'], ['M', 'Menu'], ['I', 'Inventory'],
+      ['C', 'Customers'], ['R', 'Reports'], ['A', 'AI Insights'], ['W', 'Waste'], ['S', 'Staff'], [',', 'Settings'],
     ],
   },
   {

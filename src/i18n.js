@@ -8,6 +8,7 @@ const D = {
   dashboard: ['Dashboard', 'डैशबोर्ड', 'ਡੈਸ਼ਬੋਰਡ'],
   billing: ['Billing (POS)', 'बिलिंग (POS)', 'ਬਿਲਿੰਗ (POS)'],
   tables: ['Tables', 'टेबल', 'ਟੇਬਲ'],
+  reservations: ['Reservations', 'रिज़र्वेशन', 'ਰਿਜ਼ਰਵੇਸ਼ਨ'],
   kitchen: ['Kitchen (KDS)', 'रसोई (KDS)', 'ਰਸੋਈ (KDS)'],
   online: ['Online Orders', 'ऑनलाइन ऑर्डर', 'ਆਨਲਾਈਨ ਆਰਡਰ'],
   menu: ['Menu', 'मेन्यू', 'ਮੀਨੂ'],

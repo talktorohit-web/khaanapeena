@@ -3,6 +3,7 @@ import { useStore } from './store.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Billing from './pages/Billing.jsx'
 import Tables from './pages/Tables.jsx'
+import Reservations from './pages/Reservations.jsx'
 import KDS from './pages/KDS.jsx'
 import OnlineOrders from './pages/OnlineOrders.jsx'
 import MenuPage from './pages/Menu.jsx'
@@ -25,6 +26,7 @@ const NAV = [
   { id: 'dashboard', icon: '📊', key: 'dashboard' },
   { id: 'billing', icon: '🧾', key: 'billing' },
   { id: 'tables', icon: '🪑', key: 'tables' },
+  { id: 'reservations', icon: '📅', key: 'reservations' },
   { id: 'kds', icon: '👨‍🍳', key: 'kitchen' },
   { id: 'online', icon: '🛵', key: 'online' },
   { id: 'menu', icon: '📖', key: 'menu' },
@@ -38,8 +40,8 @@ const NAV = [
 ]
 
 const PAGES = {
-  dashboard: Dashboard, billing: Billing, tables: Tables, kds: KDS, online: OnlineOrders,
-  menu: MenuPage, inventory: Inventory, customers: Customers, reports: Reports,
+  dashboard: Dashboard, billing: Billing, tables: Tables, reservations: Reservations, kds: KDS,
+  online: OnlineOrders, menu: MenuPage, inventory: Inventory, customers: Customers, reports: Reports,
   ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 
