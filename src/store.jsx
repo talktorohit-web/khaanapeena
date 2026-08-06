@@ -5,6 +5,7 @@ import { uid, billTotals } from './utils.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote, nextCounter, claimRestaurant, publishPublic,
+  stampMetaRecords, migrateCloudFormat, isLegacyFormat,
 } from './cloud.js'
 import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant, getIdToken } from './auth.js'
 import { enqueue as outboxEnqueue, flush as outboxFlush, makeHttpSink, financialYear } from './outbox.js'
@@ -17,14 +18,22 @@ function load() {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const s = JSON.parse(raw)
-      if (s && s.v === 1) return s
+      if (s && s.v === 1) {
+        // per-record sync bookkeeping: ensure the deletion log exists and GC old
+        // tombstones (a 45-day-old delete is safe to forget — all devices synced)
+        s._tomb = s._tomb || {}
+        const cutoff = Date.now() - 45 * 864e5
+        for (const k of Object.keys(s._tomb)) if ((s._tomb[k] || 0) < cutoff) delete s._tomb[k]
+        return s
+      }
     }
   } catch { /* corrupted state falls through to reseed */ }
   return makeSeed()
 }
 
-// stamp updatedAt on orders whose content changed vs prev, and metaUpdatedAt
-// when any non-order slice changed — this powers per-order cloud LWW merging
+// stamp updatedAt on orders whose content changed, and per-record _u (+ deletion
+// tombstones) on every meta collection — this powers per-order AND per-record cloud
+// LWW merging, so two devices editing different records never clobber each other
 function stampChanges(prev, draft) {
   const now = Date.now()
   const prevById = {}
@@ -34,10 +43,7 @@ function stampChanges(prev, draft) {
     if (!p) { o.updatedAt = o.updatedAt || now; return }
     if (JSON.stringify({ ...p, updatedAt: 0 }) !== JSON.stringify({ ...o, updatedAt: 0 })) o.updatedAt = now
   })
-  for (const k of Object.keys(draft)) {
-    if (k === 'orders' || k === 'metaUpdatedAt') continue
-    if (JSON.stringify(prev[k]) !== JSON.stringify(draft[k])) { draft.metaUpdatedAt = now; break }
-  }
+  stampMetaRecords(prev, draft, now)
 }
 
 export function StoreProvider({ children }) {
@@ -48,6 +54,7 @@ export function StoreProvider({ children }) {
   const [authReady, setAuthReady] = useState(false)
   const lastPushRef = useRef(0)
   const lastPublicRef = useRef(0)
+  const migratedRef = useRef(false) // legacy whole-blob → per-record migration runs once
   const authUserRef = useRef(null)
   const stateRef = useRef(state) // latest state, for reading counters synchronously in async actions
   useEffect(() => { authUserRef.current = authUser }, [authUser])
@@ -84,6 +91,11 @@ export function StoreProvider({ children }) {
     setCloudStatus('syncing')
     const unsub = subscribeCloud(cloud.code, (remote) => {
       setCloudStatus('live')
+      // one-time upgrade of a legacy whole-blob restaurant to the per-record layout
+      if (cloud.role === 'owner' && isLegacyFormat(remote) && !migratedRef.current) {
+        migratedRef.current = true
+        migrateCloudFormat(cloud.code, joinRemote(remote)).catch(() => { migratedRef.current = false })
+      }
       setState((local) => {
         const merged = mergeRemote(local, remote)
         // owner device runs inventory deduction for KOTs that arrived from
@@ -96,7 +108,7 @@ export function StoreProvider({ children }) {
               const item = merged.items.find((i) => i.id === li.itemId)
               item?.recipe?.forEach(({ ingId, qty }) => {
                 const ing = merged.ingredients.find((g) => g.id === ingId)
-                if (ing) ing.stock = Math.max(0, +(ing.stock - qty * li.qty).toFixed(3))
+                if (ing) { ing.stock = Math.max(0, +(ing.stock - qty * li.qty).toFixed(3)); ing._u = Date.now() }
               })
               li.deducted = true
               li.updatedAt = Date.now()
@@ -118,10 +130,18 @@ export function StoreProvider({ children }) {
       const since = lastPushRef.current
       lastPushRef.current = Date.now()
       pushChanges(cloud.code, state, since).catch(() => setCloudStatus('error'))
-      // owner keeps the world-readable guest menu in sync when meta changes
-      if (cloud.role === 'owner' && (state.metaUpdatedAt || 0) > lastPublicRef.current) {
-        lastPublicRef.current = state.metaUpdatedAt || Date.now()
-        publishPublic(cloud.code, state).catch(() => {})
+      // owner keeps the world-readable guest menu in sync when the menu-affecting
+      // slices (settings, categories, items) change — gated on their newest _u
+      if (cloud.role === 'owner') {
+        const pubVer = Math.max(
+          state.settings?._u || 0,
+          ...(state.items || []).map((i) => i._u || 0),
+          ...(state.categories || []).map((c) => c._u || 0),
+        )
+        if (pubVer > lastPublicRef.current) {
+          lastPublicRef.current = pubVer
+          publishPublic(cloud.code, state).catch(() => {})
+        }
       }
     }, 400)
     return () => clearTimeout(timer)
