@@ -4,6 +4,8 @@ import { Field, inputCls, Toggle, btnGhost, btnPrimary, Badge } from '../compone
 import { LANGS } from '../i18n.js'
 import { verifyManagerPin } from '../utils.js'
 import { printTest, inElectron } from '../print.js'
+import { stats as outboxStats, flush as outboxFlush, retryDead as outboxRetryDead, makeHttpSink } from '../outbox.js'
+import { getIdToken } from '../auth.js'
 
 export default function Settings() {
   const { state, t, update, resetDemo } = useStore()
@@ -82,6 +84,8 @@ export default function Settings() {
       <SecuritySection />
 
       <CloudSection />
+
+      <SyncSection />
 
       <Section title="🧹 Demo data">
         <p className="text-xs text-stone-400 mb-2">Everything is stored on this device (works fully offline). Reset restores the sample restaurant.</p>
@@ -292,6 +296,89 @@ function CloudSection() {
         </div>
       )}
       {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
+    </Section>
+  )
+}
+
+// Durable dual-write: mirror every settled bill to the owner's own invoice database.
+// The outbox already queues bills; this panel sets the endpoint and shows sync health.
+function SyncSection() {
+  const { state, update, cloud } = useStore()
+  const sync = state.settings.sync || {}
+  const [url, setUrl] = useState(sync.apiUrl || '')
+  const [st, setSt] = useState({ pending: 0, dead: 0, total: 0 })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  // live sync-health poll (queue is tenant-scoped by the cloud code)
+  React.useEffect(() => {
+    if (!cloud?.code) return
+    const tick = () => setSt(outboxStats(cloud.code))
+    tick()
+    const iv = setInterval(tick, 3000)
+    return () => clearInterval(iv)
+  }, [cloud?.code])
+
+  if (!cloud?.code) {
+    return (
+      <Section title="🗄️ Durable sync (dual-write)">
+        <p className="text-sm text-stone-600">Turn on cloud sync first (sign in above). Durable dual-write then mirrors every settled bill to your own invoice database, on top of the live cloud — an off-site, gapless copy for accounting and recovery.</p>
+      </Section>
+    )
+  }
+
+  const on = !!sync.apiUrl
+  const health = !on
+    ? { label: '○ Off', color: 'stone', note: 'Bills stay on the live cloud only.' }
+    : st.dead > 0
+      ? { label: `● ${st.dead} failed`, color: 'red', note: 'Some bills were rejected — check the endpoint, then Retry failed.' }
+      : st.pending > 0
+        ? { label: `● ${st.pending} queued`, color: 'amber', note: 'Sending to your database…' }
+        : { label: '● Up to date', color: 'green', note: 'Every settled bill is mirrored to your database.' }
+
+  const saveUrl = () => {
+    const v = url.trim()
+    update((s) => { s.settings.sync = { ...(s.settings.sync || {}), apiUrl: v } })
+    setMsg(v ? 'Endpoint saved. New bills mirror to your database as they settle.' : 'Endpoint cleared — dual-write is off.')
+  }
+  const flushNow = async () => {
+    if (!cloud?.code || !sync.apiUrl) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await outboxFlush(cloud.code, makeHttpSink(sync.apiUrl, getIdToken))
+      setMsg(`Sent ${r.sent}${r.failed ? ` · ${r.failed} will retry` : ''}${r.dead ? ` · ${r.dead} rejected` : ''}.`)
+      setSt(outboxStats(cloud.code))
+    } catch { setMsg('Could not reach the sync endpoint.') }
+    setBusy(false)
+  }
+  const retryFailed = async () => { outboxRetryDead(cloud.code); setSt(outboxStats(cloud.code)); await flushNow() }
+
+  return (
+    <Section title="🗄️ Durable sync (dual-write)">
+      <p className="text-sm text-stone-600 mb-3">Mirror every settled bill to your own Postgres / Supabase invoice database — a gapless, off-site copy on top of the live cloud. Leave the endpoint blank to keep KhaanaPeena on cloud-only.</p>
+      <Field label="Invoice API endpoint (your backend base URL)">
+        <div className="flex items-center gap-2">
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.yourshop.in" className={inputCls + ' font-mono'} />
+          <button onClick={saveUrl} disabled={url.trim() === (sync.apiUrl || '')} className={btnPrimary}>Save</button>
+        </div>
+      </Field>
+
+      <div className="flex items-center gap-3 mt-3 flex-wrap">
+        <Badge color={health.color}>{health.label}</Badge>
+        <span className="text-xs text-stone-500">{health.note}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mt-3 max-w-xs">
+        <div className="bg-stone-50 rounded-xl px-3 py-2"><div className="text-xl font-black text-ink-900 tabular-nums">{st.pending}</div><div className="text-[11px] text-stone-400">Queued to send</div></div>
+        <div className="bg-stone-50 rounded-xl px-3 py-2"><div className={`text-xl font-black tabular-nums ${st.dead ? 'text-red-600' : 'text-ink-900'}`}>{st.dead}</div><div className="text-[11px] text-stone-400">Rejected (need attention)</div></div>
+      </div>
+
+      {on && (
+        <div className="flex items-center gap-2 mt-3">
+          <button onClick={flushNow} disabled={busy} className={btnGhost}>{busy ? 'Syncing…' : '↻ Sync now'}</button>
+          {st.dead > 0 && <button onClick={retryFailed} disabled={busy} className={btnGhost}>Retry failed</button>}
+        </div>
+      )}
+      {msg && <p className="text-xs text-stone-500 mt-2">{msg}</p>}
     </Section>
   )
 }

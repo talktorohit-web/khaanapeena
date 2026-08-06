@@ -56,6 +56,16 @@ export function stats(tenant) {
   }
 }
 
+// move dead-lettered entries back to pending so the next flush retries them
+// (used by the Settings "Retry failed" control after the owner fixes the endpoint)
+export function retryDead(tenant) {
+  const arr = read(tenant)
+  let n = 0
+  arr.forEach((e) => { if (e.status === 'dead') { e.status = 'pending'; e.attempts = 0; e.lastError = null; n++ } })
+  write(tenant, arr)
+  return n
+}
+
 // single-flusher lock across tabs; short TTL so a crashed flush self-heals
 function acquire(tenant) {
   const now = Date.now()
