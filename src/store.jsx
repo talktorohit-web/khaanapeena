@@ -6,7 +6,8 @@ import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote, nextCounter, claimRestaurant, publishPublic,
 } from './cloud.js'
-import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant } from './auth.js'
+import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant, getIdToken } from './auth.js'
+import { enqueue as outboxEnqueue, flush as outboxFlush, makeHttpSink, financialYear } from './outbox.js'
 
 const KEY = 'khaanapeena_v1'
 const Ctx = createContext(null)
@@ -126,6 +127,20 @@ export function StoreProvider({ children }) {
     return () => clearTimeout(timer)
   }, [state, cloud?.code])
 
+  // ---- dual-write: drain the outbox to the invoice API (dormant unless a sync
+  // endpoint is configured) — on mount, when connectivity returns, and every 30s ----
+  useEffect(() => {
+    const code = cloud?.code
+    const apiUrl = state.settings?.sync?.apiUrl
+    if (!code || !apiUrl) return
+    const sink = makeHttpSink(apiUrl, getIdToken)
+    const run = () => { if (navigator.onLine) outboxFlush(code, sink).catch(() => {}) }
+    run()
+    const iv = setInterval(run, 30000)
+    window.addEventListener('online', run)
+    return () => { clearInterval(iv); window.removeEventListener('online', run) }
+  }, [cloud?.code, state.settings?.sync?.apiUrl])
+
   const api = useMemo(() => {
     const update = (fn) => setState((prev) => {
       const draft = structuredClone(prev)
@@ -212,6 +227,35 @@ export function StoreProvider({ children }) {
         }
       }
       })
+      // dual-write mirror: queue this bill for the Postgres invoice authority.
+      // Dormant unless a sync endpoint is configured — with none set this is a
+      // no-op and the live billing flow is unchanged. Best-effort; never blocks
+      // the bill. Built from the pre-update snapshot + the values just assigned.
+      try {
+        const st = stateRef.current
+        const code = loadCloudCfg()?.code
+        if (code && st.settings?.sync?.apiUrl) {
+          const o = st.orders.find((x) => x.id === orderId)
+          if (o) {
+            const bt = billTotals({ ...o, payment: { ...o.payment, discount } }, st.settings)
+            const composition = st.settings.gstScheme === 'composition'
+            outboxEnqueue(code, 'bill', orderId, {
+              sourceOrderId: orderId,
+              outletCode: code,
+              billNo: issued,
+              fy: financialYear(Date.now()),
+              amount: composition ? Math.round(bt.taxable) : bt.total,
+              method,
+              gstScheme: st.settings.gstScheme || 'regular',
+              taxable: Math.round(bt.taxable),
+              cgst: composition ? 0 : Math.round(bt.cgst),
+              sgst: composition ? 0 : Math.round(bt.sgst),
+              settledAt: new Date().toISOString(),
+              lines: (o.items || []).map((li) => ({ name: li.name, qty: li.qty, price: li.price })),
+            })
+          }
+        }
+      } catch { /* mirror is best-effort — a settled bill is never held up by it */ }
     }
 
     const resetDemo = () => {

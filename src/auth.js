@@ -36,6 +36,13 @@ export function authError(e) {
 export const onAuth = (cb) =>
   onAuthStateChanged(auth(), (u) => cb(u ? { uid: u.uid, email: u.email } : null))
 
+// current user's Firebase ID token — the dual-write API verifies this and maps it
+// to the caller's org/outlet/role (the JWT claims that back Postgres RLS)
+export const getIdToken = async () => {
+  const u = auth().currentUser
+  return u ? u.getIdToken() : ''
+}
+
 export const signUp = (email, password) => createUserWithEmailAndPassword(auth(), email.trim(), password)
 export const signIn = (email, password) => signInWithEmailAndPassword(auth(), email.trim(), password)
 export const logout = () => signOut(auth())
