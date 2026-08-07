@@ -1,0 +1,15 @@
+{
+  "name": "khaanapeena-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "KhaanaPeena dual-write invoice service (Firebase-auth → Postgres settle_bill)",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "firebase-admin": "^13.0.2",
+    "pg": "^8.13.1"
+  }
+}
