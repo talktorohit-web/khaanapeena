@@ -183,3 +183,17 @@ create policy invoice_line_rw on invoice_lines
   using (invoice_id in (select id from invoices
          where outlet_id in (select outlet_id from memberships
                              where user_id = current_setting('app.user_id', true))));
+
+-- ---------- strict settle-time register ----------
+-- register_no is a gap-free serial in STRICT settled-time order, per outlet, computed
+-- live (so a late/backdated bill slots into the right chronological place). bill_no
+-- stays the immutable POS number printed on the customer's receipt — a legally-issued
+-- invoice number can't be renumbered — while register_no gives the day-book its strict
+-- chronological ordering. Tie-breaks on bill_no then created_at for a deterministic order.
+create or replace view invoice_register as
+select
+  row_number() over (partition by outlet_id
+                     order by settled_at, bill_no, created_at) as register_no,
+  outlet_id, bill_no, source_order_id, fy, amount, payment_method, gst_scheme,
+  taxable, cgst, sgst, settled_at, created_at
+from invoices;
