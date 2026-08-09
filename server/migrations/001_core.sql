@@ -84,6 +84,7 @@ create or replace function alloc_invoice(p_outlet uuid, p_fy text)
 returns bigint
 language plpgsql
 security definer
+set search_path = pg_catalog, public   -- pin: definer functions must not trust caller search_path
 as $$
 declare n bigint;
 begin
@@ -119,6 +120,7 @@ create or replace function settle_bill(
 ) returns bigint
 language plpgsql
 security definer
+set search_path = pg_catalog, public   -- pin: definer functions must not trust caller search_path
 as $$
 declare
   n   bigint;

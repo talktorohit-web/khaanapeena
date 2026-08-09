@@ -25,7 +25,13 @@
           "$uid": { ".validate": "newData.isBoolean()" }
         },
         "meta": {
-          ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())"
+          ".write": "auth != null && data.parent().child('owner').val() === auth.uid",
+          "col": {
+            ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())"
+          },
+          "tomb": {
+            ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())"
+          }
         },
         "counters": {
           ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())"

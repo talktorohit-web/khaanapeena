@@ -338,6 +338,10 @@ function SyncSection() {
 
   const saveUrl = () => {
     const v = url.trim()
+    if (v && !/^https:\/\//i.test(v) && !/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(v)) {
+      setMsg('Endpoint must start with https:// — your bill data and sign-in token are sent there.')
+      return
+    }
     update((s) => { s.settings.sync = { ...(s.settings.sync || {}), apiUrl: v } })
     setMsg(v ? 'Endpoint saved. New bills mirror to your database as they settle.' : 'Endpoint cleared — dual-write is off.')
   }

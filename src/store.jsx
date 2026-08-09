@@ -98,9 +98,24 @@ export function StoreProvider({ children }) {
       }
       setState((local) => {
         const merged = mergeRemote(local, remote)
-        // owner device runs inventory deduction for KOTs that arrived from
-        // guest/other devices (their lines were never deducted locally)
         if (cloud.role === 'owner') {
+          // SECURITY: guest QR orders are UNAUTHENTICATED writes. Before they can
+          // touch billing or inventory, re-price every line from the authoritative
+          // menu and clamp qty — a forged payload (price:0, qty:1000000, or a bogus
+          // itemId) then can't zero a bill or drain stock.
+          merged.orders.forEach((o) => {
+            if (o.source !== 'qr-guest' || o.sanitized) return
+            ;(o.items || []).forEach((li) => {
+              const item = merged.items.find((i) => i.id === li.itemId)
+              if (!item) { li.qty = 0; li.price = 0; return }
+              li.price = item.price
+              li.qty = Math.max(1, Math.min(50, Math.floor(+li.qty || 1)))
+            })
+            o.sanitized = true
+            o.updatedAt = Date.now()
+          })
+          // owner device runs inventory deduction for KOTs that arrived from
+          // guest/other devices (their lines were never deducted locally)
           merged.orders.forEach((o) => {
             if (!['kot', 'ready', 'served', 'paid'].includes(o.status)) return
             ;(o.items || []).forEach((li) => {

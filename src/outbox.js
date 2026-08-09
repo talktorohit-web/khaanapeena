@@ -110,6 +110,11 @@ export async function flush(tenant, sink) {
 // permanent (dead-letter); everything else (offline / 5xx / 429) = retryable.
 export function makeHttpSink(apiUrl, getToken) {
   const base = String(apiUrl || '').replace(/\/$/, '')
+  // never send the Firebase token over cleartext — require https (localhost allowed for dev)
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(base)
+  if (base && !base.startsWith('https://') && !isLocal) {
+    return async () => { const e = new Error('sync endpoint must be https'); e.permanent = true; throw e }
+  }
   return async (op) => {
     let token = ''
     try { token = (await getToken?.()) || '' } catch { /* unauth — server will 401 */ }

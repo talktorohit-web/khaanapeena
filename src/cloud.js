@@ -60,6 +60,19 @@ export const COLLECTIONS = [
 ]
 
 const stripMeta = (o) => { const { _u, ...rest } = o || {}; return rest }
+
+// settings fields that must NEVER leave the device via cloud sync:
+//   sync.apiUrl  — sending it cloud-wide lets a member point the owner's device (and
+//                  its Firebase token) at an attacker URL; printer — device-specific;
+//                  managerPin — a cleartext void PIN readable by any member is worse
+//                  than useless. These stay local; each device sets its own.
+const DEVICE_LOCAL_SETTINGS = ['sync', 'printer', 'managerPin']
+const syncableSettings = (s) => {
+  if (!s) return s
+  const out = { ...s }
+  for (const k of DEVICE_LOCAL_SETTINGS) delete out[k]
+  return out
+}
 const byId = (arr) => { const m = {}; (arr || []).forEach((r) => { if (r && r.id != null) m[r.id] = r }); return m }
 const hasOldArrays = (meta) => COLLECTIONS.some((c) => Array.isArray(meta[c]))
 
@@ -102,9 +115,11 @@ function metaOf(state) {
 export function menuSnapshot(state) {
   const s = state.settings || {}
   return {
+    // public menu — only what the guest UI renders. GSTIN/FSSAI are NOT exposed to
+    // anyone holding the code; they belong on the printed bill, not the public node.
     settings: {
       name: s.name || '', tagline: s.tagline || '', address: s.address || '', phone: s.phone || '',
-      fssai: s.fssai || '', gstin: s.gstin || '', upiId: s.upiId || '', gstScheme: s.gstScheme || 'regular',
+      upiId: s.upiId || '', gstScheme: s.gstScheme || 'regular',
       gstRate: s.gstRate ?? 5, serviceCharge: s.serviceCharge || 0, happyHour: s.happyHour || {}, lang: s.lang || 'en',
     },
     categories: state.categories || [],
@@ -156,9 +171,12 @@ export function mergeRemote(local, remote) {
   }
   remoteCol = remoteCol || {}
 
-  // settings — singleton LWW
+  // settings — singleton LWW, but device-local fields are never overwritten by remote
   let settings = local.settings
-  if (remoteSettings && (remoteSettings._u || 0) > (local.settings?._u || 0)) settings = remoteSettings
+  if (remoteSettings && (remoteSettings._u || 0) > (local.settings?._u || 0)) {
+    settings = { ...remoteSettings }
+    for (const k of DEVICE_LOCAL_SETTINGS) settings[k] = local.settings?.[k]
+  }
 
   // tombstones — union local + remote (remote layout: tomb/{c}/{id} = ts)
   const mergedTomb = { ...(local._tomb || {}) }
@@ -267,7 +285,7 @@ export function subscribeCloud(code, cb) {
 export function buildPushPatch(state, lastPush) {
   const patch = {}
   ;(state.orders || []).forEach((o) => { if ((o.updatedAt || 0) > lastPush) patch[`orders/${o.id}`] = o })
-  if (state.settings && (state.settings._u || 0) > lastPush) patch['meta/settings'] = state.settings
+  if (state.settings && (state.settings._u || 0) > lastPush) patch['meta/settings'] = syncableSettings(state.settings)
   for (const c of COLLECTIONS) {
     for (const rec of (state[c] || [])) {
       if (rec && (rec._u || 0) > lastPush) patch[`meta/col/${c}/${rec.id}`] = rec
