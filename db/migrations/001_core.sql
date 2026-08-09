@@ -57,9 +57,15 @@ create table if not exists invoices (
   sgst            numeric(12,2),
   settled_at      timestamptz not null,
   created_at      timestamptz not null default now(),
-  unique (outlet_id, source_order_id),       -- exactly-once per client order
-  unique (outlet_id, fy, bill_no)            -- no duplicate invoice numbers, ever
+  unique (outlet_id, source_order_id)        -- exactly-once per client order (idempotency)
 );
+-- The invoice NUMBER is issued by the client at settle time (atomic RTDB counter),
+-- so numbers already follow settle-time order. The mirror records that number
+-- faithfully rather than re-numbering by arrival, so a non-unique index (not a
+-- unique constraint) — a faithful mirror must store whatever the POS issued, and a
+-- rare offline dual-issue is surfaced by a report, not rejected at the door.
+alter table invoices drop constraint if exists invoices_outlet_id_fy_bill_no_key;
+create index if not exists invoices_outlet_fy_billno_idx on invoices(outlet_id, fy, bill_no);
 
 create table if not exists invoice_lines (
   id          bigint generated always as identity primary key,
@@ -91,13 +97,16 @@ end;
 $$;
 
 -- ---------- idempotent settlement ----------
--- Called once per settled bill by the dual-write API. Safe to call repeatedly for
--- the same order (outbox retries): the first call allocates a number and writes the
--- invoice; every later call — including a concurrent race — returns the same number
--- and writes nothing new.
+-- Called once per settled bill by the dual-write API. The invoice number is the
+-- one the client issued at settle time (p_bill_no) — the mirror stores it, it does
+-- NOT re-number, so numbers follow settle-time order. Safe to call repeatedly for
+-- the same order (outbox retries): later calls return the stored number, no re-write.
+-- (alloc_invoice above is retained for reference/fallback but no longer used here.)
+drop function if exists settle_bill(uuid,text,text,numeric,text,text,numeric,numeric,numeric,timestamptz,jsonb);
 create or replace function settle_bill(
   p_outlet   uuid,
   p_order    text,
+  p_bill_no  bigint,
   p_fy       text,
   p_amount   numeric,
   p_method   text,
@@ -115,12 +124,12 @@ declare
   n   bigint;
   inv uuid;
 begin
-  -- already settled? return the number we issued the first time
+  -- already settled? return the number we stored the first time (idempotent)
   select bill_no into n from invoices
     where outlet_id = p_outlet and source_order_id = p_order;
   if found then return n; end if;
 
-  n := alloc_invoice(p_outlet, p_fy);
+  n := p_bill_no;  -- client-issued, settle-time invoice number
 
   insert into invoices (outlet_id, source_order_id, fy, bill_no, amount,
                         payment_method, gst_scheme, taxable, cgst, sgst, settled_at)
@@ -134,9 +143,7 @@ begin
 
   return n;
 exception when unique_violation then
-  -- a concurrent settle of the SAME order won the race: return its number,
-  -- and the number this call burned via alloc_invoice is simply skipped for that
-  -- order (the winning row keeps its own gapless number).
+  -- concurrent flush of the SAME order (idempotency race): return the stored number
   select bill_no into n from invoices
     where outlet_id = p_outlet and source_order_id = p_order;
   return n;

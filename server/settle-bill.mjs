@@ -60,8 +60,8 @@ export function makeSettleBill(pool) {
       }
 
       const out = await client.query(
-        'select settle_bill($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) as bill_no',
-        [outletId, b.sourceOrderId, b.fy, b.amount, b.method || null, b.gstScheme || 'regular',
+        'select settle_bill($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) as bill_no',
+        [outletId, b.sourceOrderId, b.billNo, b.fy, b.amount, b.method || null, b.gstScheme || 'regular',
           b.taxable ?? null, b.cgst ?? null, b.sgst ?? null, b.settledAt, JSON.stringify(b.lines || [])],
       )
       await client.query('commit')
