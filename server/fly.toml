@@ -1,14 +1,14 @@
 app = "khaanapeena-sync"
-primary_region = "bom"   # Mumbai — lowest latency for India
+primary_region = "sin"   # Singapore — bom (Mumbai) had no capacity; sin still reaches the bom Postgres over Fly's private network
 
 [build]
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"     # scale to zero when idle → minimal pilot cost
-  auto_start_machines = true
-  min_machines_running = 0
+  auto_stop_machines = "off"      # keep 1 machine warm — reliable reachability for
+  auto_start_machines = true      # the invoice mirror (avoids scale-to-zero start flakiness)
+  min_machines_running = 1
 
 [[http_service.checks]]
   interval = "30s"

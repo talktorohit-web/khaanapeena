@@ -27,6 +27,18 @@ async function migrate() {
 }
 
 const app = express()
+// CORS: the KhaanaPeena clients (web app, Capacitor webview, Electron) call this
+// service cross-origin with Authorization + Idempotency-Key headers, which triggers
+// a browser preflight. No cookies are used (bearer token only), so a wildcard origin
+// is safe. Answer OPTIONS preflights and advertise the custom headers.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key')
+  res.set('Access-Control-Max-Age', '86400')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
 app.use(express.json({ limit: '256kb' }))
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'khaanapeena-sync' }))
 app.post('/settle-bill', makeSettleBill(pool))
