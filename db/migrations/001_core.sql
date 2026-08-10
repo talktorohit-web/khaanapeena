@@ -186,6 +186,79 @@ create policy invoice_line_rw on invoice_lines
          where outlet_id in (select outlet_id from memberships
                              where user_id = current_setting('app.user_id', true))));
 
+-- ---------- role separation + enforced RLS ----------
+-- The runtime app connects as a restricted, NON-owner role (kp_app) that has NO
+-- direct DML — it can only EXECUTE the definer functions below and run RLS-filtered
+-- SELECTs. Migrations run as a privileged role (postgres) that owns the tables and
+-- functions. Because the definer functions are owned by a BYPASSRLS role, they still
+-- perform the controlled cross-tenant writes (provisioning, settlement); everything
+-- else is filtered by RLS. This makes RLS the real, enforced isolation boundary
+-- rather than advisory — safe for any future read endpoint.
+
+-- provisioning as a definer: creates the outlet bound to the real owner and records
+-- the caller's membership. Only reachable by kp_app after the app has proven RTDB
+-- ownership, so "first caller" cannot self-provision.
+create or replace function provision_outlet(p_code text, p_name text, p_owner_uid text, p_caller_uid text, p_caller_role text)
+returns uuid language plpgsql security definer
+set search_path = pg_catalog, public
+as $$
+declare v_outlet uuid; v_org uuid; v_name text := left(coalesce(nullif(p_name,''),'KhaanaPeena'),120);
+begin
+  select id into v_outlet from outlets where code = p_code;
+  if v_outlet is null then
+    insert into orgs(name) values (v_name) returning id into v_org;
+    insert into outlets(org_id,code,name) values (v_org,p_code,v_name)
+      on conflict (code) do update set code = excluded.code returning id into v_outlet;
+    insert into memberships(user_id,outlet_id,role) values (p_owner_uid,v_outlet,'owner') on conflict do nothing;
+  end if;
+  insert into memberships(user_id,outlet_id,role) values (p_caller_uid,v_outlet,coalesce(p_caller_role,'member')) on conflict do nothing;
+  return v_outlet;
+end $$;
+
+alter table orgs        enable row level security;
+alter table memberships enable row level security;
+drop policy if exists membership_self on memberships;
+create policy membership_self on memberships
+  using (user_id = current_setting('app.user_id', true));
+drop policy if exists org_read on orgs;
+create policy org_read on orgs
+  using (id in (select org_id from outlets));   -- outlets is itself RLS-filtered
+
+-- FORCE so the table owner is ALSO subject to RLS (a plain owner otherwise bypasses it)
+alter table orgs          force row level security;
+alter table outlets       force row level security;
+alter table memberships   force row level security;
+alter table counters      force row level security;
+alter table invoices      force row level security;
+alter table invoice_lines force row level security;
+
+-- definer functions must be owned by a BYPASSRLS role so they can do controlled
+-- cross-tenant writes even with FORCE RLS on (idempotent; no-op when already owned)
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = current_user and rolsuper) then
+    alter function settle_bill(uuid,text,bigint,text,numeric,text,text,numeric,numeric,numeric,timestamptz,jsonb) owner to current_user;
+    alter function provision_outlet(text,text,text,text,text) owner to current_user;
+    alter function alloc_invoice(uuid,text) owner to current_user;
+  end if;
+end $$;
+
+-- definer functions are not callable by the world — only the app role
+revoke all on function settle_bill(uuid,text,bigint,text,numeric,text,text,numeric,numeric,numeric,timestamptz,jsonb) from public;
+revoke all on function provision_outlet(text,text,text,text,text) from public;
+revoke all on function alloc_invoice(uuid,text) from public;
+
+-- grant the restricted runtime role (only if it exists): execute + RLS-filtered select,
+-- and explicitly NO insert/update/delete on the tables
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'kp_app') then
+    grant usage on schema public to kp_app;
+    grant select on orgs, outlets, memberships, counters, invoices, invoice_lines to kp_app;
+    grant execute on function settle_bill(uuid,text,bigint,text,numeric,text,text,numeric,numeric,numeric,timestamptz,jsonb) to kp_app;
+    grant execute on function provision_outlet(text,text,text,text,text) to kp_app;
+    grant execute on function alloc_invoice(uuid,text) to kp_app;
+  end if;
+end $$;
+
 -- ---------- strict settle-time register ----------
 -- register_no is a gap-free serial in STRICT settled-time order, per outlet, computed
 -- live (so a late/backdated bill slots into the right chronological place). bill_no

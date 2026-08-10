@@ -17,13 +17,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ssl = process.env.PGSSL === 'require'
   ? { rejectUnauthorized: true, ...(process.env.PG_CA ? { ca: process.env.PG_CA } : {}) }
   : false
+// runtime pool = the restricted, RLS-subject app role (DATABASE_URL)
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8, ssl })
 
 async function migrate() {
-  const sql = readFileSync(join(__dirname, 'migrations', '001_core.sql'), 'utf8')
-  const c = await pool.connect()
-  try { await c.query(sql); console.log('[migrate] schema up to date') }
-  finally { c.release() }
+  // migrations run under a privileged role that owns the tables/functions
+  // (MIGRATE_DATABASE_URL); falls back to DATABASE_URL when a single role is used
+  const url = process.env.MIGRATE_DATABASE_URL || process.env.DATABASE_URL
+  const mpool = new pg.Pool({ connectionString: url, max: 2, ssl })
+  const c = await mpool.connect()
+  try {
+    const sql = readFileSync(join(__dirname, 'migrations', '001_core.sql'), 'utf8')
+    await c.query(sql)
+    console.log('[migrate] schema up to date')
+  } finally { c.release(); await mpool.end() }
 }
 
 const app = express()

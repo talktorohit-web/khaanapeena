@@ -84,34 +84,31 @@ export function makeSettleBill(pool) {
     const bad = validate(b)
     if (bad.length) return res.status(400).json({ error: 'invalid invoice', fields: bad }) // permanent
 
-    // fast path: is this a known outlet the caller is already a member of?
-    const pre = await pool.query(
-      `select o.id, exists(select 1 from memberships m where m.outlet_id=o.id and m.user_id=$2) as mem
-         from outlets o where o.code=$1`, [b.outletCode, uid])
-    let outletId = pre.rows[0]?.id || null
-    const known = !!outletId && pre.rows[0].mem
-
-    // only reach out to RTDB when we don't already trust this caller for this outlet
-    let rtdb = { ownerUid: uid, role: 'owner' }
-    if (!known && !dev) {
-      try { rtdb = await rtdbCheck(b.outletCode, uid, token) }
-      catch (e) { console.error('[settle-bill] rtdb check failed:', e?.message || e); return res.status(503).json({ error: 'ownership check unavailable' }) }
-      if (!rtdb) return res.status(403).json({ error: 'not authorized for this outlet' })
-    }
-
     const client = await pool.connect()
     try {
       await client.query('begin')
-      await client.query('select set_config($1,$2,true)', ['app.user_id', uid])
+      await client.query('select set_config($1,$2,true)', ['app.user_id', uid]) // RLS identity
 
-      if (!outletId) {
-        const org = await client.query('insert into orgs(name) values($1) returning id', [String(b.outletName || 'KhaanaPeena').slice(0, 120)])
-        const ot = await client.query('insert into outlets(org_id,code,name) values($1,$2,$3) on conflict (code) do update set code=excluded.code returning id',
-          [org.rows[0].id, b.outletCode, String(b.outletName || 'KhaanaPeena').slice(0, 120)])
-        outletId = ot.rows[0].id
-        await client.query('insert into memberships(user_id,outlet_id,role) values($1,$2,$3) on conflict do nothing', [rtdb.ownerUid, outletId, 'owner'])
+      // fast path (RLS-filtered to the caller's own outlets/memberships)
+      const pre = await client.query(
+        `select o.id, exists(select 1 from memberships m where m.outlet_id=o.id and m.user_id=$2) as mem
+           from outlets o where o.code=$1`, [b.outletCode, uid])
+      let outletId = pre.rows[0]?.id || null
+      const known = !!outletId && pre.rows[0].mem
+
+      if (!known) {
+        // unknown caller for this code → prove ownership/membership against RTDB
+        let rtdb = { ownerUid: uid, role: 'owner' }
+        if (!dev) {
+          try { rtdb = await rtdbCheck(b.outletCode, uid, token) }
+          catch (e) { await client.query('rollback'); console.error('[settle-bill] rtdb check failed:', e?.message || e); return res.status(503).json({ error: 'ownership check unavailable' }) }
+          if (!rtdb) { await client.query('rollback'); return res.status(403).json({ error: 'not authorized for this outlet' }) }
+        }
+        // provision via definer (safe cross-tenant writes under FORCE RLS)
+        const p = await client.query('select provision_outlet($1,$2,$3,$4,$5) as id',
+          [b.outletCode, b.outletName || null, rtdb.ownerUid, uid, rtdb.role])
+        outletId = p.rows[0].id
       }
-      await client.query('insert into memberships(user_id,outlet_id,role) values($1,$2,$3) on conflict do nothing', [uid, outletId, rtdb.role])
 
       const out = await client.query(
         'select settle_bill($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) as bill_no',
