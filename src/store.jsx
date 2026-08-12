@@ -384,6 +384,52 @@ export function StoreProvider({ children }) {
       o.updatedAt = Date.now()
     })
 
+    // ---- table/bill operations: merge + split ----
+    // merge the `from` order's items into `into`, then close `from` (freeing its
+    // table). `from` is kept as a cancelled/merged record so it doesn't resurrect
+    // from the cloud (orders have no tombstone).
+    const mergeOrders = (intoId, fromId) => update((s) => {
+      const into = s.orders.find((o) => o.id === intoId)
+      const from = s.orders.find((o) => o.id === fromId)
+      if (!into || !from || into.id === from.id || into.status === 'paid' || from.status === 'paid') return
+      into.items = [...(into.items || []), ...(from.items || [])]
+      into.updatedAt = Date.now()
+      from.items = []
+      from.status = 'cancelled'
+      from.mergedInto = intoId
+      from.updatedAt = Date.now()
+    })
+
+    // split selected quantities off the current order into a NEW order (same table),
+    // so a group can pay separately. Deducted (KOT'd) lines carry their flag so stock
+    // isn't deducted again. Returns the new order id.
+    const splitOrder = (orderId, picks) => {
+      const newId = uid('o')
+      update((s) => {
+        const o = s.orders.find((x) => x.id === orderId)
+        if (!o) return
+        const moved = []
+        picks.forEach(({ idx, qty }) => {
+          const li = o.items[idx]
+          const take = Math.min(+qty || 0, li ? li.qty : 0)
+          if (!li || take <= 0) return
+          moved.push({ ...li, qty: take })
+          li.qty -= take
+        })
+        if (!moved.length) return
+        o.items = o.items.filter((li) => li.qty > 0)
+        o.updatedAt = Date.now()
+        const deducted = moved.some((li) => li.deducted)
+        s.orders.push({
+          id: newId, billNo: null, type: o.type, tableId: o.tableId, items: moved,
+          status: deducted ? 'kot' : 'open', createdAt: Date.now(), kotAt: deducted ? (o.kotAt || Date.now()) : null,
+          paidAt: null, customerId: null, payment: { method: null, discount: 0, amount: 0 },
+          source: o.source || 'pos', kotNo: deducted ? o.kotNo : null, splitFrom: orderId,
+        })
+      })
+      return newId
+    }
+
     // ---- purchasing: vendors, purchase orders, goods-receipt notes (GRN) ----
     const addVendor = (v) => update((s) => {
       s.vendors = s.vendors || []
@@ -536,7 +582,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

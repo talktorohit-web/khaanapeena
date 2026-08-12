@@ -9,9 +9,10 @@ import QRCode from 'qrcode'
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
 
 export default function Billing() {
-  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine } = useStore()
+  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder } = useStore()
   const { focusOrderId, clearFocus } = useNav()
   const [orderId, setOrderId] = useState(null)
+  const [billOps, setBillOps] = useState(false) // split/merge modal
   const [editUnlock, setEditUnlock] = useState(false) // manager unlocked editing of punched items
   const [authManager, setAuthManager] = useState(null)
   const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
@@ -292,6 +293,11 @@ export default function Billing() {
               </button>
             )
           )}
+          {order && order.items.length > 0 && (
+            <button onClick={() => setBillOps(true)} className="w-full mt-2 text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg py-1.5">
+              ⑂ Split / Merge bill
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
@@ -379,7 +385,75 @@ export default function Billing() {
           onOk={pinAsk.onOk}
         />
       )}
+      {billOps && order && (
+        <BillOpsModal
+          order={order}
+          orders={state.orders}
+          tables={state.tables}
+          onMerge={(fromId) => { mergeOrders(order.id, fromId); setBillOps(false) }}
+          onSplit={(picks) => { const nid = splitOrder(order.id, picks); setBillOps(false); if (nid) setOrderId(nid) }}
+          onClose={() => setBillOps(false)}
+        />
+      )}
     </div>
+  )
+}
+
+function BillOpsModal({ order, orders, tables, onMerge, onSplit, onClose }) {
+  const [tab, setTab] = useState('split')
+  const [picks, setPicks] = useState(() => order.items.map(() => 0))
+  const tblName = (id) => tables.find((t) => t.id === id)?.name || id
+  const mergeable = orders.filter((o) => o.id !== order.id && ['open', 'kot', 'ready', 'served'].includes(o.status) && !['zomato', 'swiggy', 'whatsapp'].includes(o.type))
+  const splitTotal = order.items.reduce((s, li, i) => s + li.price * (picks[i] || 0), 0)
+  const anySplit = picks.some((q) => q > 0)
+
+  return (
+    <Modal open title="Split / Merge bill" onClose={onClose} wide>
+      <div className="flex gap-2 mb-4">
+        {[['split', '⑂ Split bill'], ['merge', '⇄ Merge tables']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${tab === k ? 'bg-ink-900 text-white' : 'bg-stone-100 text-stone-600'}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'split' ? (
+        <div>
+          <p className="text-xs text-stone-400 mb-3">Move items onto a separate bill (for a guest paying on their own). The rest stays on this bill; both are settled separately.</p>
+          <div className="space-y-2 mb-3">
+            {order.items.map((li, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-ink-900 truncate">{li.name}</div><div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}{li.deducted ? ' · KOT✓' : ''}</div></div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPicks((p) => p.map((q, j) => (j === i ? Math.max(0, q - 1) : q)))} className="w-7 h-7 rounded-md bg-stone-100 font-bold">−</button>
+                  <span className="w-8 text-center text-sm font-bold tabular-nums">{picks[i] || 0}</span>
+                  <button onClick={() => setPicks((p) => p.map((q, j) => (j === i ? Math.min(li.qty, q + 1) : q)))} className="w-7 h-7 rounded-md bg-stone-100 font-bold">＋</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between border-t border-stone-100 pt-3">
+            <div className="text-sm text-stone-500">New bill <b className="text-ink-900 ml-1">{inr0(splitTotal)}</b></div>
+            <button disabled={!anySplit} onClick={() => onSplit(order.items.map((li, i) => ({ idx: i, qty: picks[i] || 0 })).filter((p) => p.qty > 0))} className={btnPrimary}>Create separate bill</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs text-stone-400 mb-3">Combine another table's running order into this bill. That table is freed.</p>
+          {mergeable.length === 0 ? <Empty icon="⇄" text="No other open orders to merge." /> : (
+            <div className="space-y-2">
+              {mergeable.map((o) => {
+                const tot = o.items.reduce((s, li) => s + li.price * li.qty, 0)
+                return (
+                  <div key={o.id} className="flex items-center justify-between border border-stone-200 rounded-xl px-3 py-2">
+                    <div><div className="text-sm font-semibold text-ink-900">{o.tableId ? `🪑 ${tblName(o.tableId)}` : o.type.toUpperCase()}</div><div className="text-[11px] text-stone-400">{o.items.length} item{o.items.length > 1 ? 's' : ''} · {inr0(tot)}</div></div>
+                    <button onClick={() => { if (confirm('Merge this order into the current bill?')) onMerge(o.id) }} className="text-xs font-bold bg-saffron-600 hover:bg-saffron-700 text-white rounded-lg px-3 py-1.5">Merge in</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }
 
