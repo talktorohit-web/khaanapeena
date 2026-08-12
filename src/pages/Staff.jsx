@@ -3,9 +3,12 @@ import { useStore } from '../store.jsx'
 import { Badge, Toggle, Modal, Field, inputCls, btnPrimary, StatCard } from '../components.jsx'
 import { uid } from '../utils.js'
 
+const ROLES = ['Manager', 'Cashier', 'Head Chef', 'Cook', 'Waiter', 'Delivery']
+
 export default function Staff() {
   const { state, t, update } = useStore()
   const [addOpen, setAddOpen] = useState(false)
+  const [editStaff, setEditStaff] = useState(null)
 
   const present = state.staff.filter((s) => s.present).length
 
@@ -25,7 +28,7 @@ export default function Staff() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-              <th className="py-2.5 px-4">Name</th><th>Role</th><th>Phone</th><th>POS PIN</th><th>On shift</th>
+              <th className="py-2.5 px-4">Name</th><th>Role</th><th>Phone</th><th>POS PIN</th><th>On shift</th><th className="pr-4"></th>
             </tr>
           </thead>
           <tbody>
@@ -36,6 +39,7 @@ export default function Staff() {
                 <td className="text-stone-500">{s.phone}</td>
                 <td className="font-mono text-stone-400">••••</td>
                 <td><Toggle on={s.present} onChange={(v) => update((st) => { const x = st.staff.find((y) => y.id === s.id); if (x) x.present = v })} /></td>
+                <td className="pr-4 text-right"><button onClick={() => setEditStaff(s)} className="text-xs font-bold text-stone-400 hover:text-saffron-600 px-2">✏️ Edit</button></td>
               </tr>
             ))}
           </tbody>
@@ -46,31 +50,48 @@ export default function Staff() {
         💡 <b>Coming in Pro:</b> geofenced selfie attendance with anti-spoofing, shift rosters and monthly payroll (PF/ESI-ready) — powered by the same engine as our attendance product.
       </div>
 
-      {addOpen && <AddStaff onClose={() => setAddOpen(false)} />}
+      {addOpen && <StaffModal onClose={() => setAddOpen(false)} />}
+      {editStaff && <StaffModal staff={editStaff} onClose={() => setEditStaff(null)} />}
     </div>
   )
 }
 
-function AddStaff({ onClose }) {
+function StaffModal({ staff, onClose }) {
   const { update } = useStore()
-  const [f, setF] = useState({ name: '', role: 'Waiter', phone: '', pin: '' })
+  const [f, setF] = useState(staff
+    ? { name: staff.name, role: staff.role, phone: staff.phone || '', pin: staff.pin || '' }
+    : { name: '', role: 'Waiter', phone: '', pin: '' })
   const save = () => {
-    update((s) => s.staff.push({ ...f, id: uid('s'), present: true }))
+    update((s) => {
+      if (staff) {
+        const x = s.staff.find((y) => y.id === staff.id)
+        if (x) Object.assign(x, f)
+      } else {
+        s.staff.push({ ...f, id: uid('s'), present: true })
+      }
+    })
+    onClose()
+  }
+  const remove = () => {
+    if (!staff) return
+    if (!confirm(`Remove ${staff.name} from staff?`)) return
+    update((s) => { s.staff = s.staff.filter((y) => y.id !== staff.id) })
     onClose()
   }
   return (
-    <Modal open onClose={onClose} title="Add staff member">
+    <Modal open onClose={onClose} title={staff ? 'Edit staff member' : 'Add staff member'}>
       <Field label="Name"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={inputCls} /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Role">
           <select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} className={inputCls}>
-            {['Manager', 'Cashier', 'Head Chef', 'Cook', 'Waiter', 'Delivery'].map((r) => <option key={r}>{r}</option>)}
+            {ROLES.map((r) => <option key={r}>{r}</option>)}
           </select>
         </Field>
         <Field label="POS PIN (4 digit)"><input value={f.pin} maxLength={4} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, '') })} className={inputCls} /></Field>
       </div>
       <Field label="Phone"><input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} className={inputCls} /></Field>
       <button onClick={save} disabled={!f.name} className={btnPrimary + ' w-full'}>Save</button>
+      {staff && <button onClick={remove} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Remove staff</button>}
     </Modal>
   )
 }

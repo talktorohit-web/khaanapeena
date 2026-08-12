@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, Field, inputCls, btnPrimary, StatCard } from '../components.jsx'
-import { inr0 } from '../utils.js'
+import { inr0, uid } from '../utils.js'
+
+const UNITS = ['kg', 'g', 'ltr', 'ml', 'unit', 'pcs', 'packet', 'bottle']
 
 export default function Inventory() {
   const { state, t, update } = useStore()
   const [buyIng, setBuyIng] = useState(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [editIng, setEditIng] = useState(null)
 
   // usage per ingredient over last 7 days (from recipes of KOT-ed orders)
   const usage = useMemo(() => {
@@ -34,7 +38,10 @@ export default function Inventory() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-black text-ink-900 mb-5">{t('inventory')}</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-black text-ink-900">{t('inventory')}</h1>
+        <button onClick={() => setAddOpen(true)} className={btnPrimary}>＋ Add ingredient</button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
         <StatCard label="Stock value" value={inr0(stockValue)} icon="💰" accent="saffron" />
         <StatCard label={t('lowStock')} value={low.length} sub={low.map((l) => l.name).slice(0, 3).join(', ') || 'All good ✓'} icon="⚠️" accent={low.length ? 'red' : 'green'} />
@@ -61,7 +68,8 @@ export default function Inventory() {
                     : <span>{r.daysLeft.toFixed(0)}d</span>}
                 </td>
                 <td>{inr0(r.stock * r.costPerUnit)}</td>
-                <td className="pr-4 text-right">
+                <td className="pr-4 text-right whitespace-nowrap">
+                  <button onClick={() => setEditIng(r)} className="text-xs font-bold text-stone-400 hover:text-saffron-600 px-1.5">✏️</button>
                   <button onClick={() => setBuyIng(r)} className="text-xs font-bold text-saffron-700 hover:underline">+ Purchase</button>
                 </td>
               </tr>
@@ -79,7 +87,59 @@ export default function Inventory() {
           setBuyIng(null)
         }} />
       )}
+
+      {addOpen && (
+        <IngredientModal onClose={() => setAddOpen(false)} onSave={(f) => {
+          update((s) => {
+            s.ingredients = s.ingredients || []
+            s.ingredients.push({ id: uid('g'), name: f.name.trim(), unit: f.unit, stock: +f.stock || 0, minStock: +f.minStock || 0, costPerUnit: +f.cost || 0 })
+          })
+          setAddOpen(false)
+        }} />
+      )}
+
+      {editIng && (
+        <IngredientModal ing={editIng} onClose={() => setEditIng(null)} onSave={(f) => {
+          update((s) => {
+            const g = s.ingredients.find((x) => x.id === editIng.id)
+            if (g) Object.assign(g, { name: f.name.trim(), unit: f.unit, stock: +f.stock || 0, minStock: +f.minStock || 0, costPerUnit: +f.cost || 0 })
+          })
+          setEditIng(null)
+        }} onDelete={() => {
+          const usedIn = (state.items || []).filter((it) => (it.recipe || []).some((r) => r.ingId === editIng.id))
+          if (usedIn.length) { alert(`Can't delete — “${editIng.name}” is used in ${usedIn.length} recipe(s). Remove it from those items first.`); return }
+          if (!confirm(`Delete ingredient “${editIng.name}”?`)) return
+          update((s) => { s.ingredients = s.ingredients.filter((x) => x.id !== editIng.id) })
+          setEditIng(null)
+        }} />
+      )}
     </div>
+  )
+}
+
+function IngredientModal({ ing, onClose, onSave, onDelete }) {
+  const [f, setF] = useState(ing
+    ? { name: ing.name, unit: ing.unit, stock: ing.stock, minStock: ing.minStock, cost: ing.costPerUnit }
+    : { name: '', unit: 'kg', stock: '', minStock: '', cost: '' })
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+  return (
+    <Modal open onClose={onClose} title={ing ? `Edit — ${ing.name}` : 'Add ingredient'}>
+      <Field label="Ingredient name"><input value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ginger-Garlic Paste" className={inputCls} autoFocus /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Unit">
+          <select value={f.unit} onChange={(e) => set('unit', e.target.value)} className={inputCls}>
+            {UNITS.map((u) => <option key={u}>{u}</option>)}
+          </select>
+        </Field>
+        <Field label={`Cost per ${f.unit} (₹)`}><input type="number" min="0" value={f.cost} onChange={(e) => set('cost', e.target.value)} className={inputCls} /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={`In stock (${f.unit})`}><input type="number" min="0" value={f.stock} onChange={(e) => set('stock', e.target.value)} className={inputCls} /></Field>
+        <Field label={`Min / reorder level (${f.unit})`}><input type="number" min="0" value={f.minStock} onChange={(e) => set('minStock', e.target.value)} className={inputCls} /></Field>
+      </div>
+      <button onClick={() => onSave(f)} disabled={!f.name.trim()} className={btnPrimary + ' w-full'}>{ing ? 'Save changes' : 'Add ingredient'}</button>
+      {ing && onDelete && <button onClick={onDelete} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Delete ingredient</button>}
+    </Modal>
   )
 }
 

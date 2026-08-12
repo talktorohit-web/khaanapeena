@@ -1,26 +1,36 @@
 import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
-import { Modal, VegDot, Toggle, Field, inputCls, btnPrimary, btnGhost, Badge } from '../components.jsx'
-import { inr0, uid } from '../utils.js'
+import { Modal, VegDot, Toggle, Field, inputCls, btnPrimary, btnGhost, Badge, Empty } from '../components.jsx'
+import { inr0, inr, uid } from '../utils.js'
 
 export default function MenuPage() {
   const { state, t, update } = useStore()
   const [editItem, setEditItem] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
+  const [q, setQ] = useState('')
+
+  const ql = q.trim().toLowerCase()
+  const match = (i) => !ql || i.name.toLowerCase().includes(ql) || (i.nameHi || '').includes(q.trim())
+  const totalItems = state.items.length
+  const shown = state.items.filter(match).length
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-        <h1 className="text-2xl font-black text-ink-900">{t('menu')}</h1>
+        <h1 className="text-2xl font-black text-ink-900">{t('menu')} <span className="text-stone-300 text-lg font-bold">· {totalItems}</span></h1>
         <div className="flex gap-2">
           <button onClick={() => setScanOpen(true)} className={btnGhost}>📸 AI Photo → Menu</button>
           <button onClick={() => setAddOpen(true)} className={btnPrimary}>＋ {t('addItem')}</button>
         </div>
       </div>
 
+      <div className="mb-4">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchItems')} className={inputCls + ' max-w-xs'} />
+      </div>
+
       {state.categories.map((c) => {
-        const items = state.items.filter((i) => i.catId === c.id)
+        const items = state.items.filter((i) => i.catId === c.id && match(i))
         if (!items.length) return null
         return (
           <div key={c.id} className="mb-6">
@@ -30,7 +40,7 @@ export default function MenuPage() {
                 <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
                   <VegDot veg={i.veg} />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-ink-900">{i.name}</div>
+                    <div className="font-semibold text-sm text-ink-900">{i.name} {i.recipe?.length > 0 && <span title="Has recipe — food cost tracked" className="text-[10px]">🧪</span>}</div>
                     <div className="text-[11px] text-stone-400">{i.nameHi} · {i.station}</div>
                   </div>
                   <span className="font-bold text-sm w-16 text-right">{inr0(i.price)}</span>
@@ -42,6 +52,7 @@ export default function MenuPage() {
           </div>
         )
       })}
+      {ql && shown === 0 && <Empty icon="🔍" text={`No menu items match “${q.trim()}”`} />}
 
       {(addOpen || editItem) && (
         <ItemModal
@@ -58,17 +69,42 @@ function ItemModal({ item, onClose }) {
   const { state, update } = useStore()
   const [f, setF] = useState(item || { name: '', nameHi: '', price: '', catId: state.categories[0].id, veg: true, station: 'kitchen', available: true, recipe: [] })
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+
+  const ings = state.ingredients || []
+  const recipe = f.recipe || []
+  const ingCost = (id) => ings.find((g) => g.id === id)?.costPerUnit || 0
+  const ingUnit = (id) => ings.find((g) => g.id === id)?.unit || ''
+  const plateCost = recipe.reduce((s, r) => s + (+r.qty || 0) * ingCost(r.ingId), 0)
+  const foodCostPct = +f.price > 0 && recipe.length ? (plateCost / +f.price) * 100 : null
+
+  const addLine = () => {
+    const used = new Set(recipe.map((r) => r.ingId))
+    const next = ings.find((g) => !used.has(g.id))
+    if (next) set('recipe', [...recipe, { ingId: next.id, qty: 0 }])
+  }
+  const setLine = (idx, patch) => set('recipe', recipe.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  const rmLine = (idx) => set('recipe', recipe.filter((_, i) => i !== idx))
+
   const save = () => {
+    // keep only complete recipe lines (an ingredient with a positive per-plate qty)
+    const cleanRecipe = recipe.filter((r) => r.ingId && +r.qty > 0).map((r) => ({ ingId: r.ingId, qty: +r.qty }))
     update((s) => {
       if (item) {
         const x = s.items.find((y) => y.id === item.id)
-        Object.assign(x, { ...f, price: +f.price })
+        Object.assign(x, { ...f, price: +f.price, recipe: cleanRecipe })
       } else {
-        s.items.push({ ...f, id: uid('i'), price: +f.price })
+        s.items.push({ ...f, id: uid('i'), price: +f.price, recipe: cleanRecipe })
       }
     })
     onClose()
   }
+  const remove = () => {
+    if (!item) return
+    if (!confirm(`Remove “${item.name}” from the menu? Past bills keep this item; it just won't be orderable.`)) return
+    update((s) => { s.items = s.items.filter((y) => y.id !== item.id) })
+    onClose()
+  }
+
   return (
     <Modal open onClose={onClose} title={item ? 'Edit item' : 'Add item'}>
       <Field label="Name (English)"><input value={f.name} onChange={(e) => set('name', e.target.value)} className={inputCls} /></Field>
@@ -93,7 +129,37 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
+
+      {/* Recipe editor — powers auto stock-deduction on KOT and the Food Cost report */}
+      <div className="border border-stone-100 rounded-xl p-3 mb-3 bg-stone-50/50">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-stone-500">🧪 Recipe (per plate)</span>
+          {foodCostPct != null && (
+            <span className="text-[11px] font-bold">
+              Plate cost {inr(+plateCost.toFixed(2))} · <span className={foodCostPct <= 30 ? 'text-leaf-600' : foodCostPct <= 40 ? 'text-amber-600' : 'text-red-600'}>{foodCostPct.toFixed(0)}% food cost</span>
+            </span>
+          )}
+        </div>
+        {recipe.length === 0 && <p className="text-[11px] text-stone-400 mb-2">Add ingredients to auto-deduct stock on every KOT and track food-cost %.</p>}
+        <div className="space-y-1.5">
+          {recipe.map((r, idx) => (
+            <div key={idx} className="flex items-center gap-1.5">
+              <select value={r.ingId} onChange={(e) => setLine(idx, { ingId: e.target.value })} className={inputCls + ' !py-1.5 flex-1'}>
+                {ings.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+              <input type="number" min="0" step="0.001" value={r.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} className={inputCls + ' !py-1.5 w-20'} />
+              <span className="text-[11px] text-stone-400 w-8">{ingUnit(r.ingId)}</span>
+              <button onClick={() => rmLine(idx)} className="text-stone-300 hover:text-red-500 text-sm px-1" title="Remove">✕</button>
+            </div>
+          ))}
+        </div>
+        {ings.length > recipe.length && (
+          <button onClick={addLine} className="mt-2 text-xs font-bold text-saffron-700 hover:underline">＋ Add ingredient</button>
+        )}
+      </div>
+
       <button onClick={save} disabled={!f.name || !(+f.price > 0)} className={btnPrimary + ' w-full'}>Save</button>
+      {item && <button onClick={remove} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Remove from menu</button>}
     </Modal>
   )
 }

@@ -59,13 +59,17 @@ export default function Waste() {
           </div>
           <div className="bg-white rounded-2xl p-5 border border-stone-100 max-h-64 overflow-y-auto">
             <h3 className="font-bold text-ink-900 mb-2">Recent entries</h3>
+            {state.waste.length === 0 && <p className="text-sm text-stone-400">Nothing logged yet 🎉</p>}
             {[...state.waste].reverse().map((w) => (
-              <div key={w.id} className="flex items-center justify-between py-1.5 border-b border-stone-50 text-sm">
-                <div>
+              <div key={w.id} className="group flex items-center justify-between py-1.5 border-b border-stone-50 text-sm">
+                <div className="min-w-0">
                   <span className="font-semibold">{w.itemName}</span>
                   <span className="text-xs text-stone-400 ml-2">{w.qty} · {w.reason} · {w.date}</span>
                 </div>
-                <b className="text-red-600">−{inr0(w.lossValue)}</b>
+                <div className="flex items-center gap-2 shrink-0">
+                  <b className="text-red-600">−{inr0(w.lossValue)}</b>
+                  <button onClick={() => update((s) => { s.waste = s.waste.filter((x) => x.id !== w.id) })} className="text-stone-300 hover:text-red-500 text-xs md:opacity-0 md:group-hover:opacity-100" title="Delete entry">✕</button>
+                </div>
               </div>
             ))}
           </div>

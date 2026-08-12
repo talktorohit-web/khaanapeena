@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
-import { Badge, inputCls, StatCard } from '../components.jsx'
-import { inr0, fmtDate } from '../utils.js'
+import { Badge, inputCls, StatCard, Modal, Field, btnPrimary } from '../components.jsx'
+import { inr0, fmtDate, uid } from '../utils.js'
 
 export default function Customers() {
-  const { state, t } = useStore()
+  const { state, t, update } = useStore()
   const [q, setQ] = useState('')
   const [seg, setSeg] = useState('all')
+  const [addOpen, setAddOpen] = useState(false)
 
   const now = Date.now()
   const month = new Date().getMonth()
@@ -30,9 +31,21 @@ export default function Customers() {
     return `https://wa.me/91${c.phone}?text=${encodeURIComponent(msg)}`
   }
 
+  const addCustomer = (f) => {
+    update((s) => {
+      s.customers = s.customers || []
+      s.customers.push({ id: uid('cu'), name: f.name.trim(), phone: f.phone, birthday: f.birthday || null, points: 0, visits: 0, totalSpend: 0, lastVisit: null, tags: [] })
+    })
+    setAddOpen(false)
+  }
+  const dupPhone = (phone) => (state.customers || []).some((c) => c.phone === phone)
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-black text-ink-900 mb-5">{t('customers')}</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-black text-ink-900">{t('customers')}</h1>
+        <button onClick={() => setAddOpen(true)} className={btnPrimary}>＋ Add customer</button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Total customers" value={state.customers.length} icon="👥" accent="blue" />
         <StatCard label="VIP (₹5k+ spend)" value={enrich.filter((c) => c.vip).length} icon="⭐" accent="saffron" />
@@ -74,6 +87,24 @@ export default function Customers() {
         </table>
         {!list.length && <div className="py-10 text-center text-stone-400 text-sm">No customers match</div>}
       </div>
+
+      {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onSave={addCustomer} dupPhone={dupPhone} />}
     </div>
+  )
+}
+
+function AddCustomerModal({ onClose, onSave, dupPhone }) {
+  const [f, setF] = useState({ name: '', phone: '', birthday: '' })
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+  const dup = f.phone.length === 10 && dupPhone(f.phone)
+  const valid = f.name.trim() && f.phone.length === 10 && !dup
+  return (
+    <Modal open onClose={onClose} title="Add customer">
+      <Field label="Name"><input value={f.name} onChange={(e) => set('name', e.target.value)} className={inputCls} autoFocus /></Field>
+      <Field label="Mobile"><input value={f.phone} onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit" className={inputCls} /></Field>
+      <Field label="Birthday (optional — for birthday offers)"><input type="date" value={f.birthday} onChange={(e) => set('birthday', e.target.value)} className={inputCls} /></Field>
+      {dup && <p className="text-[11px] text-red-600 mb-2">A customer with this mobile already exists.</p>}
+      <button onClick={() => onSave(f)} disabled={!valid} className={btnPrimary + ' w-full'}>Save customer</button>
+    </Modal>
   )
 }
