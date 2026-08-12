@@ -104,7 +104,7 @@ export default function QRMenu({ hash }) {
       // the owner device recomputes sentiment and can reply/resolve.
       try { await signInAnon(); await pushGuestFeedback(code, rec) } catch { /* best-effort */ }
     } else {
-      store.update((st) => st.feedback.push({ ...rec, source: 'qr', sentiment: sentiment(fb.text, fb.rating), date: Date.now() }))
+      store.update((st) => { st.feedback = st.feedback || []; st.feedback.push({ ...rec, source: 'qr', sentiment: sentiment(fb.text, fb.rating), date: Date.now() }) })
     }
     setFb((p) => ({ ...p, sent: true }))
   }

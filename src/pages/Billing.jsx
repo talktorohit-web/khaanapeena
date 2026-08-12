@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink, verifyManagerPin } from '../utils.js'
+import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName } from '../utils.js'
 import { printBill, printKOT } from '../print.js'
 import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
@@ -222,7 +222,7 @@ export default function Billing() {
           className="md:hidden fixed inset-x-3 z-30 bg-ink-900 text-white rounded-2xl shadow-xl flex items-center justify-between px-4 py-3"
           style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' }}
         >
-          <span className="font-bold text-sm">🛒 {cartCount} item{cartCount > 1 ? 's' : ''}{order?.tableId ? ` · 🪑 ${order.tableId}` : ''}</span>
+          <span className="font-bold text-sm">🛒 {cartCount} item{cartCount > 1 ? 's' : ''}{order?.tableId ? ` · 🪑 ${tableName(state.tables, order.tableId)}` : ''}</span>
           <span className="font-black">{inr0(cartTotal)} · View →</span>
         </button>
       )}
@@ -250,7 +250,7 @@ export default function Billing() {
                 onClick={() => setOrderId(o.id)}
                 className={`shrink-0 text-xs font-semibold rounded-lg px-2.5 py-1.5 border ${o.id === orderId ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}
               >
-                {o.tableId ? `🪑 ${o.tableId}` : o.type === 'qr' ? '📱 QR' : '🛍️'} {o.items.reduce((s, i) => s + i.qty, 0)}
+                {o.tableId ? `🪑 ${tableName(state.tables, o.tableId)}` : o.type === 'qr' ? '📱 QR' : '🛍️'} {o.items.reduce((s, i) => s + i.qty, 0)}
               </button>
             ))}
           </div>
@@ -267,7 +267,7 @@ export default function Billing() {
                   <option value="delivery">{t('delivery')}</option>
                 </select>
               ) : (
-                <Badge color="purple">{order.type.toUpperCase()}{order.tableId ? ` · ${order.tableId}` : ''}</Badge>
+                <Badge color="purple">{order.type.toUpperCase()}{order.tableId ? ` · ${tableName(state.tables, order.tableId)}` : ''}</Badge>
               )}
               {order.type === 'dine' && (
                 <select

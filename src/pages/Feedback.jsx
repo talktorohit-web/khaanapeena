@@ -16,8 +16,16 @@ const Stars = ({ n }) => (
   </span>
 )
 
+// neutralize CSV formula injection: a leading = + - @ (or tab/CR) makes Excel/Sheets
+// evaluate the cell as a formula. Guest review text reaches this export, so prefix
+// a quote to force it to plain text.
+const csvCell = (c) => {
+  let v = String(c ?? '')
+  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v
+  return `"${v.replace(/"/g, '""')}"`
+}
 function download(name, rows) {
-  const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const csv = rows.map((r) => r.map(csvCell).join(',')).join('\n')
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
   a.download = name

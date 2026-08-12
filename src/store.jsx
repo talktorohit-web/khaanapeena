@@ -4,7 +4,7 @@ import { makeT } from './i18n.js'
 import { uid, billTotals, sentiment } from './utils.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
-  pushChanges, mergeRemote, joinRemote, nextCounter, claimRestaurant, publishPublic,
+  pushChanges, mergeRemote, joinRemote, nextCounter, nextCounterAtLeast, claimRestaurant, publishPublic,
   stampMetaRecords, migrateCloudFormat, isLegacyFormat,
 } from './cloud.js'
 import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant, getIdToken } from './auth.js'
@@ -214,6 +214,13 @@ export function StoreProvider({ children }) {
     const allocNumber = async (name) => {
       const code = loadCloudCfg()?.code
       if (code) { try { return await nextCounter(code, name) } catch { /* offline → local */ } }
+      return null
+    }
+    // like allocNumber but floors the server counter at this device's local next-number
+    // (for PO/GRN, whose cloud counter can lag a device that raised them offline)
+    const allocNumberAtLeast = async (name, floor) => {
+      const code = loadCloudCfg()?.code
+      if (code) { try { return await nextCounterAtLeast(code, name, floor) } catch { /* offline → local */ } }
       return null
     }
 
@@ -433,9 +440,13 @@ export function StoreProvider({ children }) {
         o.items = o.items.filter((li) => li.qty > 0)
         o.updatedAt = Date.now()
         const deducted = moved.some((li) => li.deducted)
+        // inherit the parent's kitchen status — splitting a bill at payment time
+        // (order already 'ready'/'served') must NOT throw the food back onto the KDS
+        // "preparing" queue. Only a not-yet-fired split starts 'open'.
+        const status = deducted ? (['ready', 'served', 'paid'].includes(o.status) ? o.status : 'kot') : 'open'
         s.orders.push({
           id: newId, billNo: null, type: o.type, tableId: o.tableId, items: moved,
-          status: deducted ? 'kot' : 'open', createdAt: Date.now(), kotAt: deducted ? (o.kotAt || Date.now()) : null,
+          status, createdAt: Date.now(), kotAt: deducted ? (o.kotAt || Date.now()) : null,
           paidAt: null, customerId: null, payment: { method: null, discount: 0, amount: 0 },
           source: o.source || 'pos', kotNo: deducted ? o.kotNo : null, splitFrom: orderId,
         })
@@ -478,17 +489,23 @@ export function StoreProvider({ children }) {
     })
     const deleteVendor = (id) => update((s) => { s.vendors = (s.vendors || []).filter((x) => x.id !== id) })
 
-    const createPO = ({ vendorId, expectedDate, lines, notes }) => update((s) => {
-      s.purchaseOrders = s.purchaseOrders || []
-      s.counters.poNo = s.counters.poNo || 1
+    // PO number comes from the atomic server counter when cloud-connected (so two
+    // devices never issue the same PO#), else the local counter. Same for GRN.
+    const createPO = async ({ vendorId, expectedDate, lines, notes }) => {
       const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
       if (!clean.length) return
-      s.purchaseOrders.push({
-        id: uid('po'), poNo: s.counters.poNo++, vendorId: vendorId || null,
-        date: Date.now(), expectedDate: expectedDate || null, status: 'sent',
-        lines: clean, notes: notes || '', createdAt: Date.now(),
+      const server = await allocNumberAtLeast('poNo', stateRef.current.counters?.poNo || 1)
+      update((s) => {
+        s.purchaseOrders = s.purchaseOrders || []
+        const issued = server != null ? server : (s.counters.poNo || 1)
+        s.purchaseOrders.push({
+          id: uid('po'), poNo: issued, vendorId: vendorId || null,
+          date: Date.now(), expectedDate: expectedDate || null, status: 'sent',
+          lines: clean, notes: notes || '', createdAt: Date.now(),
+        })
+        s.counters.poNo = Math.max(s.counters.poNo || 1, issued + 1)
       })
-    })
+    }
     const cancelPO = (id) => update((s) => {
       const po = (s.purchaseOrders || []).find((x) => x.id === id)
       if (po && po.status !== 'received') po.status = 'cancelled'
@@ -496,11 +513,13 @@ export function StoreProvider({ children }) {
 
     // receive goods (against a PO, or standalone if poId null): add to stock with a
     // weighted-average cost, record the GRN, and advance the PO status
-    const receiveGRN = ({ poId, vendorId, supplierBillNo, lines }) => update((s) => {
-      s.grns = s.grns || []
-      s.counters.grnNo = s.counters.grnNo || 1
+    const receiveGRN = async ({ poId, vendorId, supplierBillNo, lines }) => {
       const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
       if (!clean.length) return
+      const server = await allocNumberAtLeast('grnNo', stateRef.current.counters?.grnNo || 1)
+      update((s) => {
+      s.grns = s.grns || []
+      const grnNo = server != null ? server : (s.counters.grnNo || 1)
       clean.forEach((l) => {
         const ing = (s.ingredients || []).find((g) => g.id === l.ingId)
         if (!ing) return
@@ -511,16 +530,18 @@ export function StoreProvider({ children }) {
       })
       const po = poId ? (s.purchaseOrders || []).find((x) => x.id === poId) : null
       s.grns.push({
-        id: uid('grn'), grnNo: s.counters.grnNo++, poId: poId || null,
+        id: uid('grn'), grnNo, poId: poId || null,
         vendorId: vendorId || po?.vendorId || null, date: Date.now(),
         supplierBillNo: supplierBillNo || '', lines: clean, createdAt: Date.now(),
       })
+      s.counters.grnNo = Math.max(s.counters.grnNo || 1, grnNo + 1)
       if (po && po.status !== 'cancelled') {
         const recv = {}
         ;(s.grns || []).filter((g) => g.poId === po.id).forEach((g) => g.lines.forEach((l) => { recv[l.ingId] = (recv[l.ingId] || 0) + l.qty }))
         po.status = po.lines.every((l) => (recv[l.ingId] || 0) >= l.qty) ? 'received' : 'partial'
       }
-    })
+      })
+    }
 
     // ---- cloud actions ----
     // cloud sync is tied to an account — a restaurant node is always owner-bound so

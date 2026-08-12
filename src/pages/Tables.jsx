@@ -71,6 +71,7 @@ export default function Tables() {
         <TableEditModal
           table={editTable === 'new' ? null : editTable}
           areas={areas}
+          existingIds={state.tables.map((x) => x.id)}
           occupied={editTable !== 'new' && !!orderFor(editTable.id)}
           onClose={() => setEditTable(null)}
           onSave={(f) => {
@@ -96,11 +97,15 @@ export default function Tables() {
   )
 }
 
-function TableEditModal({ table, areas, occupied, onClose, onSave, onDelete }) {
+function TableEditModal({ table, areas, existingIds = [], occupied, onClose, onSave, onDelete }) {
   const [f, setF] = useState(table
     ? { name: table.name, seats: table.seats, area: table.area }
     : { name: '', seats: 4, area: areas[0] || 'Main Hall' })
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+  // a new table's id is derived from its name; block a name that maps to an id
+  // already in use (else the add would silently no-op)
+  const derivedId = f.name.trim().toUpperCase().replace(/\s+/g, '')
+  const collides = !table && derivedId && existingIds.includes(derivedId)
   return (
     <Modal open onClose={onClose} title={table ? `Edit table ${table.name}` : 'Add table'}>
       <div className="grid grid-cols-2 gap-3">
@@ -111,7 +116,8 @@ function TableEditModal({ table, areas, occupied, onClose, onSave, onDelete }) {
         <input value={f.area} onChange={(e) => set('area', e.target.value)} list="kp-areas" placeholder="e.g. Main Hall, Family, Outdoor, Rooftop" className={inputCls} />
         <datalist id="kp-areas">{areas.map((a) => <option key={a} value={a} />)}</datalist>
       </Field>
-      <button onClick={() => onSave(f)} disabled={!f.name.trim()} className={btnPrimary + ' w-full'}>{table ? 'Save changes' : 'Add table'}</button>
+      {collides && <p className="text-[11px] text-red-600 mb-2">A table named “{f.name.trim()}” already exists — pick a different name.</p>}
+      <button onClick={() => onSave(f)} disabled={!f.name.trim() || collides} className={btnPrimary + ' w-full'}>{table ? 'Save changes' : 'Add table'}</button>
       {table && (
         occupied
           ? <p className="text-[11px] text-amber-600 mt-2 text-center">This table has a running order — settle or free it before removing.</p>

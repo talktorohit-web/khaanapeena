@@ -82,7 +82,13 @@ export default function Inventory() {
         <PurchaseModal ing={buyIng} onClose={() => setBuyIng(null)} onSave={(qty, cost) => {
           update((s) => {
             const g = s.ingredients.find((x) => x.id === buyIng.id)
-            if (g) { g.stock = +(g.stock + qty).toFixed(3); if (cost) g.costPerUnit = cost }
+            if (!g) return
+            // weighted-average cost, same as a GRN receipt — a single spot purchase
+            // must not re-value the entire existing stock at the new rate
+            const oldStock = +g.stock || 0, oldCost = +g.costPerUnit || 0, rate = +cost || 0
+            const newStock = oldStock + qty
+            if (rate > 0) g.costPerUnit = newStock > 0 ? +(((oldStock * oldCost) + (qty * rate)) / newStock).toFixed(2) : rate
+            g.stock = +newStock.toFixed(3)
           })
           setBuyIng(null)
         }} />

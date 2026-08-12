@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Empty, Badge } from '../components.jsx'
-import { minsSince, fmtTime } from '../utils.js'
+import { minsSince, fmtTime, tableName } from '../utils.js'
 
 export default function KDS() {
   const { state, t, update, settleOrder } = useStore()
@@ -54,7 +54,7 @@ function Ticket({ o, action, actionLabel, actionCls }) {
   return (
     <div className={`rounded-xl border-2 p-3 ${late ? 'border-red-400 bg-red-50' : 'border-stone-200'}`}>
       <div className="flex items-center justify-between mb-2">
-        <span className="font-black text-sm">KOT #{o.kotNo} · {o.tableId ? `T-${o.tableId}` : o.type === 'qr' ? 'QR' : o.type}</span>
+        <span className="font-black text-sm">KOT #{o.kotNo} · {o.tableId ? `🪑 ${tableName(state.tables, o.tableId)}` : o.type === 'qr' ? 'QR' : o.type}</span>
         <span className={`text-xs font-bold ${late ? 'text-red-600 kp-pulse' : 'text-stone-400'}`}>{mins}m</span>
       </div>
       {o.items.map((li, i) => (

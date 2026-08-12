@@ -141,6 +141,10 @@ export function upiLink(settings, amount, note) {
   return 'upi://pay?' + p.toString()
 }
 
+// resolve a table's current display name from its id (orders key on the id, which
+// never changes, so displays must look up the name or a rename won't show through)
+export const tableName = (tables, id) => (tables || []).find((t) => t.id === id)?.name || id
+
 // naive sentiment for feedback (offline, rule-based)
 const NEG = ['bad', 'worst', 'cold', 'late', 'slow', 'stale', 'rude', 'dirty', 'गंदा', 'खराब', 'ठंडा', 'बुरा']
 const POS = ['good', 'great', 'tasty', 'amazing', 'best', 'fresh', 'love', 'बढ़िया', 'स्वादिष्ट', 'अच्छा', 'वधीਆ']

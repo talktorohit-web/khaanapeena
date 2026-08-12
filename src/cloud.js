@@ -104,7 +104,10 @@ export function stampMetaRecords(prev, draft, now = Date.now()) {
 
 // build the new-format meta node from a full state
 function metaOf(state) {
-  const meta = { settings: state.settings, col: {} }
+  // SECURITY: strip device-local settings (managerPin, sync.apiUrl, printer) before
+  // they reach the member-readable meta node — createCloud writes this verbatim, so
+  // an unstripped settings here would leak the void PIN to every added member.
+  const meta = { settings: syncableSettings(state.settings), col: {} }
   for (const c of COLLECTIONS) {
     meta.col[c] = {}
     ;(state[c] || []).forEach((r) => { if (r && r.id != null) meta.col[c][r.id] = r })
@@ -140,7 +143,7 @@ export function joinRemote(remote) {
   } else {
     for (const c of COLLECTIONS) cols[c] = Array.isArray(rmeta[c]) ? rmeta[c] : []
   }
-  const counters = remote.counters || rmeta.counters || { billNo: 1, kotNo: 1 }
+  const counters = remote.counters || rmeta.counters || { billNo: 1, kotNo: 1, poNo: 1, grnNo: 1 }
   return { v: 1, settings, ...cols, orders, counters, _tomb: {} }
 }
 
@@ -218,7 +221,10 @@ export async function createCloud(state, ownerUid) {
   const node = {
     meta: metaOf(state),
     orders: ordersById,
-    counters: { billNo: state.counters?.billNo || 1, kotNo: state.counters?.kotNo || 1 },
+    counters: {
+      billNo: state.counters?.billNo || 1, kotNo: state.counters?.kotNo || 1,
+      poNo: state.counters?.poNo || 1, grnNo: state.counters?.grnNo || 1,
+    },
     public: menuSnapshot(state),
   }
   if (ownerUid) { node.owner = ownerUid; node.members = { [ownerUid]: true } }
@@ -231,7 +237,7 @@ export async function createCloud(state, ownerUid) {
 export async function migrateCloudFormat(code, state) {
   const now = Date.now()
   const patch = {
-    'meta/settings': { ...state.settings, _u: state.settings?._u || now },
+    'meta/settings': { ...syncableSettings(state.settings), _u: state.settings?._u || now },
     'meta/metaUpdatedAt': null,
     'meta/counters': null,
   }
@@ -263,6 +269,18 @@ export async function claimRestaurant(code, ownerUid) {
 export async function nextCounter(code, name) {
   const r = ref(db(), `kp_restaurants/${code}/counters/${name}`)
   const res = await runTransaction(r, (cur) => (typeof cur === 'number' ? cur : 0) + 1)
+  return res.snapshot.val()
+}
+
+// atomic counter that also self-heals a cloud counter that's behind a device's local
+// value — used for PO/GRN numbers, whose cloud node may not exist yet on restaurants
+// created before these counters were synced. Seeds the server to at least `floor` (the
+// caller's local next-number) so a second device can never re-issue a number the owner
+// already used offline.
+export async function nextCounterAtLeast(code, name, floor = 1) {
+  const r = ref(db(), `kp_restaurants/${code}/counters/${name}`)
+  const min = (Math.floor(+floor) || 1) - 1
+  const res = await runTransaction(r, (cur) => Math.max((typeof cur === 'number' ? cur : 0), min) + 1)
   return res.snapshot.val()
 }
 

@@ -16,7 +16,7 @@
     "kp_restaurants": {
       "$code": {
         ".read": "auth != null && (data.child('owner').val() === auth.uid || data.child('members').child(auth.uid).exists())",
-        ".write": "!data.exists() && auth != null && newData.child('owner').val() === auth.uid",
+        ".write": "!data.exists() && auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && newData.child('owner').val() === auth.uid",
         "owner": {
           ".write": "false"
         },
@@ -30,7 +30,7 @@
             ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())",
             "feedback": {
               "$fid": {
-                ".write": "auth != null && !data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('rating').isNumber() && newData.child('rating').val() >= 1 && newData.child('rating').val() <= 5 && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 500)) && !newData.child('reply').exists() && !newData.child('resolved').exists()"
+                ".write": "auth != null && !data.exists() && newData.child('id').val() === $fid && newData.child('source').val() === 'qr-guest' && newData.child('rating').isNumber() && newData.child('rating').val() >= 1 && newData.child('rating').val() <= 5 && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 500)) && !newData.child('reply').exists() && !newData.child('resolved').exists() && !newData.child('sanitized').exists()"
               }
             }
           },
@@ -48,7 +48,7 @@
         "orders": {
           ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())",
           "$oid": {
-            ".write": "auth != null && !data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists()"
+            ".write": "auth != null && !data.exists() && newData.child('id').val() === $oid && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists() && !newData.child('sanitized').exists()"
           }
         }
       }

@@ -67,7 +67,7 @@ export default function MenuPage() {
 
 function ItemModal({ item, onClose }) {
   const { state, update } = useStore()
-  const [f, setF] = useState(item || { name: '', nameHi: '', price: '', catId: state.categories[0].id, veg: true, station: 'kitchen', available: true, recipe: [] })
+  const [f, setF] = useState(item || { name: '', nameHi: '', price: '', catId: state.categories[0]?.id ?? '', veg: true, station: 'kitchen', available: true, recipe: [] })
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
 
   const ings = state.ingredients || []
@@ -86,8 +86,12 @@ function ItemModal({ item, onClose }) {
   const rmLine = (idx) => set('recipe', recipe.filter((_, i) => i !== idx))
 
   const save = () => {
-    // keep only complete recipe lines (an ingredient with a positive per-plate qty)
-    const cleanRecipe = recipe.filter((r) => r.ingId && +r.qty > 0).map((r) => ({ ingId: r.ingId, qty: +r.qty }))
+    // keep only complete recipe lines (ingredient + positive per-plate qty), and
+    // MERGE duplicate lines for the same ingredient — two lines for one ingredient
+    // would otherwise deduct its stock twice on KOT and double-count its plate cost
+    const byIng = {}
+    recipe.forEach((r) => { if (r.ingId && +r.qty > 0) byIng[r.ingId] = (byIng[r.ingId] || 0) + +r.qty })
+    const cleanRecipe = Object.entries(byIng).map(([ingId, qty]) => ({ ingId, qty: +qty.toFixed(3) }))
     update((s) => {
       if (item) {
         const x = s.items.find((y) => y.id === item.id)

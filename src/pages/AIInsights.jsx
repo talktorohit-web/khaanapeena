@@ -14,7 +14,7 @@ export default function AIInsights() {
   const insights = useMemo(() => {
     // daily totals
     const byDay = {}
-    paid.forEach((o) => { const k = dayKey(o.paidAt); byDay[k] = (byDay[k] || 0) + o.payment.amount })
+    paid.forEach((o) => { const k = dayKey(o.paidAt); byDay[k] = (byDay[k] || 0) + (o.payment?.amount || 0) })
     const daily = Object.entries(byDay).sort().map(([date, total]) => ({ date, total }))
     const fc = forecastNext7(daily)
 
