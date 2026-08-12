@@ -41,7 +41,7 @@ export default function Reports() {
           <p className="text-xs text-stone-400">{range.label} · {new Date(range.from).toLocaleDateString('en-IN')} → {new Date(Math.min(range.to, Date.now())).toLocaleDateString('en-IN')}</p>
         </div>
         <div className="flex gap-2">
-          {[['sales', '💰 Sales & Earnings'], ['inventory', '📦 Inventory']].map(([k, l]) => (
+          {[['sales', '💰 Sales & Earnings'], ['foodcost', '🍲 Food Cost'], ['inventory', '📦 Inventory']].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === k ? 'bg-ink-900 text-white' : 'bg-white border border-stone-200 text-stone-600'}`}>{l}</button>
           ))}
         </div>
@@ -66,7 +66,9 @@ export default function Reports() {
         )}
       </div>
 
-      {tab === 'sales' ? <SalesReport state={state} range={range} /> : <InventoryReport state={state} range={range} />}
+      {tab === 'sales' ? <SalesReport state={state} range={range} />
+        : tab === 'foodcost' ? <FoodCostReport state={state} range={range} />
+          : <InventoryReport state={state} range={range} />}
     </div>
   )
 }
@@ -391,6 +393,123 @@ function InventoryReport({ state, range }) {
           </tbody>
         </table>
       </div>
+    </>
+  )
+}
+
+function FoodCostReport({ state, range }) {
+  const [sort, setSort] = useState('pct') // pct | margin | sold | name
+  const ings = state.ingredients || []
+  const cats = state.categories || []
+  const ingCost = (id) => ings.find((g) => g.id === id)?.costPerUnit || 0
+  const catName = (id) => cats.find((c) => c.id === id)?.name || '—'
+
+  const paid = useMemo(() => state.orders.filter((o) => o.status === 'paid' && o.paidAt >= range.from && o.paidAt < range.to), [state.orders, range])
+  const soldQty = useMemo(() => { const m = {}; paid.forEach((o) => (o.items || []).forEach((li) => { m[li.itemId] = (m[li.itemId] || 0) + li.qty })); return m }, [paid])
+
+  const rows = (state.items || []).map((it) => {
+    const recipe = it.recipe || []
+    const hasRecipe = recipe.length > 0
+    const plateCost = recipe.reduce((s, r) => s + r.qty * ingCost(r.ingId), 0)
+    const pct = hasRecipe && it.price > 0 ? (plateCost / it.price) * 100 : null
+    const sold = soldQty[it.id] || 0
+    return { id: it.id, name: it.name, cat: catName(it.catId), price: it.price, plateCost, pct, margin: it.price - plateCost, sold, periodCost: plateCost * sold, periodRev: it.price * sold, hasRecipe }
+  })
+
+  const costed = rows.filter((r) => r.hasRecipe)
+  const totCost = costed.reduce((s, r) => s + r.periodCost, 0)
+  const totRev = costed.reduce((s, r) => s + r.periodRev, 0)
+  const overallPct = totRev > 0 ? (totCost / totRev) * 100 : null
+  const allRev = rows.reduce((s, r) => s + r.periodRev, 0)
+  const coveredPct = allRev > 0 ? Math.round((totRev / allRev) * 100) : 0
+
+  const pctColor = (p) => (p == null ? 'stone' : p <= 30 ? 'green' : p <= 40 ? 'amber' : 'red')
+  const overallColor = overallPct == null ? 'text-stone-400' : overallPct <= 30 ? 'text-leaf-600' : overallPct <= 40 ? 'text-amber-600' : 'text-red-600'
+
+  const sorted = [...rows].sort((a, b) => {
+    if (sort === 'name') return a.name.localeCompare(b.name)
+    if (sort === 'margin') return b.margin - a.margin
+    if (sort === 'sold') return b.sold - a.sold
+    if (a.pct == null && b.pct == null) return 0
+    if (a.pct == null) return 1
+    if (b.pct == null) return -1
+    return b.pct - a.pct
+  })
+  const leaks = costed.filter((r) => r.sold > 0).sort((a, b) => b.periodCost - a.periodCost).slice(0, 6)
+
+  const exportCsv = () => {
+    const out = [['Item', 'Category', 'Price', 'Plate cost', 'Food cost %', 'Margin', 'Sold (' + range.label + ')']]
+    sorted.forEach((r) => out.push([r.name, r.cat, r.price, +r.plateCost.toFixed(2), r.pct == null ? '' : r.pct.toFixed(1), +r.margin.toFixed(2), r.sold]))
+    download(`khaanapeena-food-cost-${range.label.replace(/\s+/g, '-').toLowerCase()}.csv`, out)
+  }
+
+  if (!(state.items || []).length) return <div className="bg-white rounded-2xl border border-stone-100 py-4"><Empty icon="🍲" text="No menu items yet." /></div>
+
+  return (
+    <>
+      <div className="flex justify-end mb-3"><button onClick={exportCsv} className={btnGhost}>⬇️ Export CSV</button></div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+          <div className="text-xs text-stone-500 font-medium">Overall food cost %</div>
+          <div className={`text-2xl font-bold ${overallColor} tabular-nums`}>{overallPct == null ? '—' : overallPct.toFixed(1) + '%'}</div>
+          <div className="text-[11px] text-stone-400">{range.label} · costed dishes sold</div>
+        </div>
+        <StatCard label="Theoretical food cost" value={inr0(totCost)} sub={`on ${inr0(totRev)} revenue`} icon="🧮" accent="saffron" />
+        <StatCard label="Gross margin (costed)" value={overallPct == null ? '—' : (100 - overallPct).toFixed(0) + '%'} sub={inr0(totRev - totCost)} icon="📈" accent="green" />
+        <StatCard label="Recipe coverage" value={`${costed.length}/${rows.length}`} sub={`${coveredPct}% of sales costed`} icon="📋" accent={coveredPct >= 70 ? 'green' : 'red'} />
+      </div>
+
+      {overallPct != null && overallPct > 35 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4 text-sm text-red-800">
+          🔻 Overall food cost is <b>{overallPct.toFixed(1)}%</b> — above the healthy 25–35% range. Re-check pricing or supplier rates on the high-cost dishes below.
+        </div>
+      )}
+      {coveredPct < 70 && costed.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4 text-sm text-amber-800">
+          Only <b>{coveredPct}%</b> of your sales revenue is recipe-costed. Add recipes to more menu items (in Menu) for the full picture.
+        </div>
+      )}
+
+      {leaks.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 mb-4">
+          <h3 className="font-bold text-ink-900 mb-1">Biggest margin leaks</h3>
+          <p className="text-xs text-stone-400 mb-3">Dishes eating the most into profit this period (food cost × volume)</p>
+          <HBars data={leaks.map((r) => ({ label: `${r.name} (${r.pct.toFixed(0)}%)`, value: Math.round(r.periodCost) }))} color="#dc2626" fmt={(v) => inr0(v)} />
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-stone-100 overflow-x-auto">
+        <div className="p-4 pb-2 flex items-center justify-between flex-wrap gap-2">
+          <h3 className="font-bold text-ink-900">Per-dish food cost</h3>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-stone-400">Sort:</span>
+            {[['pct', 'Cost %'], ['margin', 'Margin'], ['sold', 'Sold'], ['name', 'A–Z']].map(([k, l]) => (
+              <button key={k} onClick={() => setSort(k)} className={`px-2 py-1 rounded-lg font-bold ${sort === k ? 'bg-ink-900 text-white' : 'bg-stone-100 text-stone-600'}`}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
+              <th className="py-2 px-4">Dish</th><th>Price</th><th>Plate cost</th><th>Food cost %</th><th>Margin</th><th>Sold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => (
+              <tr key={r.id} className="border-b border-stone-50">
+                <td className="py-2.5 px-4"><div className="font-semibold text-ink-900">{r.name}</div><div className="text-[11px] text-stone-400">{r.cat}</div></td>
+                <td>{inr0(r.price)}</td>
+                <td>{r.hasRecipe ? inr(+r.plateCost.toFixed(2)) : <span className="text-stone-300">—</span>}</td>
+                <td>{r.pct == null ? <span className="text-[11px] text-stone-400">no recipe</span> : <Badge color={pctColor(r.pct)}>{r.pct.toFixed(0)}%</Badge>}</td>
+                <td className="font-semibold">{r.hasRecipe ? inr0(r.margin) : <span className="text-stone-300">—</span>}</td>
+                <td className="tabular-nums">{r.sold || <span className="text-stone-300">0</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-stone-400 mt-2">Plate cost uses each ingredient's live weighted-average cost — updated automatically when you receive stock in Purchase &amp; GRN.</p>
     </>
   )
 }
