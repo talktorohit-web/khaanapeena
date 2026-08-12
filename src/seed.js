@@ -203,8 +203,11 @@ export function makeSeed() {
       { id: uid('w'), date: new Date(Date.now() - 1 * 864e5).toISOString().slice(0, 10), itemName: 'Tomatoes', qty: '3 kg', reason: 'Spoilage', lossValue: 120 },
     ],
     feedback: [
-      { id: uid('f'), rating: 5, text: 'Butter chicken was amazing, best in Jalandhar!', sentiment: 'positive', date: Date.now() - 3 * 864e5 },
-      { id: uid('f'), rating: 2, text: 'Service was slow, food came cold', sentiment: 'negative', date: Date.now() - 1 * 864e5 },
+      { id: uid('f'), rating: 5, text: 'Butter chicken was amazing, best in Jalandhar!', sentiment: 'positive', source: 'qr-guest', tableId: 'T4', resolved: false, reply: null, date: Date.now() - 3 * 864e5 },
+      { id: uid('f'), rating: 2, text: 'Service was slow, food came cold', sentiment: 'negative', source: 'qr-guest', tableId: 'T2', resolved: false, reply: null, date: Date.now() - 1 * 864e5 },
+      { id: uid('f'), rating: 4, text: 'Fresh and tasty, loved the paneer tikka', sentiment: 'positive', source: 'qr', tableId: 'T1', resolved: false, reply: null, date: Date.now() - 2 * 864e5 },
+      { id: uid('f'), rating: 3, text: 'Good food but had to wait for a table', sentiment: 'neutral', source: 'pos', tableId: null, resolved: true, reply: { text: 'Thanks — weekends are busy, we now take reservations on WhatsApp!', at: Date.now() - 1.5 * 864e5, by: 'Owner' }, date: Date.now() - 5 * 864e5 },
+      { id: uid('f'), rating: 5, text: 'Bahut badhiya! Will come again 🙏', sentiment: 'positive', source: 'qr-guest', tableId: 'T3', resolved: false, reply: null, date: Date.now() - 6 * 3600e3 },
     ],
     reservations: makeReservations(),
     shifts: makeShifts(),

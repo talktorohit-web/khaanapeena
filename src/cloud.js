@@ -322,3 +322,21 @@ export async function pushGuestOrder(code, order) {
 export async function updateGuestOrder(code, orderId, fields) {
   await dbUpdate(ref(db(), `kp_restaurants/${code}/orders/${orderId}`), fields)
 }
+
+// guest leaves a review from their phone. Writes straight into the per-record
+// feedback collection; the rules only allow a guest-authenticated CREATE with a
+// 1–5 rating and source:'qr-guest', and the owner device re-sanitizes on merge
+// (recomputes sentiment, clamps text, marks `sanitized`). rating/text only —
+// everything else (sentiment/reply/resolved) is owner-authoritative.
+export async function pushGuestFeedback(code, fb) {
+  const rec = {
+    id: fb.id,
+    rating: Math.max(1, Math.min(5, Math.floor(+fb.rating || 0))),
+    text: String(fb.text || '').slice(0, 500),
+    tableId: fb.tableId || null,
+    source: 'qr-guest',
+    date: Date.now(),
+    _u: Date.now(),
+  }
+  await set(ref(db(), `kp_restaurants/${code}/meta/col/feedback/${rec.id}`), rec)
+}

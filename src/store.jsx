@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { makeSeed } from './seed.js'
 import { makeT } from './i18n.js'
-import { uid, billTotals } from './utils.js'
+import { uid, billTotals, sentiment } from './utils.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote, nextCounter, claimRestaurant, publishPublic,
@@ -113,6 +113,19 @@ export function StoreProvider({ children }) {
             })
             o.sanitized = true
             o.updatedAt = Date.now()
+          })
+          // SECURITY: guest reviews are unauthenticated writes too. Clamp the rating,
+          // trim the free text, and recompute sentiment ourselves — a guest can't
+          // forge a sentiment label, a reply, or a resolved flag.
+          ;(merged.feedback || []).forEach((f) => {
+            if (f.source !== 'qr-guest' || f.sanitized) return
+            f.rating = Math.max(1, Math.min(5, Math.floor(+f.rating || 1)))
+            f.text = String(f.text || '').slice(0, 500)
+            f.sentiment = sentiment(f.text, f.rating)
+            delete f.reply
+            f.resolved = false
+            f.sanitized = true
+            f._u = Date.now()
           })
           // owner device runs inventory deduction for KOTs that arrived from
           // guest/other devices (their lines were never deducted locally)
@@ -430,6 +443,31 @@ export function StoreProvider({ children }) {
       return newId
     }
 
+    // ---- customer feedback & reviews ----
+    // owner/staff records a review captured at the counter (post-bill) or by phone
+    const addFeedback = ({ rating, text = '', tableId = null, orderId = null, customerId = null, source = 'pos' }) => update((s) => {
+      s.feedback = s.feedback || []
+      const r = Math.max(1, Math.min(5, Math.floor(+rating || 0)))
+      if (!r) return
+      s.feedback.push({
+        id: uid('f'), rating: r, text: String(text || '').slice(0, 500),
+        sentiment: sentiment(text, r), tableId, orderId, customerId, source,
+        reply: null, resolved: false, date: Date.now(),
+      })
+    })
+    // owner's public/private reply to a review (marks it addressed)
+    const replyFeedback = (id, text, by) => update((s) => {
+      const f = (s.feedback || []).find((x) => x.id === id)
+      if (!f) return
+      f.reply = { text: String(text || '').slice(0, 500), at: Date.now(), by: by || '' }
+      f.resolved = true
+    })
+    const resolveFeedback = (id, resolved = true) => update((s) => {
+      const f = (s.feedback || []).find((x) => x.id === id)
+      if (f) f.resolved = !!resolved
+    })
+    const deleteFeedback = (id) => update((s) => { s.feedback = (s.feedback || []).filter((x) => x.id !== id) })
+
     // ---- purchasing: vendors, purchase orders, goods-receipt notes (GRN) ----
     const addVendor = (v) => update((s) => {
       s.vendors = s.vendors || []
@@ -582,7 +620,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

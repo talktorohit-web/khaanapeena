@@ -10,6 +10,7 @@ import MenuPage from './pages/Menu.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Purchase from './pages/Purchase.jsx'
 import Customers from './pages/Customers.jsx'
+import Feedback from './pages/Feedback.jsx'
 import Reports from './pages/Reports.jsx'
 import Register from './pages/Register.jsx'
 import AIInsights from './pages/AIInsights.jsx'
@@ -35,6 +36,7 @@ const NAV = [
   { id: 'inventory', icon: '📦', key: 'inventory' },
   { id: 'purchase', icon: '🚚', key: 'purchase' },
   { id: 'customers', icon: '👥', key: 'customers' },
+  { id: 'feedback', icon: '💬', key: 'feedback' },
   { id: 'reports', icon: '📈', key: 'reports' },
   { id: 'register', icon: '💵', key: 'register' },
   { id: 'ai', icon: '✨', key: 'ai' },
@@ -45,7 +47,7 @@ const NAV = [
 
 const PAGES = {
   dashboard: Dashboard, billing: Billing, tables: Tables, reservations: Reservations, kds: KDS,
-  online: OnlineOrders, menu: MenuPage, inventory: Inventory, purchase: Purchase, customers: Customers, reports: Reports,
+  online: OnlineOrders, menu: MenuPage, inventory: Inventory, purchase: Purchase, customers: Customers, feedback: Feedback, reports: Reports,
   register: Register, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 

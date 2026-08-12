@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
 import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
-import { fetchMenu, pushGuestOrder, updateGuestOrder } from '../cloud.js'
+import { fetchMenu, pushGuestOrder, updateGuestOrder, pushGuestFeedback } from '../cloud.js'
 import { signInAnon } from '../auth.js'
 
 // Customer-facing self-order page (#/qr?t=T5&c=KPXXXXXXXX)
@@ -97,9 +97,14 @@ export default function QRMenu({ hash }) {
     setPaid(true)
   }
 
-  const sendFeedback = () => {
-    if (!code) {
-      store.update((st) => st.feedback.push({ id: uid('f'), rating: fb.rating, text: fb.text, sentiment: sentiment(fb.text, fb.rating), date: Date.now() }))
+  const sendFeedback = async () => {
+    const rec = { id: uid('f'), rating: fb.rating, text: fb.text, tableId: tableId || null }
+    if (code) {
+      // remote guest: sign in anonymously (rules require auth) and push to cloud;
+      // the owner device recomputes sentiment and can reply/resolve.
+      try { await signInAnon(); await pushGuestFeedback(code, rec) } catch { /* best-effort */ }
+    } else {
+      store.update((st) => st.feedback.push({ ...rec, source: 'qr', sentiment: sentiment(fb.text, fb.rating), date: Date.now() }))
     }
     setFb((p) => ({ ...p, sent: true }))
   }

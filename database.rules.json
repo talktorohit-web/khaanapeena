@@ -27,7 +27,12 @@
         "meta": {
           ".write": "auth != null && data.parent().child('owner').val() === auth.uid",
           "col": {
-            ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())"
+            ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())",
+            "feedback": {
+              "$fid": {
+                ".write": "auth != null && !data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('rating').isNumber() && newData.child('rating').val() >= 1 && newData.child('rating').val() <= 5 && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 500)) && !newData.child('reply').exists() && !newData.child('resolved').exists()"
+              }
+            }
           },
           "tomb": {
             ".write": "auth != null && (data.parent().parent().child('owner').val() === auth.uid || data.parent().parent().child('members').child(auth.uid).exists())"
