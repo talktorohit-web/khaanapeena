@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
 import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
 import { fetchMenu, pushGuestOrder, updateGuestOrder } from '../cloud.js'
+import { signInAnon } from '../auth.js'
 
 // Customer-facing self-order page (#/qr?t=T5&c=KPXXXXXXXX)
 // - with &c= (cloud code): GUEST MODE — menu loads from the restaurant's cloud
@@ -58,7 +59,9 @@ export default function QRMenu({ hash }) {
     const payable = s.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
 
     if (code) {
-      // guest mode: write the order to the restaurant's cloud as an already-fired KOT
+      // guest mode: sign in anonymously (rules require auth) then write the order as
+      // an already-fired KOT
+      try { await signInAnon() } catch { alert('Could not start ordering — please order at the counter'); return }
       const order = {
         id, billNo: null, type: 'qr', tableId, status: 'kot', items: lines,
         createdAt: Date.now(), kotAt: Date.now(), updatedAt: Date.now(),

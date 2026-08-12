@@ -43,7 +43,7 @@
         "orders": {
           ".write": "auth != null && (data.parent().child('owner').val() === auth.uid || data.parent().child('members').child(auth.uid).exists())",
           "$oid": {
-            ".write": "!data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists()"
+            ".write": "auth != null && !data.exists() && newData.child('source').val() === 'qr-guest' && newData.child('status').val() === 'kot' && !newData.child('billNo').exists() && !newData.child('kotNo').exists() && !newData.child('paidAt').exists()"
           }
         }
       }

@@ -4,7 +4,7 @@
 import { initializeApp, getApps } from 'firebase/app'
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
+  signInWithEmailAndPassword, signOut, sendPasswordResetEmail, signInAnonymously,
 } from 'firebase/auth'
 import { getDatabase, ref, get, set } from 'firebase/database'
 
@@ -41,6 +41,14 @@ export const onAuth = (cb) =>
 export const getIdToken = async () => {
   const u = auth().currentUser
   return u ? u.getIdToken() : ''
+}
+
+// guest QR ordering: sign the phone in anonymously so its writes carry an auth token
+// (the rules require auth != null) — makes guest orders attributable + rate-limitable
+export const signInAnon = async () => {
+  const a = auth()
+  if (a.currentUser) return a.currentUser
+  return (await signInAnonymously(a)).user
 }
 
 export const signUp = (email, password) => createUserWithEmailAndPassword(auth(), email.trim(), password)
