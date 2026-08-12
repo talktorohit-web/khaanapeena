@@ -384,6 +384,60 @@ export function StoreProvider({ children }) {
       o.updatedAt = Date.now()
     })
 
+    // ---- purchasing: vendors, purchase orders, goods-receipt notes (GRN) ----
+    const addVendor = (v) => update((s) => {
+      s.vendors = s.vendors || []
+      s.vendors.push({ id: uid('ven'), name: '', phone: '', gstin: '', address: '', createdAt: Date.now(), ...v })
+    })
+    const updateVendor = (id, fields) => update((s) => {
+      const v = (s.vendors || []).find((x) => x.id === id); if (v) Object.assign(v, fields)
+    })
+    const deleteVendor = (id) => update((s) => { s.vendors = (s.vendors || []).filter((x) => x.id !== id) })
+
+    const createPO = ({ vendorId, expectedDate, lines, notes }) => update((s) => {
+      s.purchaseOrders = s.purchaseOrders || []
+      s.counters.poNo = s.counters.poNo || 1
+      const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
+      if (!clean.length) return
+      s.purchaseOrders.push({
+        id: uid('po'), poNo: s.counters.poNo++, vendorId: vendorId || null,
+        date: Date.now(), expectedDate: expectedDate || null, status: 'sent',
+        lines: clean, notes: notes || '', createdAt: Date.now(),
+      })
+    })
+    const cancelPO = (id) => update((s) => {
+      const po = (s.purchaseOrders || []).find((x) => x.id === id)
+      if (po && po.status !== 'received') po.status = 'cancelled'
+    })
+
+    // receive goods (against a PO, or standalone if poId null): add to stock with a
+    // weighted-average cost, record the GRN, and advance the PO status
+    const receiveGRN = ({ poId, vendorId, supplierBillNo, lines }) => update((s) => {
+      s.grns = s.grns || []
+      s.counters.grnNo = s.counters.grnNo || 1
+      const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
+      if (!clean.length) return
+      clean.forEach((l) => {
+        const ing = (s.ingredients || []).find((g) => g.id === l.ingId)
+        if (!ing) return
+        const oldStock = +ing.stock || 0, oldCost = +ing.costPerUnit || 0
+        const newStock = oldStock + l.qty
+        ing.costPerUnit = newStock > 0 ? +(((oldStock * oldCost) + (l.qty * l.rate)) / newStock).toFixed(2) : l.rate
+        ing.stock = +newStock.toFixed(3)
+      })
+      const po = poId ? (s.purchaseOrders || []).find((x) => x.id === poId) : null
+      s.grns.push({
+        id: uid('grn'), grnNo: s.counters.grnNo++, poId: poId || null,
+        vendorId: vendorId || po?.vendorId || null, date: Date.now(),
+        supplierBillNo: supplierBillNo || '', lines: clean, createdAt: Date.now(),
+      })
+      if (po && po.status !== 'cancelled') {
+        const recv = {}
+        ;(s.grns || []).filter((g) => g.poId === po.id).forEach((g) => g.lines.forEach((l) => { recv[l.ingId] = (recv[l.ingId] || 0) + l.qty }))
+        po.status = po.lines.every((l) => (recv[l.ingId] || 0) >= l.qty) ? 'received' : 'partial'
+      }
+    })
+
     // ---- cloud actions ----
     // cloud sync is tied to an account — a restaurant node is always owner-bound so
     // only devices signed in as the owner (or an added member) can read/write it
@@ -482,7 +536,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

@@ -208,8 +208,33 @@ export function makeSeed() {
     ],
     reservations: makeReservations(),
     shifts: makeShifts(),
-    counters: { billNo, kotNo: 1 },
+    ...makePurchasing(),
+    counters: { billNo, kotNo: 1, poNo: 4, grnNo: 3 },
   }
+}
+
+// vendors + purchase orders + goods-receipt notes for the demo
+function makePurchasing() {
+  const now = Date.now(); const DAY = 864e5
+  const vendors = [
+    { id: 'ven1', name: 'Sharma Dairy Farm', phone: '9815500011', gstin: '03AABCS1111A1Z1', address: 'Model Town, Jalandhar', createdAt: now - 30 * DAY },
+    { id: 'ven2', name: 'Fresh Farm Vegetables', phone: '9815500022', gstin: '', address: 'Sabzi Mandi, Jalandhar', createdAt: now - 30 * DAY },
+    { id: 'ven3', name: 'Al-Noor Poultry', phone: '9815500033', gstin: '03AABCA3333C1Z3', address: 'Basti Sheikh, Jalandhar', createdAt: now - 25 * DAY },
+    { id: 'ven4', name: 'Punjab Grain Traders', phone: '9815500044', gstin: '03AABCP4444D1Z4', address: 'Grain Market, Jalandhar', createdAt: now - 20 * DAY },
+  ]
+  const purchaseOrders = [
+    { id: 'po1', poNo: 1, vendorId: 'ven2', date: now - 1 * DAY, expectedDate: now + 1 * DAY, status: 'sent',
+      lines: [{ ingId: 'g08', qty: 20, rate: 38 }, { ingId: 'g09', qty: 25, rate: 32 }], notes: 'Morning delivery preferred', createdAt: now - 1 * DAY },
+    { id: 'po2', poNo: 2, vendorId: 'ven1', date: now - 2 * DAY, expectedDate: now, status: 'partial',
+      lines: [{ ingId: 'g01', qty: 10, rate: 315 }, { ingId: 'g11', qty: 20, rate: 56 }], notes: '', createdAt: now - 2 * DAY },
+    { id: 'po3', poNo: 3, vendorId: 'ven4', date: now - 5 * DAY, expectedDate: now - 3 * DAY, status: 'received',
+      lines: [{ ingId: 'g03', qty: 50, rate: 37 }, { ingId: 'g05', qty: 30, rate: 108 }], notes: '', createdAt: now - 5 * DAY },
+  ]
+  const grns = [
+    { id: 'grn1', grnNo: 1, poId: 'po2', vendorId: 'ven1', date: now - 1 * DAY, supplierBillNo: 'SDF/2026/210', lines: [{ ingId: 'g01', qty: 6, rate: 315 }], createdAt: now - 1 * DAY },
+    { id: 'grn2', grnNo: 2, poId: 'po3', vendorId: 'ven4', date: now - 3 * DAY, supplierBillNo: 'PGT/1188', lines: [{ ingId: 'g03', qty: 50, rate: 37 }, { ingId: 'g05', qty: 30, rate: 108 }], createdAt: now - 3 * DAY },
+  ]
+  return { vendors, purchaseOrders, grns }
 }
 
 function makeShifts() {
