@@ -284,7 +284,7 @@ export default function Billing() {
               <Badge color={order.status === 'kot' ? 'amber' : order.status === 'ready' ? 'green' : 'blue'}>{order.status.toUpperCase()}</Badge>
             </div>
           )}
-          {order && order.items.some((i) => i.deducted) && can('void') && (
+          {order && (order.items || []).some((i) => i.deducted) && (
             editUnlock ? (
               <button onClick={() => { setEditUnlock(false); setAuthManager(null) }} className="w-full mt-2 text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 rounded-lg py-1.5">
                 🔓 Manager mode{authManager ? ` · ${authManager.name}` : ''} — tap to lock
@@ -353,8 +353,9 @@ export default function Billing() {
             ) : (
               <Row l="Composition scheme — no GST on bill" v="" muted />
             )}
+            {totals.svc > 0 && <Row l={`Service charge ${state.settings.serviceCharge}%`} v={inr(totals.svc)} muted />}
             <div className="flex justify-between font-black text-lg text-ink-900 pt-1 border-t border-stone-100">
-              <span>{t('total')}</span><span>{inr0(state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable))}</span>
+              <span>{t('total')}</span><span>{inr0(state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable + totals.svc))}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2">
               <button title="Send KOT (F4)" onClick={doSendKot} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')} <span className="opacity-60 font-mono">F4</span></button>
@@ -505,7 +506,7 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
 
   const cust = state.customers.find((c) => c.phone === phone)
   const effTotals = billTotals({ ...order, payment: { discount: discount + redeem } }, state.settings)
-  const payable = state.settings.gstScheme === 'regular' ? effTotals.total : Math.round(effTotals.taxable)
+  const payable = state.settings.gstScheme === 'regular' ? effTotals.total : Math.round(effTotals.taxable + effTotals.svc)
 
   useEffect(() => {
     if (method === 'upi') {
@@ -577,7 +578,7 @@ export function BillPrint({ order, onClose }) {
   const s = state.settings
   const totals = billTotals(order, s)
   const isComposition = s.gstScheme === 'composition'
-  const payable = isComposition ? Math.round(totals.taxable) : totals.total
+  const payable = isComposition ? Math.round(totals.taxable + totals.svc) : totals.total
   useEffect(() => {
     const id = setTimeout(() => window.print(), 300)
     return () => clearTimeout(id)
@@ -597,7 +598,7 @@ export function BillPrint({ order, onClose }) {
         <div>Bill No: {order.billNo || 'DRAFT'} · {order.tableId ? `Table ${order.tableId}` : order.type}</div>
         <div>{new Date(order.createdAt).toLocaleString('en-IN')}</div>
         <div className="border-t border-dashed border-stone-400 my-1" />
-        {order.items.map((li, i) => (
+        {(order.items || []).map((li, i) => (
           <div key={i} className="flex justify-between">
             <span>{li.name} × {li.qty}</span><span>{(li.price * li.qty).toFixed(2)}</span>
           </div>
@@ -611,6 +612,7 @@ export function BillPrint({ order, onClose }) {
             <div className="flex justify-between"><span>SGST @{totals.gstRate / 2}%</span><span>{totals.sgst.toFixed(2)}</span></div>
           </>
         )}
+        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{s.serviceCharge}%</span><span>{totals.svc.toFixed(2)}</span></div>}
         <div className="flex justify-between font-black text-sm border-t border-dashed border-stone-400 mt-1 pt-1">
           <span>TOTAL</span><span>₹{payable}</span>
         </div>

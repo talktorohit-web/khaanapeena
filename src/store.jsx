@@ -4,7 +4,7 @@ import { makeT } from './i18n.js'
 import { uid, billTotals, sentiment } from './utils.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
-  pushChanges, mergeRemote, joinRemote, nextCounter, nextCounterAtLeast, claimRestaurant, publishPublic,
+  pushChanges, mergeRemote, joinRemote, nextCounterAtLeast, claimRestaurant, publishPublic,
   stampMetaRecords, migrateCloudFormat, isLegacyFormat,
 } from './cloud.js'
 import { onAuth, signUp, signIn, logout, setUserRestaurant, getUserRestaurant, getIdToken } from './auth.js'
@@ -212,29 +212,32 @@ export function StoreProvider({ children }) {
       return id
     }
 
-    // KOT number comes from the atomic server counter when cloud-connected,
-    // else a local counter (single device, no race). Same pattern for bills.
-    const allocNumber = async (name) => {
+    // An offline RTDB runTransaction (web SDK, no persistence) NEVER rejects — its
+    // promise just stays pending until reconnect. Awaiting it directly would hang
+    // "Send KOT"/"Settle" forever the instant WiFi drops. Race it against a short
+    // timeout so we fall back to the local counter and keep serving.
+    const withTimeout = (p, ms = 2500) => Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))])
+    // atomic, server-authoritative counter, FLOORED at this device's local next
+    // number (so an offline device that issued 6,7,8 locally can't have the server
+    // hand out 6 again = a duplicate GST invoice number), with the offline timeout.
+    // Returns null → caller uses the local counter.
+    const allocNumber = async (name, floor = 1) => {
       const code = loadCloudCfg()?.code
-      if (code) { try { return await nextCounter(code, name) } catch { /* offline → local */ } }
-      return null
-    }
-    // like allocNumber but floors the server counter at this device's local next-number
-    // (for PO/GRN, whose cloud counter can lag a device that raised them offline)
-    const allocNumberAtLeast = async (name, floor) => {
-      const code = loadCloudCfg()?.code
-      if (code) { try { return await nextCounterAtLeast(code, name, floor) } catch { /* offline → local */ } }
+      if (code) {
+        try { const v = await withTimeout(nextCounterAtLeast(code, name, floor)); if (v != null) return v } catch { /* offline → local */ }
+      }
       return null
     }
 
     // returns the KOT number actually issued, so the caller prints the right one
     // (server counter when online, local otherwise — never the stale seed value)
     const sendKot = async (orderId) => {
-      const server = await allocNumber('kotNo')
-      const issued = server != null ? server : (stateRef.current.counters?.kotNo || 1)
+      const localNext = stateRef.current.counters?.kotNo || 1
+      const server = await allocNumber('kotNo', localNext)
+      const issued = server != null ? server : localNext
       update((s) => {
         const o = s.orders.find((x) => x.id === orderId)
-        if (!o || !o.items.length) return
+        if (!o || !(o.items || []).length) return
         o.status = 'kot'
         o.kotAt = Date.now()
         o.kotNo = issued
@@ -256,15 +259,34 @@ export function StoreProvider({ children }) {
     }
 
     const settleOrder = async (orderId, { method, discount = 0, customerId = null, redeemPoints = 0 }) => {
-      const server = await allocNumber('billNo')
-      const issued = server != null ? server : (stateRef.current.counters?.billNo || 1)
+      // GUARD: never settle an already-paid order twice. An online 'ready' order
+      // exposes a settle control on BOTH KDS and Online Orders, so a double-tap
+      // (or two staff) would otherwise burn a second invoice number and double the
+      // loyalty credit. Check before allocating so we don't even waste a number.
+      const pre = stateRef.current.orders.find((x) => x.id === orderId)
+      if (!pre || pre.status === 'paid') return pre?.billNo || null
+      const localNext = stateRef.current.counters?.billNo || 1
+      const server = await allocNumber('billNo', localNext)
+      const issued = server != null ? server : localNext
       update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
-      if (!o) return
+      if (!o || o.status === 'paid') return
+      // SECURITY belt: a guest (qr-guest) order may reach a non-owner till before the
+      // owner device re-priced it. Re-price from the authoritative menu here too, so
+      // ANY device that settles it can't be handed a forged price:0 / qty:1e6 bill.
+      if (o.source === 'qr-guest' && !o.sanitized) {
+        ;(o.items || []).forEach((li) => {
+          const item = s.items.find((i) => i.id === li.itemId)
+          if (!item) { li.qty = 0; li.price = 0; return }
+          li.price = item.price
+          li.qty = Math.max(1, Math.min(50, Math.floor(+li.qty || 1)))
+        })
+        o.sanitized = true
+      }
       o.payment = { method, discount }
       const totals = billTotals(o, s.settings)
-      // composition scheme: no GST collected on the bill
-      o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
+      // composition scheme: no GST collected, but service charge still applies
+      o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable + totals.svc) : totals.total
       o.status = 'paid'
       o.paidAt = Date.now()
       o.billNo = issued
@@ -504,7 +526,7 @@ export function StoreProvider({ children }) {
     const createPO = async ({ vendorId, expectedDate, lines, notes }) => {
       const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
       if (!clean.length) return
-      const server = await allocNumberAtLeast('poNo', stateRef.current.counters?.poNo || 1)
+      const server = await allocNumber('poNo', stateRef.current.counters?.poNo || 1)
       update((s) => {
         s.purchaseOrders = s.purchaseOrders || []
         const issued = server != null ? server : (s.counters.poNo || 1)
@@ -526,7 +548,7 @@ export function StoreProvider({ children }) {
     const receiveGRN = async ({ poId, vendorId, supplierBillNo, lines }) => {
       const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
       if (!clean.length) return
-      const server = await allocNumberAtLeast('grnNo', stateRef.current.counters?.grnNo || 1)
+      const server = await allocNumber('grnNo', stateRef.current.counters?.grnNo || 1)
       update((s) => {
       s.grns = s.grns || []
       const grnNo = server != null ? server : (s.counters.grnNo || 1)
@@ -535,7 +557,9 @@ export function StoreProvider({ children }) {
         if (!ing) return
         const oldStock = +ing.stock || 0, oldCost = +ing.costPerUnit || 0
         const newStock = oldStock + l.qty
-        ing.costPerUnit = newStock > 0 ? +(((oldStock * oldCost) + (l.qty * l.rate)) / newStock).toFixed(2) : l.rate
+        // only blend cost when a real rate was entered — a rate-less (0) receipt must
+        // not crater the weighted-average and corrupt stock valuation + food-cost %
+        if (+l.rate > 0) ing.costPerUnit = newStock > 0 ? +(((oldStock * oldCost) + (l.qty * l.rate)) / newStock).toFixed(2) : l.rate
         ing.stock = +newStock.toFixed(3)
       })
       const po = poId ? (s.purchaseOrders || []).find((x) => x.id === poId) : null

@@ -161,7 +161,12 @@ export function mergeRemote(local, remote) {
   Object.values(remote.orders || {}).forEach((raw) => {
     const r = norm(raw)
     const l = ordersById[r.id]
-    if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) ordersById[r.id] = r
+    if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) {
+      // 'paid' is terminal — a later non-paid write (e.g. a KDS 'served' click racing
+      // a QR self-pay) must never revert a settled bill and drop it from sales totals
+      if (l && l.status === 'paid' && r.status !== 'paid') return
+      ordersById[r.id] = r
+    }
   })
   const orders = Object.values(ordersById).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
 
@@ -247,6 +252,13 @@ export async function migrateCloudFormat(code, state) {
     'meta/settings': { ...syncableSettings(state.settings), _u: state.settings?._u || now },
     'meta/metaUpdatedAt': null,
     'meta/counters': null,
+    // promote counters to the top-level node BEFORE nulling meta/counters — else
+    // joinRemote falls back to {billNo:1,...} and invoice numbering restarts at 1,
+    // colliding with historical bill numbers
+    counters: {
+      billNo: state.counters?.billNo || 1, kotNo: state.counters?.kotNo || 1,
+      poNo: state.counters?.poNo || 1, grnNo: state.counters?.grnNo || 1,
+    },
   }
   for (const c of COLLECTIONS) {
     patch['meta/' + c] = null

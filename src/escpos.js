@@ -66,7 +66,7 @@ const money = (n) => 'Rs ' + Math.round(Number(n || 0)).toLocaleString('en-IN')
 export function buildBill(order, settings, totals, width = 48) {
   const e = new Esc(width)
   const isComposition = settings.gstScheme === 'composition'
-  const payable = isComposition ? Math.round(totals.taxable) : totals.total
+  const payable = isComposition ? Math.round(totals.taxable + totals.svc) : totals.total
 
   e.align('center').size(true).bold(true).line(settings.name).size(false)
   if (settings.tagline) e.line(settings.tagline)
@@ -87,6 +87,7 @@ export function buildBill(order, settings, totals, width = 48) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))
   }
+  if (totals.svc > 0) e.row(`Service charge ${settings.serviceCharge}%`, money(totals.svc))
   e.size(true).bold(true).row('TOTAL', money(payable)).bold(false).size(false)
   if (order.payment?.method) e.line('Paid by: ' + String(order.payment.method).toUpperCase())
   if (isComposition) e.rule().line('Composition taxable person, not').line('eligible to collect tax on supplies')

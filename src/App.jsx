@@ -127,7 +127,11 @@ export default function App() {
   }
 
   // RBAC: when enabled, require a PIN sign-in at this till before the app opens
-  const rbacOn = !!state.settings?.rbac?.enabled
+  // enforce RBAC only where a Manager PIN exists to unlock it: managerPin is
+  // device-local, so a device that merely SYNCED rbac.enabled=true (but has no local
+  // Manager PIN) would otherwise show a Lock screen no one can pass. Such a device
+  // simply doesn't enforce until its owner sets a Manager PIN here (Settings).
+  const rbacOn = !!state.settings?.rbac?.enabled && !!state.settings?.managerPin
   const session = state.session || null
   // require a session WITH a role — a malformed/roleless session must re-lock, never
   // fall through to Owner access
