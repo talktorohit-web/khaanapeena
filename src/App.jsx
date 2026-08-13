@@ -129,7 +129,9 @@ export default function App() {
   // RBAC: when enabled, require a PIN sign-in at this till before the app opens
   const rbacOn = !!state.settings?.rbac?.enabled
   const session = state.session || null
-  if (rbacOn && !session) return <Lock state={state} onUnlock={unlockSession} />
+  // require a session WITH a role — a malformed/roleless session must re-lock, never
+  // fall through to Owner access
+  if (rbacOn && !(session && session.role)) return <Lock state={state} onUnlock={unlockSession} />
 
   const role = rbacOn ? session.role : 'Owner'
   const can = (action) => canAction(state.settings, role, action)

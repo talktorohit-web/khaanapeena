@@ -135,7 +135,9 @@ export function menuSnapshot(state) {
 // Reads both the new per-record layout and the legacy whole-blob layout.
 export function joinRemote(remote) {
   const rmeta = remote.meta || {}
-  const orders = Object.values(remote.orders || {}).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+  const orders = Object.values(remote.orders || {})
+    .map((o) => (o && o.items ? o : { ...o, items: [] })) // RTDB drops empty arrays → restore items
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
   const settings = rmeta.settings || {}
   const cols = {}
   if (rmeta.col) {
@@ -149,10 +151,15 @@ export function joinRemote(remote) {
 
 // merge remote into local: per-order LWW, per-record meta LWW, tombstone-aware
 export function mergeRemote(local, remote) {
-  // orders — per-id LWW by updatedAt
+  // orders — per-id LWW by updatedAt.
+  // Firebase RTDB DROPS empty arrays, so an order pushed with items:[] comes back
+  // with no `items` key — normalize every order to always carry an array, or the
+  // many `o.items.reduce/map/…` render sites crash the whole app.
+  const norm = (o) => (o && o.items ? o : { ...o, items: [] })
   const ordersById = {}
-  ;(local.orders || []).forEach((o) => { ordersById[o.id] = o })
-  Object.values(remote.orders || {}).forEach((r) => {
+  ;(local.orders || []).forEach((o) => { ordersById[o.id] = norm(o) })
+  Object.values(remote.orders || {}).forEach((raw) => {
+    const r = norm(raw)
     const l = ordersById[r.id]
     if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) ordersById[r.id] = r
   })

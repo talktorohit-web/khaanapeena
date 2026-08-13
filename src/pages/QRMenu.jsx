@@ -53,8 +53,11 @@ export default function QRMenu({ hash }) {
     const id = uid('o')
     const lines = Object.entries(cart).map(([itemId, qty]) => {
       const it = allItems.find((x) => x.id === itemId)
-      return { itemId, name: it.name, price: it.price, qty }
-    })
+      // an item pulled from the menu (or marked unavailable) while it sat in the
+      // guest's cart would otherwise crash on it.name — skip it
+      return it ? { itemId, name: it.name, price: it.price, qty } : null
+    }).filter(Boolean)
+    if (!lines.length) { alert('Those items are no longer available — please refresh the menu'); return }
     const totals = billTotals({ items: lines, payment: { discount: 0 } }, s)
     const payable = s.gstScheme === 'composition' ? Math.round(totals.taxable) : totals.total
 

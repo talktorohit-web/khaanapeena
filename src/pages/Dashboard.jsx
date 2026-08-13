@@ -123,7 +123,7 @@ export default function Dashboard() {
 
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100">
           <h3 className="font-bold text-ink-900 mb-3">💬 Latest feedback</h3>
-          {state.feedback.slice(-3).reverse().map((f) => (
+          {(state.feedback || []).slice(-3).reverse().map((f) => (
             <div key={f.id} className="mb-3 pb-3 border-b border-stone-50 last:border-0">
               <div className="flex items-center gap-2">
                 <span className="text-amber-500 text-sm">{'★'.repeat(Math.max(0, Math.min(5, f.rating | 0)))}{'☆'.repeat(Math.max(0, 5 - Math.min(5, f.rating | 0)))}</span>

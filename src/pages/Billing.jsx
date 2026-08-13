@@ -252,7 +252,7 @@ export default function Billing() {
                 onClick={() => setOrderId(o.id)}
                 className={`shrink-0 text-xs font-semibold rounded-lg px-2.5 py-1.5 border ${o.id === orderId ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}
               >
-                {o.tableId ? `🪑 ${tableName(state.tables, o.tableId)}` : o.type === 'qr' ? '📱 QR' : '🛍️'} {o.items.reduce((s, i) => s + i.qty, 0)}
+                {o.tableId ? `🪑 ${tableName(state.tables, o.tableId)}` : o.type === 'qr' ? '📱 QR' : '🛍️'} {(o.items || []).reduce((s, i) => s + i.qty, 0)}
               </button>
             ))}
           </div>

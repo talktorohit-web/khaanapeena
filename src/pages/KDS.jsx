@@ -57,7 +57,7 @@ function Ticket({ o, tables, action, actionLabel, actionCls }) {
         <span className="font-black text-sm">KOT #{o.kotNo} · {o.tableId ? `🪑 ${tableName(tables, o.tableId)}` : o.type === 'qr' ? 'QR' : o.type}</span>
         <span className={`text-xs font-bold ${late ? 'text-red-600 kp-pulse' : 'text-stone-400'}`}>{mins}m</span>
       </div>
-      {o.items.map((li, i) => (
+      {(o.items || []).map((li, i) => (
         <div key={i} className="flex justify-between text-[13px] py-0.5">
           <span>{li.name}</span>
           <b>× {li.qty}</b>

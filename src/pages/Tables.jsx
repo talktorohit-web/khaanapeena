@@ -50,7 +50,7 @@ export default function Tables() {
                   {o ? (
                     <button onClick={() => goTo('billing', { orderId: o.id })} className="mt-1 text-xs text-left w-full">
                       <div className="font-bold">{inr0(amt)}</div>
-                      <div className="text-white/80">{o.items.reduce((s, i) => s + i.qty, 0)} items · {minsSince(o.createdAt)}m</div>
+                      <div className="text-white/80">{(o.items || []).reduce((s, i) => s + i.qty, 0)} items · {minsSince(o.createdAt)}m</div>
                       <Badge color={o.status === 'ready' ? 'green' : 'amber'}>{o.status.toUpperCase()}</Badge>
                       <div className="text-[10px] text-white/90 mt-1 font-bold">Tap to open bill →</div>
                     </button>

@@ -24,6 +24,9 @@ function load() {
         s._tomb = s._tomb || {}
         const cutoff = Date.now() - 45 * 864e5
         for (const k of Object.keys(s._tomb)) if ((s._tomb[k] || 0) < cutoff) delete s._tomb[k]
+        // heal any order whose `items` was lost to a cloud round-trip (RTDB drops
+        // empty arrays) so already-persisted corrupt state can't crash on next load
+        ;(s.orders || []).forEach((o) => { if (o && !o.items) o.items = [] })
         return s
       }
     }
