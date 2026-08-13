@@ -33,14 +33,14 @@ export default function KDS() {
           <h3 className="font-bold text-amber-600 mb-3">🔥 {t('preparing')} ({kots.length})</h3>
           {kots.length === 0 && <Empty icon="😌" text="No pending KOTs" />}
           <div className="grid sm:grid-cols-2 gap-3">
-            {kots.map((o) => <Ticket key={o.id} o={o} action={() => setStatus(o.id, 'ready')} actionLabel={`✓ ${t('markReady')}`} actionCls="bg-leaf-600 hover:bg-leaf-500" />)}
+            {kots.map((o) => <Ticket key={o.id} o={o} tables={state.tables} action={() => setStatus(o.id, 'ready')} actionLabel={`✓ ${t('markReady')}`} actionCls="bg-leaf-600 hover:bg-leaf-500" />)}
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-stone-100 p-4 overflow-y-auto">
           <h3 className="font-bold text-leaf-600 mb-3">🛎️ {t('ready')} ({ready.length})</h3>
           {ready.length === 0 && <Empty icon="🍽️" text="Nothing waiting to be served" />}
           <div className="grid sm:grid-cols-2 gap-3">
-            {ready.map((o) => <Ticket key={o.id} o={o} action={() => markDone(o)} actionLabel={isOnline(o) ? '🛵 Handed to rider' : `✓ ${t('served')}`} actionCls="bg-stone-700 hover:bg-stone-800" />)}
+            {ready.map((o) => <Ticket key={o.id} o={o} tables={state.tables} action={() => markDone(o)} actionLabel={isOnline(o) ? '🛵 Handed to rider' : `✓ ${t('served')}`} actionCls="bg-stone-700 hover:bg-stone-800" />)}
           </div>
         </div>
       </div>
@@ -48,13 +48,13 @@ export default function KDS() {
   )
 }
 
-function Ticket({ o, action, actionLabel, actionCls }) {
+function Ticket({ o, tables, action, actionLabel, actionCls }) {
   const mins = minsSince(o.kotAt)
   const late = mins > 15
   return (
     <div className={`rounded-xl border-2 p-3 ${late ? 'border-red-400 bg-red-50' : 'border-stone-200'}`}>
       <div className="flex items-center justify-between mb-2">
-        <span className="font-black text-sm">KOT #{o.kotNo} · {o.tableId ? `🪑 ${tableName(state.tables, o.tableId)}` : o.type === 'qr' ? 'QR' : o.type}</span>
+        <span className="font-black text-sm">KOT #{o.kotNo} · {o.tableId ? `🪑 ${tableName(tables, o.tableId)}` : o.type === 'qr' ? 'QR' : o.type}</span>
         <span className={`text-xs font-bold ${late ? 'text-red-600 kp-pulse' : 'text-stone-400'}`}>{mins}m</span>
       </div>
       {o.items.map((li, i) => (
