@@ -19,8 +19,11 @@ import Staff from './pages/Staff.jsx'
 import Settings from './pages/Settings.jsx'
 import QRMenu from './pages/QRMenu.jsx'
 import Login from './pages/Login.jsx'
+import Lock from './pages/Lock.jsx'
 import { LANGS } from './i18n.js'
 import { NavContext } from './nav.jsx'
+import { PermContext } from './perms.jsx'
+import { canPage, canAction, firstAllowedPage } from './permissions.js'
 import { Kbd } from './components.jsx'
 import ShortcutsHelp from './ShortcutsHelp.jsx'
 import { PAGE_KEYS, KEY_TO_PAGE, isTyping } from './shortcuts.js'
@@ -55,7 +58,7 @@ const PAGES = {
 const BOTTOM_NAV = ['dashboard', 'billing', 'tables', 'kds']
 
 export default function App() {
-  const { state, t, update, cloud, cloudStatus, authUser, authReady } = useStore()
+  const { state, t, update, cloud, cloudStatus, authUser, authReady, unlockSession, lockSession } = useStore()
   const [page, setPage] = useState('dashboard')
   const [focusOrderId, setFocusOrderId] = useState(null)
   const [hash, setHash] = useState(window.location.hash)
@@ -93,11 +96,23 @@ export default function App() {
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); setHelpOpen((v) => !v); return }
       if (e.key === 'Escape') { setHelpOpen(false); return }
       const target = KEY_TO_PAGE[e.key.toLowerCase()]
-      if (target) { e.preventDefault(); goTo(target) }
+      // don't let a shortcut jump to a screen the active role can't see
+      const sess = state.session
+      const allowed = !state.settings?.rbac?.enabled || !sess || canPage(state.settings, sess.role, target)
+      if (target && allowed) { e.preventDefault(); goTo(target) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [hash])
+  }, [hash, state.session, state.settings])
+
+  // RBAC: if the active role can't see the current page (e.g. after a switch-user),
+  // bounce to the first screen it may see
+  useEffect(() => {
+    const sess = state.session
+    if (state.settings?.rbac?.enabled && sess && !canPage(state.settings, sess.role, page)) {
+      setPage(firstAllowedPage(state.settings, sess.role))
+    }
+  }, [state.session, state.settings, page])
 
   // Customer-facing QR ordering route: #/qr?t=T5 (never gated by login)
   if (hash.startsWith('#/qr')) return <QRMenu hash={hash} />
@@ -111,6 +126,16 @@ export default function App() {
     return <Login onDemo={() => { localStorage.setItem('khaanapeena_demo', '1'); setDemo(true) }} />
   }
 
+  // RBAC: when enabled, require a PIN sign-in at this till before the app opens
+  const rbacOn = !!state.settings?.rbac?.enabled
+  const session = state.session || null
+  if (rbacOn && !session) return <Lock state={state} onUnlock={unlockSession} />
+
+  const role = rbacOn ? session.role : 'Owner'
+  const can = (action) => canAction(state.settings, role, action)
+  const visibleNav = rbacOn ? NAV.filter((n) => canPage(state.settings, role, n.id)) : NAV
+  const visibleBottom = rbacOn ? BOTTOM_NAV.filter((id) => canPage(state.settings, role, id)) : BOTTOM_NAV
+
   const Page = PAGES[page] || Dashboard
   const openKots = state.orders.filter((o) => o.status === 'kot').length
   const pendingOnline = state.orders.filter((o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type) && o.status === 'new').length
@@ -118,8 +143,7 @@ export default function App() {
   const cloudDot = cloud ? (cloudStatus === 'live' ? 'text-green-400' : cloudStatus === 'error' ? 'text-red-400' : 'text-amber-400 kp-pulse') : 'text-stone-500'
   const currentLabel = t(NAV.find((n) => n.id === page)?.key || 'dashboard')
 
-  return (
-    <NavContext.Provider value={{ page, goTo, focusOrderId, clearFocus }}>
+  const shell = (
     <div className="flex h-[100dvh] overflow-hidden">
       {/* ---- DESKTOP SIDEBAR (hidden on phones) ---- */}
       <aside className="hidden md:flex w-56 shrink-0 bg-ink-900 text-stone-300 flex-col">
@@ -130,7 +154,7 @@ export default function App() {
           <div className="text-[10px] text-stone-500 mt-0.5">Restaurant OS · Made for India 🇮🇳</div>
         </div>
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {NAV.map((n) => (
+          {visibleNav.map((n) => (
             <button
               key={n.id}
               onClick={() => goTo(n.id)}
@@ -150,6 +174,16 @@ export default function App() {
           ))}
         </nav>
         <div className="p-3 border-t border-white/10">
+          {rbacOn && (
+            <div className="flex items-center gap-2 mb-2 rounded-lg px-2 py-1.5 bg-white/5">
+              <span className="w-6 h-6 rounded-full bg-saffron-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">{(session.name || '?')[0]}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-white truncate leading-tight">{session.name}</div>
+                <div className="text-[9px] text-stone-400 leading-tight">{role}</div>
+              </div>
+              <button onClick={lockSession} title="Lock / switch user" className="text-[10px] font-bold text-stone-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-md px-2 py-1 shrink-0">🔒 Lock</button>
+            </div>
+          )}
           <button onClick={() => goTo('settings')} className="w-full flex items-center gap-1.5 text-[10px] font-bold mb-2 rounded-lg px-2 py-1 bg-white/5 hover:bg-white/10">
             <span className={cloudDot}>●</span>
             <span className="text-stone-300 truncate">{cloud ? `☁️ ${cloud.code}` : 'Local only — tap to sync'}</span>
@@ -190,7 +224,7 @@ export default function App() {
 
         {/* mobile bottom tab bar */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
-          {BOTTOM_NAV.map((id) => {
+          {visibleBottom.map((id) => {
             const n = NAV.find((x) => x.id === id)
             const active = page === id
             return (
@@ -219,7 +253,7 @@ export default function App() {
               <button onClick={() => setDrawerOpen(false)} className="text-stone-400 text-xl">✕</button>
             </div>
             <nav className="flex-1 overflow-y-auto py-2 px-2 grid grid-cols-2 gap-1.5 content-start">
-              {NAV.map((n) => {
+              {visibleNav.map((n) => {
                 const active = page === n.id
                 return (
                   <button key={n.id} onClick={() => goTo(n.id)} className={`flex items-center gap-2 px-3 py-3 rounded-xl text-[13px] font-semibold ${active ? 'bg-saffron-600 text-white' : 'bg-white/5'}`}>
@@ -239,7 +273,10 @@ export default function App() {
               >
                 {LANGS.map((l) => <option key={l.code} value={l.code} className="text-ink-900">{l.label}</option>)}
               </select>
-              <div className="text-[11px] text-stone-500 truncate">{state.settings.name}</div>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] text-stone-500 truncate">{state.settings.name}</div>
+                {rbacOn && <button onClick={() => { setDrawerOpen(false); lockSession() }} className="text-[11px] font-bold text-stone-300 bg-white/10 rounded-md px-2 py-1 shrink-0">🔒 {session.name} · Lock</button>}
+              </div>
             </div>
           </div>
         </div>
@@ -247,6 +284,13 @@ export default function App() {
 
       <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
-    </NavContext.Provider>
+  )
+
+  return (
+    <PermContext.Provider value={{ role, rbacOn, can, lock: lockSession, session }}>
+      <NavContext.Provider value={{ page, goTo, focusOrderId, clearFocus }}>
+        {shell}
+      </NavContext.Provider>
+    </PermContext.Provider>
   )
 }

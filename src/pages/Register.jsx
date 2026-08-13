@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { usePerms } from '../perms.jsx'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, Empty, StatCard, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr0, inr, shiftTotals, fmtTime, fmtDate } from '../utils.js'
@@ -6,6 +7,7 @@ import { printShiftReport } from '../print.js'
 
 export default function Register() {
   const { state, t, openShift, addCashMovement, closeShift } = useStore()
+  const { can } = usePerms()
   const shifts = state.shifts || []
   const open = shifts.find((s) => s.status === 'open')
   const history = shifts.filter((s) => s.status === 'closed').sort((a, b) => b.closedAt - a.closedAt)
@@ -24,7 +26,9 @@ export default function Register() {
       </div>
 
       {!open ? (
-        <OpenCard staff={state.staff} onOpen={(float, by) => openShift(float, by)} />
+        can('openRegister')
+          ? <OpenCard staff={state.staff} onOpen={(float, by) => openShift(float, by)} />
+          : <div className="bg-white rounded-2xl p-8 border border-stone-100 text-center text-stone-400 text-sm">The register is closed. Ask a manager to open it.</div>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -60,7 +64,7 @@ export default function Register() {
 
           <div className="flex gap-2 mb-4 flex-wrap">
             <button onClick={() => printShiftReport(open, tot, state.settings, true).then((r) => { if (!r.ok && r.reason !== 'browser') alert('Print failed: ' + r.reason) })} className={btnGhost}>🧾 Print X-report (peek)</button>
-            <button onClick={() => setCloseOpen(true)} className={btnPrimary}>🔒 Close register (Z-report)</button>
+            {can('openRegister') && <button onClick={() => setCloseOpen(true)} className={btnPrimary}>🔒 Close register (Z-report)</button>}
           </div>
 
           {(open.cashMovements || []).length > 0 && (

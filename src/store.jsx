@@ -479,6 +479,13 @@ export function StoreProvider({ children }) {
     })
     const deleteFeedback = (id) => update((s) => { s.feedback = (s.feedback || []).filter((x) => x.id !== id) })
 
+    // ---- RBAC session (who's operating THIS till) ----
+    // stored on top-level `state.session`, which is device-local by construction:
+    // it isn't a synced COLLECTION, settings, or order, so buildPushPatch never
+    // pushes it and mergeRemote preserves the local value.
+    const unlockSession = (sess) => update((s) => { s.session = sess || null })
+    const lockSession = () => update((s) => { s.session = null })
+
     // ---- purchasing: vendors, purchase orders, goods-receipt notes (GRN) ----
     const addVendor = (v) => update((s) => {
       s.vendors = s.vendors || []
@@ -641,7 +648,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

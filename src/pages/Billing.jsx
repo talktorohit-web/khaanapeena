@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName } from '../utils.js'
+import { usePerms } from '../perms.jsx'
 import { printBill, printKOT } from '../print.js'
 import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
@@ -11,6 +12,7 @@ const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, fo
 export default function Billing() {
   const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder } = useStore()
   const { focusOrderId, clearFocus } = useNav()
+  const { can } = usePerms()
   const [orderId, setOrderId] = useState(null)
   const [billOps, setBillOps] = useState(false) // split/merge modal
   const [editUnlock, setEditUnlock] = useState(false) // manager unlocked editing of punched items
@@ -51,7 +53,7 @@ export default function Billing() {
     const onKey = (e) => {
       if (e.key === 'F2') { e.preventDefault(); setOrderId(newOrder({ type: 'takeaway' })) }
       else if (e.key === 'F4') { if (order?.items.some((i) => !i.deducted)) { e.preventDefault(); sendKot(orderId) } }
-      else if (e.key === 'F9') { if (order?.items.length) { e.preventDefault(); setSettleOpen(true) } }
+      else if (e.key === 'F9') { if (order?.items.length && can('settle')) { e.preventDefault(); setSettleOpen(true) } }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -282,7 +284,7 @@ export default function Billing() {
               <Badge color={order.status === 'kot' ? 'amber' : order.status === 'ready' ? 'green' : 'blue'}>{order.status.toUpperCase()}</Badge>
             </div>
           )}
-          {order && order.items.some((i) => i.deducted) && (
+          {order && order.items.some((i) => i.deducted) && can('void') && (
             editUnlock ? (
               <button onClick={() => { setEditUnlock(false); setAuthManager(null) }} className="w-full mt-2 text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 rounded-lg py-1.5">
                 🔓 Manager mode{authManager ? ` · ${authManager.name}` : ''} — tap to lock
@@ -357,7 +359,7 @@ export default function Billing() {
             <div className="grid grid-cols-3 gap-2 pt-2">
               <button title="Send KOT (F4)" onClick={doSendKot} disabled={!order.items.some((i) => !i.deducted)} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">🔥 {t('sendKot')} <span className="opacity-60 font-mono">F4</span></button>
               <button title="Print bill" onClick={doPrintBill} className="bg-stone-700 hover:bg-stone-800 text-white font-bold rounded-xl py-2.5 text-xs">🖨️ {t('printBill')}</button>
-              <button title="Settle / Pay (F9)" onClick={() => setSettleOpen(true)} disabled={!order.items.length} className="bg-leaf-600 hover:bg-leaf-500 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">💳 {t('settle')} <span className="opacity-60 font-mono">F9</span></button>
+              <button title={can('settle') ? 'Settle / Pay (F9)' : 'Not allowed for your role'} onClick={() => can('settle') && setSettleOpen(true)} disabled={!order.items.length || !can('settle')} className="bg-leaf-600 hover:bg-leaf-500 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-xs">💳 {t('settle')} <span className="opacity-60 font-mono">F9</span></button>
             </div>
             {printMsg && <div className="text-[11px] text-center mt-1 text-stone-500">{printMsg}</div>}
           </div>
@@ -366,7 +368,7 @@ export default function Billing() {
 
       {settleOpen && order && (
         <SettleModal
-          order={order} totals={totals} onClose={() => setSettleOpen(false)}
+          order={order} totals={totals} allowDiscount={can('discount')} onClose={() => setSettleOpen(false)}
           onDone={(payload) => {
             settleOrder(orderId, payload)
             setSettleOpen(false)
@@ -491,11 +493,11 @@ const Row = ({ l, v, muted, cls = '' }) => (
   <div className={`flex justify-between ${muted ? 'text-stone-400 text-xs' : 'text-stone-600'} ${cls}`}><span>{l}</span><span>{v}</span></div>
 )
 
-function SettleModal({ order, totals, onClose, onDone, happyHourNow }) {
+function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscount = true }) {
   const { state, t, update } = useStore()
   const hh = state.settings.happyHour
   const [method, setMethod] = useState('upi')
-  const [discount, setDiscount] = useState(happyHourNow ? Math.round((totals.sub * hh.discountPct) / 100) : 0)
+  const [discount, setDiscount] = useState(allowDiscount && happyHourNow ? Math.round((totals.sub * hh.discountPct) / 100) : 0)
   const [phone, setPhone] = useState('')
   const [custName, setCustName] = useState('')
   const [redeem, setRedeem] = useState(0)
@@ -539,8 +541,9 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow }) {
       )}
 
       <Field label={`${t('discount')} (₹)`}>
-        <input type="number" value={discount} min="0" onChange={(e) => setDiscount(Math.max(0, +e.target.value || 0))} className={inputCls} />
-        {happyHourNow && <span className="text-[11px] text-amber-600">Happy hour −{hh.discountPct}% auto-applied</span>}
+        <input type="number" value={discount} min="0" disabled={!allowDiscount} onChange={(e) => setDiscount(Math.max(0, +e.target.value || 0))} className={inputCls + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')} />
+        {!allowDiscount && <span className="text-[11px] text-stone-400">Discounts aren't allowed for your role</span>}
+        {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600">Happy hour −{hh.discountPct}% auto-applied</span>}
       </Field>
 
       <Field label="Customer mobile (loyalty)">

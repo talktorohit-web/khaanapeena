@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { Field, inputCls, Toggle, btnGhost, btnPrimary, Badge } from '../components.jsx'
 import { LANGS } from '../i18n.js'
 import { verifyManagerPin } from '../utils.js'
+import { PAGES, ACTIONS, ROLES, resolvePerms } from '../permissions.js'
 import { printTest, inElectron } from '../print.js'
 import { stats as outboxStats, flush as outboxFlush, retryDead as outboxRetryDead, makeHttpSink } from '../outbox.js'
 import { getIdToken } from '../auth.js'
@@ -82,6 +83,8 @@ export default function Settings() {
       <PrinterSection />
 
       <SecuritySection />
+
+      <RolesSection />
 
       <CloudSection />
 
@@ -250,6 +253,92 @@ function SecuritySection() {
         </div>
       )}
       {msg && msg.ok && <p className="text-xs text-green-600 mt-1">{msg.text}</p>}
+    </Section>
+  )
+}
+
+function RolesSection() {
+  const { state, update, lockSession } = useStore()
+  const rbac = state.settings.rbac || { enabled: false, matrix: {} }
+  const enabled = !!rbac.enabled
+  const hasPin = !!state.settings.managerPin
+  const [openRole, setOpenRole] = useState(null)
+  const perms = resolvePerms(state.settings)
+
+  const toggle = (on) => update((s) => {
+    s.settings.rbac = { ...(s.settings.rbac || {}), enabled: on, matrix: s.settings.rbac?.matrix || {} }
+    // enabling: keep the owner signed in at THIS till so they aren't locked out mid-config
+    if (on) s.session = { staffId: null, name: 'Owner', role: 'Owner' }
+  })
+
+  const toggleCap = (roleName, kind, key) => update((s) => {
+    s.settings.rbac = s.settings.rbac || { enabled: true, matrix: {} }
+    s.settings.rbac.matrix = s.settings.rbac.matrix || {}
+    const cur = s.settings.rbac.matrix[roleName] || { pages: [...(perms[roleName]?.pages || [])], actions: [...(perms[roleName]?.actions || [])] }
+    const list = new Set(cur[kind] || [])
+    list.has(key) ? list.delete(key) : list.add(key)
+    s.settings.rbac.matrix[roleName] = { ...cur, [kind]: [...list] }
+  })
+
+  return (
+    <Section title="🛡️ Staff roles & permissions">
+      <p className="text-xs text-stone-400 mb-3">Give each staff role access to only the screens and actions they need. Staff sign in at the till with their PIN (set in the Staff screen); you (the owner) sign in with your <b>Manager PIN</b> for full access.</p>
+
+      {!hasPin && !enabled && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 mb-3">⚠️ Set a <b>Manager PIN</b> above first — it's how you (the owner) unlock full access at the till.</div>
+      )}
+
+      <div className="flex items-center gap-3 mb-3">
+        <Toggle on={enabled} onChange={(v) => { if (v && !hasPin) return; toggle(v) }} />
+        <span className="text-sm text-stone-600">Require staff PIN sign-in & enforce role permissions</span>
+        {enabled && <Badge color="green">On</Badge>}
+      </div>
+
+      {enabled && (
+        <>
+          <div className="space-y-2">
+            {ROLES.map((r) => {
+              const p = perms[r] || { pages: [], actions: [] }
+              const isOpen = openRole === r
+              return (
+                <div key={r} className="border border-stone-200 rounded-xl overflow-hidden">
+                  <button onClick={() => setOpenRole(isOpen ? null : r)} className="w-full flex items-center justify-between px-3 py-2.5 bg-stone-50 hover:bg-stone-100">
+                    <span className="font-bold text-sm text-ink-900">{r}</span>
+                    <span className="text-[11px] text-stone-400">{p.pages.length} screens · {p.actions.length} actions {isOpen ? '▲' : '▼'}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="p-3 space-y-3">
+                      <div>
+                        <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wide mb-1.5">Screens</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                          {PAGES.map(([id, label]) => (
+                            <label key={id} className="flex items-center gap-1.5 text-[12px] text-stone-700 cursor-pointer">
+                              <input type="checkbox" checked={p.pages.includes(id)} onChange={() => toggleCap(r, 'pages', id)} className="accent-saffron-600" />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wide mb-1.5">Sensitive actions</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {ACTIONS.map(([id, label]) => (
+                            <label key={id} className="flex items-center gap-1.5 text-[12px] text-stone-700 cursor-pointer">
+                              <input type="checkbox" checked={p.actions.includes(id)} onChange={() => toggleCap(r, 'actions', id)} className="accent-saffron-600" />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <button onClick={lockSession} className={btnGhost + ' mt-3'}>🔒 Lock this till now</button>
+        </>
+      )}
     </Section>
   )
 }

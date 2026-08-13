@@ -190,6 +190,7 @@ export function makeSeed() {
       printer: { enabled: false, mode: 'browser', ip: '', port: 9100, width: 48, kitchenIp: '' },
       loyaltyEarnPer100: 1, loyaltyRedeemValue: 1,
       happyHour: { enabled: true, from: 15, to: 18, discountPct: 10 },
+      rbac: { enabled: false, matrix: {} },
     },
     categories: CATS.map((c) => ({ id: c.id, name: c.name, nameHi: c.hi, namePa: c.pa })),
     items,

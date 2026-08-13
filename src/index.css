@@ -29,6 +29,9 @@ body { background: #f7f5f2; }
 @keyframes kp-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .kp-sheet-up { animation: kp-sheet-up .22s ease-out; }
 
+@keyframes kp-shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-7px); } 40%,80% { transform: translateX(7px); } }
+.kp-shake { animation: kp-shake .4s ease-in-out; }
+
 @media print {
   body * { visibility: hidden; }
   #kp-print, #kp-print * { visibility: visible; }
