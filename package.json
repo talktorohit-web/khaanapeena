@@ -14,6 +14,7 @@
     "apk": "npx cap copy android && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "firebase": "^12.16.0",

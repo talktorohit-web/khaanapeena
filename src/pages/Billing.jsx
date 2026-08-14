@@ -4,12 +4,15 @@ import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } fr
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName } from '../utils.js'
 import { usePerms } from '../perms.jsx'
 import { printBill, printKOT, inElectron } from '../print.js'
+import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 
-// Web Speech recognition only works in a real Chrome/Edge browser: Android WebView
-// has no webkitSpeechRecognition, and Electron's Chromium can't reach the speech
-// service (no Google API key) — so the button is a dead end there. Only offer it
-// where it actually works.
-const VOICE_OK = typeof window !== 'undefined'
+// Voice ordering runs two ways:
+//  • Android app  → the phone's NATIVE recognizer via the Capacitor plugin (free, hi-IN)
+//  • Web (Chrome/Edge) → the Web Speech API
+// It can't work in Electron (Chromium has no speech service / API key) or a plain
+// WebView with no plugin — so the button only appears where one of the two works.
+const isNativeApp = () => typeof window !== 'undefined' && !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+const webSpeechOk = () => typeof window !== 'undefined'
   && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   && !inElectron() && !window.Capacitor
 import { useNav } from '../nav.jsx'
@@ -102,8 +105,39 @@ export default function Billing() {
       if (line.qty <= 0) o.items = o.items.filter((x) => x !== line)
     })
 
-  // ---- Voice ordering (Hindi/English, Web Speech API) ----
+  // ---- Voice ordering (Hindi/English) — native recognizer in the app, Web Speech on web ----
+  // Android app: use the phone's built-in recognizer via the Capacitor plugin.
+  const startNativeVoice = async () => {
+    try {
+      const avail = await SpeechRecognition.available()
+      if (!avail?.available) { setVoiceMsg('Voice input isn’t available on this device'); return }
+      const perm = await SpeechRecognition.requestPermissions().catch(() => null)
+      if (perm && perm.speechRecognition && perm.speechRecognition !== 'granted') {
+        setVoiceMsg('Microphone blocked — allow mic access for KhaanaPeena in Settings'); return
+      }
+      setVoiceMsg('🎙️ Listening… say e.g. “do butter naan, ek dal makhani”')
+      setListening(true)
+      const res = await SpeechRecognition.start({
+        language: state.settings.lang === 'hi' ? 'hi-IN' : 'en-IN',
+        maxResults: 1, partialResults: false, popup: false,
+      })
+      setListening(false)
+      const text = (res?.matches && res.matches[0]) || ''
+      if (!text) { setVoiceMsg("Didn't catch that — tap 🎙️ and speak again"); return }
+      const added = parseVoice(text)
+      setVoiceMsg(added.length ? `Heard: “${text}” → added ${added.join(', ')}` : `Heard: “${text}” — no matching item`)
+    } catch {
+      setListening(false)
+      setVoiceMsg('Voice error — check the app’s microphone permission')
+    }
+  }
+
   const toggleVoice = () => {
+    if (isNativeApp()) {
+      if (listening) { SpeechRecognition.stop().catch(() => {}); setListening(false); return }
+      startNativeVoice()
+      return
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { setVoiceMsg('Voice not supported in this browser — use Chrome/Edge'); return }
     if (listening) { recRef.current?.stop(); return }
@@ -202,8 +236,8 @@ export default function Billing() {
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchItems')} className={inputCls + ' max-w-xs'} />
           <button onClick={() => setVegOnly(!vegOnly)} className={`${btnGhost} ${vegOnly ? '!bg-green-50 !border-green-300 !text-green-700' : ''}`}>🟢 {t('veg')}</button>
-          {VOICE_OK && (
-            <button onClick={toggleVoice} title="Voice ordering (Chrome/Edge)" className={`${btnGhost} ${listening ? '!bg-red-50 !border-red-300 !text-red-600 kp-pulse' : ''}`}>
+          {(isNativeApp() || webSpeechOk()) && (
+            <button onClick={toggleVoice} title="Voice ordering" className={`${btnGhost} ${listening ? '!bg-red-50 !border-red-300 !text-red-600 kp-pulse' : ''}`}>
               🎙️ {listening ? t('listening') : t('voiceOrder')}
             </button>
           )}
