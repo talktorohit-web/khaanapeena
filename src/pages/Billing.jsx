@@ -3,7 +3,15 @@ import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName } from '../utils.js'
 import { usePerms } from '../perms.jsx'
-import { printBill, printKOT } from '../print.js'
+import { printBill, printKOT, inElectron } from '../print.js'
+
+// Web Speech recognition only works in a real Chrome/Edge browser: Android WebView
+// has no webkitSpeechRecognition, and Electron's Chromium can't reach the speech
+// service (no Google API key) — so the button is a dead end there. Only offer it
+// where it actually works.
+const VOICE_OK = typeof window !== 'undefined'
+  && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  && !inElectron() && !window.Capacitor
 import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
@@ -108,11 +116,21 @@ export default function Billing() {
       setVoiceMsg(added.length ? `Heard: “${text}” → added ${added.join(', ')}` : `Heard: “${text}” — no matching item`)
     }
     rec.onend = () => setListening(false)
-    rec.onerror = () => { setListening(false); setVoiceMsg('Mic error — check permission') }
+    rec.onerror = (ev) => {
+      setListening(false)
+      const map = {
+        'not-allowed': 'Microphone blocked — allow mic access for this site, then try again',
+        'service-not-allowed': 'Microphone blocked — allow mic access for this site, then try again',
+        'no-speech': "Didn't catch that — tap 🎙️ and speak again",
+        'audio-capture': 'No microphone found — check your mic is connected',
+        'network': 'Voice needs an internet connection',
+      }
+      setVoiceMsg(map[ev?.error] || 'Voice error — try again')
+    }
     recRef.current = rec
-    setVoiceMsg('')
+    setVoiceMsg('🎙️ Listening… say e.g. “do butter naan, ek dal makhani”')
     setListening(true)
-    rec.start()
+    try { rec.start() } catch { setListening(false); setVoiceMsg('Tap 🎙️ again to start') }
   }
 
   const parseVoice = (text) => {
@@ -184,9 +202,11 @@ export default function Billing() {
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchItems')} className={inputCls + ' max-w-xs'} />
           <button onClick={() => setVegOnly(!vegOnly)} className={`${btnGhost} ${vegOnly ? '!bg-green-50 !border-green-300 !text-green-700' : ''}`}>🟢 {t('veg')}</button>
-          <button onClick={toggleVoice} className={`${btnGhost} ${listening ? '!bg-red-50 !border-red-300 !text-red-600 kp-pulse' : ''}`}>
-            🎙️ {listening ? t('listening') : t('voiceOrder')}
-          </button>
+          {VOICE_OK && (
+            <button onClick={toggleVoice} title="Voice ordering (Chrome/Edge)" className={`${btnGhost} ${listening ? '!bg-red-50 !border-red-300 !text-red-600 kp-pulse' : ''}`}>
+              🎙️ {listening ? t('listening') : t('voiceOrder')}
+            </button>
+          )}
           {happyHourNow && <Badge color="amber">🕒 Happy Hour −{hh.discountPct}%</Badge>}
         </div>
         {voiceMsg && <div className="text-xs text-stone-500 mb-2 bg-stone-100 rounded-lg px-3 py-1.5">{voiceMsg}</div>}
