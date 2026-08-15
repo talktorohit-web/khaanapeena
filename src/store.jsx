@@ -113,6 +113,7 @@ export function StoreProvider({ children }) {
               if (!item) { li.qty = 0; li.price = 0; return }
               li.price = item.price
               li.qty = Math.max(1, Math.min(50, Math.floor(+li.qty || 1)))
+              if (li.notes) li.notes = String(li.notes).slice(0, 80) // cap any instruction a guest attached
             })
             o.sanitized = true
             o.updatedAt = Date.now()

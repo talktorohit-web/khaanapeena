@@ -55,7 +55,7 @@ export default function Purchase() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-black text-ink-900">Purchase &amp; GRN</h1>
+          <h1 className="text-2xl font-black text-ink-900">Purchases &amp; Receipts</h1>
           <p className="text-xs text-stone-400">Raise purchase orders to suppliers, then receive stock against them</p>
         </div>
         <button onClick={openNewPo} className={btnPrimary}>+ New Purchase Order</button>
@@ -161,13 +161,13 @@ export default function Purchase() {
 
       {tab === 'receipts' && (
         sortedGrns.length === 0
-          ? <div className="bg-white rounded-2xl border border-stone-100"><Empty icon="📥" text="No goods received yet. Receive against a PO to log a GRN." /></div>
+          ? <div className="bg-white rounded-2xl border border-stone-100"><Empty icon="📥" text="No goods received yet. Receive against an order to log a receipt." /></div>
           : <div className="space-y-3">
             {sortedGrns.map((g) => (
               <div key={g.id} className="bg-white rounded-2xl border border-stone-100 p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="font-black text-ink-900">GRN #{g.grnNo} {g.poId && <span className="text-xs font-normal text-stone-400">· against PO #{pos.find((p) => p.id === g.poId)?.poNo ?? '?'}</span>}</div>
+                    <div className="font-black text-ink-900">Receipt #{g.grnNo} {g.poId && <span className="text-xs font-normal text-stone-400">· against order #{pos.find((p) => p.id === g.poId)?.poNo ?? '?'}</span>}</div>
                     <div className="text-sm text-stone-500">{vName(g.vendorId)} · {fmtDate(g.date)}{g.supplierBillNo ? ` · bill ${g.supplierBillNo}` : ''}</div>
                   </div>
                   <div className="font-black text-ink-900">{inr0(g.lines.reduce((s, l) => s + l.qty * l.rate, 0))}</div>
@@ -262,7 +262,7 @@ function PoModal({ open, onClose, vendors, ings, prefill, onSave, onAddVendor })
         <div className="text-sm text-stone-500">Order total <span className="font-black text-ink-900 ml-1">{inr0(total)}</span></div>
         <div className="flex gap-2">
           <button onClick={onClose} className={btnGhost}>Cancel</button>
-          <button disabled={!valid} onClick={() => onSave({ vendorId, expectedDate: expected ? new Date(expected).getTime() : null, notes, lines: lines.map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate })) })} className={btnPrimary}>Raise PO</button>
+          <button disabled={!valid} onClick={() => onSave({ vendorId, expectedDate: expected ? new Date(expected).getTime() : null, notes, lines: lines.map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate })) })} className={btnPrimary}>Send order to supplier</button>
         </div>
       </div>
     </Modal>

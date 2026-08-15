@@ -13,7 +13,7 @@ const D = {
   online: ['Online Orders', 'ऑनलाइन ऑर्डर', 'ਆਨਲਾਈਨ ਆਰਡਰ'],
   menu: ['Menu', 'मेन्यू', 'ਮੀਨੂ'],
   inventory: ['Inventory', 'इन्वेंटरी', 'ਇਨਵੈਂਟਰੀ'],
-  purchase: ['Purchase & GRN', 'खरीद और GRN', 'ਖਰੀਦ ਤੇ GRN'],
+  purchase: ['Purchase & Receipts', 'खरीद और रसीद', 'ਖਰੀਦ ਤੇ ਰਸੀਦ'],
   customers: ['Customers', 'ग्राहक', 'ਗਾਹਕ'],
   feedback: ['Feedback', 'फ़ीडबैक', 'ਫੀਡਬੈਕ'],
   reports: ['Reports', 'रिपोर्ट', 'ਰਿਪੋਰਟ'],

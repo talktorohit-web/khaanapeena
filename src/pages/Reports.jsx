@@ -516,7 +516,7 @@ function FoodCostReport({ state, range }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-stone-400 mt-2">Plate cost uses each ingredient's latest average buying price — updated automatically when you receive stock in Purchase &amp; GRN.</p>
+      <p className="text-[11px] text-stone-400 mt-2">Plate cost uses each ingredient's latest average buying price — updated automatically when you receive stock in Purchases &amp; Receipts.</p>
     </>
   )
 }

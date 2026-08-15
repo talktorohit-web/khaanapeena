@@ -11,7 +11,7 @@
 export const PAGES = [
   ['dashboard', 'Dashboard'], ['billing', 'Billing (POS)'], ['tables', 'Tables'],
   ['reservations', 'Reservations'], ['kds', 'Kitchen (KDS)'], ['online', 'Online orders'],
-  ['menu', 'Menu'], ['inventory', 'Inventory'], ['purchase', 'Purchase & GRN'],
+  ['menu', 'Menu'], ['inventory', 'Inventory'], ['purchase', 'Purchase & Receipts'],
   ['customers', 'Customers'], ['feedback', 'Feedback'], ['reports', 'Reports'],
   ['register', 'Cash register'], ['ai', 'AI insights'], ['waste', 'Waste'],
   ['staff', 'Staff'], ['settings', 'Settings'],

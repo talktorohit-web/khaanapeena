@@ -58,9 +58,12 @@ function Ticket({ o, tables, action, actionLabel, actionCls }) {
         <span className={`text-xs font-bold ${late ? 'text-red-600 kp-pulse' : 'text-stone-400'}`}>{mins}m</span>
       </div>
       {(o.items || []).map((li, i) => (
-        <div key={i} className="flex justify-between text-[13px] py-0.5">
-          <span>{li.name}</span>
-          <b>× {li.qty}</b>
+        <div key={i} className="py-0.5">
+          <div className="flex justify-between text-[13px]">
+            <span>{li.name}</span>
+            <b>× {li.qty}</b>
+          </div>
+          {li.notes && <div className="text-[12px] font-bold text-red-600 leading-tight">↳ {li.notes}</div>}
         </div>
       ))}
       <div className="text-[10px] text-stone-400 mt-1">{fmtTime(o.kotAt)}</div>

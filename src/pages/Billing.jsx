@@ -29,6 +29,14 @@ export default function Billing() {
   const [editUnlock, setEditUnlock] = useState(false) // manager unlocked editing of punched items
   const [authManager, setAuthManager] = useState(null)
   const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
+  const [noteIdx, setNoteIdx] = useState(null) // which cart line's instruction is being edited
+  const [noteText, setNoteText] = useState('')
+
+  // per-item cooking instruction (e.g. "less chilly") — saved on the line and printed on the KOT
+  const saveNote = (idx, text) => {
+    update((s) => { const o = s.orders.find((x) => x.id === orderId); if (o && o.items[idx]) o.items[idx].notes = text.trim() || undefined })
+    setNoteIdx(null); setNoteText('')
+  }
 
   // when another page (Tables, Dashboard) sends us here for a specific order, select it
   useEffect(() => {
@@ -361,35 +369,55 @@ export default function Billing() {
             <Empty icon="🛒" text="Tap items to add" />
           ) : (
             order.items.map((li, idx) => (
-              <div key={idx} className="flex items-center gap-2 py-2 border-b border-stone-50">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-ink-900 truncate">{li.name} {li.deducted && <span className="text-[9px] text-amber-600 font-bold">KOT✓</span>}</div>
-                  <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {li.deducted ? (
-                    editUnlock ? (
-                      <>
-                        <QtyBtn onClick={() => rectifyLine(orderId, li, -1, authManager)}>−</QtyBtn>
-                        <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                        <button title="Remove this item" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
-                      </>
+              <div key={idx} className="py-2 border-b border-stone-50">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-ink-900 truncate">{li.name} {li.deducted && <span className="text-[9px] text-amber-600 font-bold">KOT✓</span>}</div>
+                    <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
+                    {li.notes && <div className="text-[11px] text-saffron-700 font-semibold mt-0.5 flex items-start gap-1"><span>📝</span><span className="break-words">{li.notes}</span></div>}
+                  </div>
+                  <button
+                    onClick={() => { if (noteIdx === idx) { setNoteIdx(null) } else { setNoteIdx(idx); setNoteText(li.notes || '') } }}
+                    title="Add a cooking instruction (prints on the kitchen ticket)"
+                    className={`w-7 h-7 rounded-md text-sm shrink-0 ${li.notes ? 'bg-saffron-100 text-saffron-700' : 'bg-stone-100 text-stone-400 hover:text-saffron-600'}`}
+                  >📝</button>
+                  <div className="flex items-center gap-1">
+                    {li.deducted ? (
+                      editUnlock ? (
+                        <>
+                          <QtyBtn onClick={() => rectifyLine(orderId, li, -1, authManager)}>−</QtyBtn>
+                          <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                          <button title="Remove this item" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
+                        </>
+                      ) : (
+                        <>
+                          <QtyBtn disabled>−</QtyBtn>
+                          <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                          <QtyBtn disabled>＋</QtyBtn>
+                        </>
+                      )
                     ) : (
                       <>
-                        <QtyBtn disabled>−</QtyBtn>
+                        <QtyBtn onClick={() => changeQty(li, -1)}>−</QtyBtn>
                         <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                        <QtyBtn disabled>＋</QtyBtn>
+                        <QtyBtn onClick={() => changeQty(li, 1)}>＋</QtyBtn>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <QtyBtn onClick={() => changeQty(li, -1)}>−</QtyBtn>
-                      <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                      <QtyBtn onClick={() => changeQty(li, 1)}>＋</QtyBtn>
-                    </>
-                  )}
+                    )}
+                  </div>
+                  <div className="w-14 text-right text-[13px] font-bold">{inr0(li.price * li.qty)}</div>
                 </div>
-                <div className="w-14 text-right text-[13px] font-bold">{inr0(li.price * li.qty)}</div>
+                {noteIdx === idx && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      autoFocus value={noteText} maxLength={80}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveNote(idx, noteText); if (e.key === 'Escape') { setNoteIdx(null); setNoteText('') } }}
+                      placeholder="e.g. kam mirchi / less chilly · no onion · extra spicy"
+                      className="flex-1 text-[12px] border border-stone-200 rounded-lg px-2 py-1.5"
+                    />
+                    <button onClick={() => saveNote(idx, noteText)} className="text-[11px] font-bold bg-saffron-600 hover:bg-saffron-700 text-white rounded-lg px-3 py-1.5 shrink-0">Save</button>
+                  </div>
+                )}
               </div>
             ))
           )}
