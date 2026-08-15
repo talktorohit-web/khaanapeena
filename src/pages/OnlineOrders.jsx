@@ -86,6 +86,10 @@ export default function OnlineOrders() {
     const tds = Math.round(gross * 0.01)
     return { ch, orders: os.length, gross, comm, gstOnComm, tds, net: gross - comm - gstOnComm - tds }
   })
+  // plain-language totals: what customers paid, what the aggregator keeps, what you get
+  const reconTot = recon.reduce((a, r) => ({
+    gross: a.gross + r.gross, kept: a.kept + r.comm + r.gstOnComm + r.tds, net: a.net + r.net,
+  }), { gross: 0, kept: 0, net: 0 })
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -144,12 +148,30 @@ export default function OnlineOrders() {
       {tab === 'recon' && (
         <div className="bg-white rounded-2xl border border-stone-100 p-5">
           <h3 className="font-bold text-ink-900 mb-1">Aggregator payout reconciliation — last 7 days</h3>
-          <p className="text-xs text-stone-400 mb-4">Know exactly what Zomato/Swiggy owe you. GST on these sales is deposited by the aggregator under Sec 9(5) — not your liability.</p>
+          <p className="text-xs text-stone-400 mb-4">Zomato &amp; Swiggy collect the full bill from the customer, keep their charges, and pay you the rest. The <b className="text-red-500">−</b> amounts are <b>what they keep before paying you</b> — you don't pay these separately. (GST on the food is deposited by the aggregator under Sec 9(5), so it isn't your liability.)</p>
+
+          {/* plain-language summary: paid → kept → you get */}
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="bg-stone-50 rounded-xl p-3">
+              <div className="text-[11px] text-stone-500">Customers paid</div>
+              <div className="font-black text-ink-900 text-lg">{inr0(reconTot.gross)}</div>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3">
+              <div className="text-[11px] text-red-600">Aggregator keeps</div>
+              <div className="font-black text-red-600 text-lg">−{inr0(reconTot.kept)}</div>
+              <div className="text-[10px] text-stone-400">commission + GST + TDS</div>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3">
+              <div className="text-[11px] text-leaf-600">You receive</div>
+              <div className="font-black text-leaf-600 text-lg">{inr0(reconTot.net)}</div>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-                  <th className="py-2">Channel</th><th>Orders</th><th>Gross sales</th><th>Commission</th><th>GST on comm. (18%)</th><th>TDS (1%)</th><th className="text-right">Net payout due</th>
+                  <th className="py-2">Channel</th><th>Orders</th><th>Customers paid</th><th>less Commission</th><th>less GST on comm.</th><th>less TDS</th><th className="text-right">You receive</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,6 +188,12 @@ export default function OnlineOrders() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="mt-4 grid sm:grid-cols-3 gap-2 text-[11px] text-stone-500 border-t border-stone-100 pt-3">
+            <div><b className="text-stone-600">Commission</b> — the aggregator's cut of each order.</div>
+            <div><b className="text-stone-600">GST on commission</b> — 18% tax on their fee; you can claim it as input credit.</div>
+            <div><b className="text-stone-600">TDS</b> — 1% the aggregator deducts; you claim it back when you file.</div>
           </div>
         </div>
       )}
