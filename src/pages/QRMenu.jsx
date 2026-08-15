@@ -25,6 +25,7 @@ export default function QRMenu({ hash }) {
   }, [code])
 
   const [cart, setCart] = useState({})
+  const [notes, setNotes] = useState({}) // itemId -> cooking instruction for the kitchen
   const [placed, setPlaced] = useState(null)
   const [paid, setPaid] = useState(false)
   const [vegOnly, setVegOnly] = useState(false)
@@ -55,7 +56,8 @@ export default function QRMenu({ hash }) {
       const it = allItems.find((x) => x.id === itemId)
       // an item pulled from the menu (or marked unavailable) while it sat in the
       // guest's cart would otherwise crash on it.name — skip it
-      return it ? { itemId, name: it.name, price: it.price, qty } : null
+      const note = (notes[itemId] || '').trim().slice(0, 80)
+      return it ? { itemId, name: it.name, price: it.price, qty, ...(note ? { notes: note } : {}) } : null
     }).filter(Boolean)
     if (!lines.length) { alert('Those items are no longer available — please refresh the menu'); return }
     const totals = billTotals({ items: lines, payment: { discount: 0 } }, s)
@@ -84,6 +86,7 @@ export default function QRMenu({ hash }) {
     }
     setPlaced({ id, total: payable })
     setCart({})
+    setNotes({})
   }
 
   const payNow = () => {
@@ -186,21 +189,31 @@ export default function QRMenu({ hash }) {
                   <h3 className="font-black text-stone-500 text-xs uppercase tracking-wider mb-2 px-1">{c.name}</h3>
                   <div className="bg-white rounded-2xl divide-y divide-stone-50">
                     {its.map((i) => (
-                      <div key={i.id} className="flex items-center gap-3 p-3">
-                        <VegDot veg={i.veg} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm text-ink-900">{i.name}</div>
-                          <div className="text-[11px] text-stone-400">{i.nameHi}</div>
-                          <div className="text-sm font-bold text-saffron-700 mt-0.5">{inr0(i.price)}</div>
-                        </div>
-                        {cart[i.id] ? (
-                          <div className="flex items-center gap-2 bg-saffron-50 rounded-xl px-2 py-1">
-                            <button onClick={() => add(i.id, -1)} className="text-saffron-700 font-black w-5">−</button>
-                            <b className="text-sm">{cart[i.id]}</b>
-                            <button onClick={() => add(i.id, 1)} className="text-saffron-700 font-black w-5">＋</button>
+                      <div key={i.id} className="p-3">
+                        <div className="flex items-center gap-3">
+                          <VegDot veg={i.veg} />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm text-ink-900">{i.name}</div>
+                            <div className="text-[11px] text-stone-400">{i.nameHi}</div>
+                            <div className="text-sm font-bold text-saffron-700 mt-0.5">{inr0(i.price)}</div>
                           </div>
-                        ) : (
-                          <button onClick={() => add(i.id, 1)} className="bg-saffron-600 text-white text-xs font-black rounded-xl px-4 py-2">ADD</button>
+                          {cart[i.id] ? (
+                            <div className="flex items-center gap-2 bg-saffron-50 rounded-xl px-2 py-1">
+                              <button onClick={() => add(i.id, -1)} className="text-saffron-700 font-black w-5">−</button>
+                              <b className="text-sm">{cart[i.id]}</b>
+                              <button onClick={() => add(i.id, 1)} className="text-saffron-700 font-black w-5">＋</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => add(i.id, 1)} className="bg-saffron-600 text-white text-xs font-black rounded-xl px-4 py-2">ADD</button>
+                          )}
+                        </div>
+                        {cart[i.id] > 0 && (
+                          <input
+                            value={notes[i.id] || ''} maxLength={80}
+                            onChange={(e) => setNotes((n) => ({ ...n, [i.id]: e.target.value }))}
+                            placeholder="Note for kitchen (optional) — e.g. kam mirchi / less spicy"
+                            className="w-full mt-2 text-xs border border-stone-200 rounded-lg px-2.5 py-1.5"
+                          />
                         )}
                       </div>
                     ))}
