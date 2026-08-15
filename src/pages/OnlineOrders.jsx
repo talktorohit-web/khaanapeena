@@ -148,7 +148,7 @@ export default function OnlineOrders() {
       {tab === 'recon' && (
         <div className="bg-white rounded-2xl border border-stone-100 p-5">
           <h3 className="font-bold text-ink-900 mb-1">Aggregator payout reconciliation — last 7 days</h3>
-          <p className="text-xs text-stone-400 mb-4">Zomato &amp; Swiggy collect the full bill from the customer, keep their charges, and pay you the rest. The <b className="text-red-500">−</b> amounts are <b>what they keep before paying you</b> — you don't pay these separately. (GST on the food is deposited by the aggregator under Sec 9(5), so it isn't your liability.)</p>
+          <p className="text-xs text-stone-400 mb-4">Zomato &amp; Swiggy collect the full bill from the customer, keep their charges, and pay you the rest. The <b className="text-red-500">−</b> amounts are <b>what they keep before paying you</b> — you don't pay these separately. (The GST on the food is paid by Zomato/Swiggy, not you.)</p>
 
           {/* plain-language summary: paid → kept → you get */}
           <div className="grid grid-cols-3 gap-3 mb-5">
@@ -192,7 +192,7 @@ export default function OnlineOrders() {
 
           <div className="mt-4 grid sm:grid-cols-3 gap-2 text-[11px] text-stone-500 border-t border-stone-100 pt-3">
             <div><b className="text-stone-600">Commission</b> — the aggregator's cut of each order.</div>
-            <div><b className="text-stone-600">GST on commission</b> — 18% tax on their fee; you can claim it as input credit.</div>
+            <div><b className="text-stone-600">GST on commission</b> — 18% tax on their fee; you can adjust it against the GST you owe.</div>
             <div><b className="text-stone-600">TDS</b> — 1% the aggregator deducts; you claim it back when you file.</div>
           </div>
         </div>

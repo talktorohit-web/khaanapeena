@@ -116,7 +116,7 @@ export default function Feedback() {
         <StatCard icon="⭐" accent="saffron" label="Average rating" value={stats.n ? stats.avg.toFixed(1) : '—'} sub={`${stats.n} review${stats.n === 1 ? '' : 's'}`} />
         <StatCard icon="📅" accent="blue" label="This week" value={stats.week} sub="reviews in 7 days" />
         <StatCard icon="😊" accent="green" label="Happy guests" value={`${stats.n ? Math.round((stats.counts.positive / stats.n) * 100) : 0}%`} sub={`${stats.counts.negative} unhappy`} />
-        <StatCard icon="📈" accent={stats.nps >= 0 ? 'purple' : 'red'} label="Satisfaction (NPS)" value={stats.n ? stats.nps : '—'} sub="promoters − detractors" />
+        <StatCard icon="📈" accent={stats.nps >= 0 ? 'purple' : 'red'} label="Happiness score" value={stats.n ? stats.nps : '—'} sub="happy minus unhappy guests" />
       </div>
 
       {stats.needsReply > 0 && (

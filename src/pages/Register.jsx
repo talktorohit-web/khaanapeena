@@ -45,7 +45,7 @@ export default function Register() {
               <Row l="📲 UPI" v={inr0(tot.upi)} />
               <Row l="💳 Card" v={inr0(tot.card)} />
               <Row l="🛵 Online" v={inr0(tot.online)} />
-              <div className="border-t border-stone-100 mt-1 pt-1"><Row l="Gross" v={inr0(tot.gross)} bold /></div>
+              <div className="border-t border-stone-100 mt-1 pt-1"><Row l="Total sales" v={inr0(tot.gross)} bold /></div>
               <Row l="Discounts given" v={inr0(tot.discounts)} muted />
             </div>
             <div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -63,8 +63,8 @@ export default function Register() {
           </div>
 
           <div className="flex gap-2 mb-4 flex-wrap">
-            <button onClick={() => printShiftReport(open, tot, state.settings, true).then((r) => { if (!r.ok && r.reason !== 'browser') alert('Print failed: ' + r.reason) })} className={btnGhost}>🧾 Print X-report (peek)</button>
-            {can('openRegister') && <button onClick={() => setCloseOpen(true)} className={btnPrimary}>🔒 Close register (Z-report)</button>}
+            <button onClick={() => printShiftReport(open, tot, state.settings, true).then((r) => { if (!r.ok && r.reason !== 'browser') alert('Print failed: ' + r.reason) })} className={btnGhost}>🧾 Print running total (X-report)</button>
+            {can('openRegister') && <button onClick={() => setCloseOpen(true)} className={btnPrimary}>🔒 Close register &amp; day-end summary (Z-report)</button>}
           </div>
 
           {(open.cashMovements || []).length > 0 && (
@@ -209,7 +209,7 @@ function ZBody({ shift, z }) {
       <div className="text-xs text-stone-400 mb-2">{new Date(shift.openedAt).toLocaleString('en-IN')} → {shift.closedAt ? new Date(shift.closedAt).toLocaleString('en-IN') : 'now'}{shift.closedBy ? ` · ${shift.closedBy}` : ''}</div>
       <div className="font-bold text-ink-900 mb-1">Sales</div>
       <Row l="Cash" v={inr0(z.cash)} /><Row l="UPI" v={inr0(z.upi)} /><Row l="Card" v={inr0(z.card)} /><Row l="Online" v={inr0(z.online)} />
-      <Row l="Gross" v={inr0(z.gross)} bold /><Row l="Bills" v={String(z.bills || 0)} muted /><Row l="Discounts" v={inr0(z.discounts)} muted />
+      <Row l="Total sales" v={inr0(z.gross)} bold /><Row l="Bills" v={String(z.bills || 0)} muted /><Row l="Discounts" v={inr0(z.discounts)} muted />
       <div className="font-bold text-ink-900 mt-3 mb-1">Cash drawer</div>
       <Row l="Opening float" v={inr0(z.openingFloat)} /><Row l="+ Cash sales" v={inr0(z.cash)} />
       <Row l="+ Cash in" v={inr0(z.cashIn)} /><Row l="− Cash out" v={'−' + inr0(z.cashOut)} />

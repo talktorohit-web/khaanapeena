@@ -344,8 +344,8 @@ export default function Billing() {
                 🔓 Manager mode{authManager ? ` · ${authManager.name}` : ''} — tap to lock
               </button>
             ) : (
-              <button onClick={() => setPinAsk({ title: 'Manager PIN — edit punched items', onOk: (m) => { setEditUnlock(true); setAuthManager(m); setPinAsk(null) } })} className="w-full mt-2 text-[11px] font-bold bg-stone-100 text-stone-600 border border-stone-200 rounded-lg py-1.5">
-                🔒 Rectify punched items (manager)
+              <button onClick={() => setPinAsk({ title: 'Manager PIN — edit sent items', onOk: (m) => { setEditUnlock(true); setAuthManager(m); setPinAsk(null) } })} className="w-full mt-2 text-[11px] font-bold bg-stone-100 text-stone-600 border border-stone-200 rounded-lg py-1.5">
+                🔒 Edit items already sent to kitchen (manager)
               </button>
             )
           )}
@@ -372,7 +372,7 @@ export default function Billing() {
                       <>
                         <QtyBtn onClick={() => rectifyLine(orderId, li, -1, authManager)}>−</QtyBtn>
                         <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                        <button title="Void this line" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
+                        <button title="Remove this item" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
                       </>
                     ) : (
                       <>
@@ -591,7 +591,7 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
       {method === 'upi' && qr && (
         <div className="flex flex-col items-center mb-4 bg-stone-50 rounded-xl p-3">
           <img src={qr} alt="UPI QR" className="w-40 h-40" />
-          <div className="text-xs text-stone-500 mt-1">Dynamic QR · {state.settings.upiId} · {inr0(payable)}</div>
+          <div className="text-xs text-stone-500 mt-1">Scan to pay · {state.settings.upiId} · {inr0(payable)}</div>
         </div>
       )}
 

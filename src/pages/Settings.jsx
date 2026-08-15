@@ -224,7 +224,7 @@ function SecuritySection() {
 
   return (
     <Section title="🔒 Security — manager PIN">
-      <p className="text-xs text-stone-400 mb-3">Required to rectify items already sent to the kitchen (edit/void a punched bill). Staff with a Manager/Admin role can also authorise with their own PIN.</p>
+      <p className="text-xs text-stone-400 mb-3">Required to edit or remove items already sent to the kitchen. Staff with a Manager/Admin role can also authorise with their own PIN.</p>
       <div className="flex items-center gap-3 mb-2">
         <span className="text-sm text-stone-600">Manager PIN</span>
         <span className="font-mono tracking-[0.3em] text-lg text-stone-400">••••</span>
@@ -410,7 +410,7 @@ function SyncSection() {
 
   if (!cloud?.code) {
     return (
-      <Section title="🗄️ Durable sync (dual-write)">
+      <Section title="🗄️ Backup bills to your own database (advanced)">
         <p className="text-sm text-stone-600">Turn on cloud sync first (sign in above). Durable dual-write then mirrors every settled bill to your own invoice database, on top of the live cloud — an off-site, gapless copy for accounting and recovery.</p>
       </Section>
     )
@@ -447,9 +447,9 @@ function SyncSection() {
   const retryFailed = async () => { outboxRetryDead(cloud.code); setSt(outboxStats(cloud.code)); await flushNow() }
 
   return (
-    <Section title="🗄️ Durable sync (dual-write)">
-      <p className="text-sm text-stone-600 mb-3">Mirror every settled bill to your own Postgres / Supabase invoice database — a gapless, off-site copy on top of the live cloud. Leave the endpoint blank to keep KhaanaPeena on cloud-only.</p>
-      <Field label="Invoice API endpoint (your backend base URL)">
+    <Section title="🗄️ Backup bills to your own database (advanced)">
+      <p className="text-sm text-stone-600 mb-3">Optional, for tech-savvy owners: keep a second copy of every bill in your own database, on top of the live cloud — an off-site backup for accounting. Leave blank to stay on cloud-only. Ask your developer if unsure.</p>
+      <Field label="Your database web address (leave blank if you don't have one)">
         <div className="flex items-center gap-2">
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.yourshop.in" className={inputCls + ' font-mono'} />
           <button onClick={saveUrl} disabled={url.trim() === (sync.apiUrl || '')} className={btnPrimary}>Save</button>

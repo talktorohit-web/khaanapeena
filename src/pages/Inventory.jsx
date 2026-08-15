@@ -45,7 +45,7 @@ export default function Inventory() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
         <StatCard label="Stock value" value={inr0(stockValue)} icon="💰" accent="saffron" />
         <StatCard label={t('lowStock')} value={low.length} sub={low.map((l) => l.name).slice(0, 3).join(', ') || 'All good ✓'} icon="⚠️" accent={low.length ? 'red' : 'green'} />
-        <StatCard label="Auto-deduction" value="ON" sub="Recipes deduct stock on every KOT" icon="🔄" accent="blue" />
+        <StatCard label="Stock updates itself" value="ON" sub="cut automatically as dishes are cooked" icon="🔄" accent="blue" />
       </div>
 
       <div className="bg-white rounded-2xl border border-stone-100 overflow-x-auto">

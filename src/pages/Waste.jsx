@@ -21,7 +21,10 @@ export default function Waste() {
     setF({ itemName: '', qty: '', reason: REASONS[0], lossValue: '' })
   }
 
-  const monthlyProjection = totalLoss * 2 // rough demo projection
+  // annualize from the ACTUAL span of logged entries, not an arbitrary multiplier
+  const wDates = state.waste.map((w) => w.date).filter(Boolean).sort()
+  const spanDays = wDates.length ? Math.max(1, Math.round((new Date(wDates[wDates.length - 1]) - new Date(wDates[0])) / 864e5) + 1) : 1
+  const yearlyLoss = Math.round((totalLoss / spanDays) * 365)
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -33,7 +36,7 @@ export default function Waste() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
         <StatCard label="Loss logged" value={inr0(totalLoss)} icon="💸" accent="red" />
         <StatCard label="Entries" value={state.waste.length} icon="📋" accent="blue" />
-        <StatCard label="Yearly run-rate" value={inr0(totalLoss * 26)} sub="if this pace continues" icon="⚠️" accent="red" />
+        <StatCard label="At this pace, per year" value={inr0(yearlyLoss)} sub="based on what you've logged" icon="⚠️" accent="red" />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">

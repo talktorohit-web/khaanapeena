@@ -54,7 +54,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-black text-ink-900">{t('dashboard')}</h1>
           <p className="text-sm text-stone-500">{state.settings.name} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
-        <Badge color="green">● Online · Offline-safe</Badge>
+        <Badge color="green">● Online · Works offline</Badge>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">

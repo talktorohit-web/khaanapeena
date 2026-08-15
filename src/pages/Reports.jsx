@@ -179,7 +179,7 @@ function SalesReport({ state, range }) {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Total earnings" value={inr0(gross)} sub={`${range.label}`} icon="💰" accent="saffron" />
-        <StatCard label="Net (pre-GST)" value={inr0(netTaxable)} sub="taxable value" icon="🧮" accent="blue" />
+        <StatCard label="Sales before GST" value={inr0(netTaxable)} sub="before tax is added" icon="🧮" accent="blue" />
         <StatCard label="Bills" value={bills} icon="🧾" accent="green" />
         <StatCard label="Avg. bill" value={inr0(avg)} icon="📊" accent="purple" />
         <StatCard label="Discounts given" value={inr0(discount)} icon="🏷️" accent="red" />
@@ -250,8 +250,8 @@ function SalesReport({ state, range }) {
         const totalVoid = voids.reduce((s, v) => s + (v.amount || 0), 0)
         return (
           <div className="bg-white rounded-2xl p-5 border border-stone-100 mb-4">
-            <h3 className="font-bold text-ink-900 mb-1">🔒 Manager rectifications / voids</h3>
-            <p className="text-xs text-stone-400 mb-3">Items removed after they were punched to the kitchen · {voids.length} void{voids.length > 1 ? 's' : ''} · {inr0(totalVoid)} value</p>
+            <h3 className="font-bold text-ink-900 mb-1">🔒 Items cancelled after going to the kitchen</h3>
+            <p className="text-xs text-stone-400 mb-3">Removed by a manager after the order was already sent · {voids.length} item{voids.length > 1 ? 's' : ''} · {inr0(totalVoid)} value</p>
             <div className="max-h-56 overflow-y-auto">
               {voids.map((v) => (
                 <div key={v.id} className="flex items-center justify-between text-sm py-1.5 border-b border-stone-50">
@@ -271,7 +271,7 @@ function SalesReport({ state, range }) {
           <Bars data={dow} color="#9333ea" />
         </div>
         <div className="bg-white rounded-2xl p-5 border border-stone-100">
-          <h3 className="font-bold text-ink-900 mb-1">Order channels</h3>
+          <h3 className="font-bold text-ink-900 mb-1">Where orders came from</h3>
           <p className="text-xs text-stone-400 mb-3">Share of bills</p>
           {channels.length ? <HBars data={channels} color="#16a34a" fmt={(v) => v + ''} /> : <Empty text="No orders" />}
         </div>
@@ -279,13 +279,13 @@ function SalesReport({ state, range }) {
           <h3 className="font-bold text-ink-900 mb-2">GST summary</h3>
           {scheme === 'composition' ? (
             <>
-              <Row l="Your gross (own)" v={inr0(ownGross)} />
+              <Row l="Your own sales (dine-in / takeaway)" v={inr0(ownGross)} />
               <Row l="GST charged" v="₹0 (not collected)" />
               <p className="text-[10px] text-stone-400 mt-1">Composition scheme — no GST is charged to customers; you pay a fixed composition levy on turnover instead.</p>
             </>
           ) : (
             <>
-              <Row l="Your gross (own)" v={inr0(ownGross)} />
+              <Row l="Your own sales (dine-in / takeaway)" v={inr0(ownGross)} />
               <Row l="Taxable value" v={inr0(ownTaxable)} />
               <Row l={`CGST @${gstRate / 2}%`} v={inr0(ownCgst)} />
               <Row l={`SGST @${gstRate / 2}%`} v={inr0(ownSgst)} />
@@ -462,9 +462,9 @@ function FoodCostReport({ state, range }) {
           <div className={`text-2xl font-bold ${overallColor} tabular-nums`}>{overallPct == null ? '—' : overallPct.toFixed(1) + '%'}</div>
           <div className="text-[11px] text-stone-400">{range.label} · costed dishes sold</div>
         </div>
-        <StatCard label="Theoretical food cost" value={inr0(totCost)} sub={`on ${inr0(totRev)} revenue`} icon="🧮" accent="saffron" />
-        <StatCard label="Gross margin (costed)" value={overallPct == null ? '—' : (100 - overallPct).toFixed(0) + '%'} sub={inr0(totRev - totCost)} icon="📈" accent="green" />
-        <StatCard label="Recipe coverage" value={`${costed.length}/${rows.length}`} sub={`${coveredPct}% of sales costed`} icon="📋" accent={coveredPct >= 70 ? 'green' : 'red'} />
+        <StatCard label="Ingredient cost of dishes sold" value={inr0(totCost)} sub={`on ${inr0(totRev)} of sales`} icon="🧮" accent="saffron" />
+        <StatCard label="Profit after ingredients" value={overallPct == null ? '—' : (100 - overallPct).toFixed(0) + '%'} sub={inr0(totRev - totCost)} icon="📈" accent="green" />
+        <StatCard label="Recipe coverage" value={`${costed.length}/${rows.length}`} sub={`${coveredPct}% of sales have recipes`} icon="📋" accent={coveredPct >= 70 ? 'green' : 'red'} />
       </div>
 
       {overallPct != null && overallPct > 35 && (
@@ -516,7 +516,7 @@ function FoodCostReport({ state, range }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-stone-400 mt-2">Plate cost uses each ingredient's live weighted-average cost — updated automatically when you receive stock in Purchase &amp; GRN.</p>
+      <p className="text-[11px] text-stone-400 mt-2">Plate cost uses each ingredient's latest average buying price — updated automatically when you receive stock in Purchase &amp; GRN.</p>
     </>
   )
 }
