@@ -184,7 +184,7 @@ export function makeSeed() {
     settings: {
       name: 'Sharma Ji Da Dhaba', tagline: 'Since 1987', address: '12, GT Road, Jalandhar, Punjab 144001',
       phone: '0181-2223344', gstin: '03ABCDE1234F1Z5', fssai: '12123456789012',
-      gstScheme: 'regular', gstRate: 5, serviceCharge: 0,
+      gstScheme: 'regular', gstRate: 5, serviceCharge: 0, hsnCode: '996331',
       upiId: 'sharmajidadhaba@okhdfcbank', lang: 'en',
       managerPin: '1111',
       printer: { enabled: false, mode: 'browser', ip: '', port: 9100, width: 48, kitchenIp: '' },

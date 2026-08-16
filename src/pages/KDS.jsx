@@ -14,7 +14,16 @@ export default function KDS() {
   const kots = state.orders.filter((o) => o.status === 'kot').sort((a, b) => a.kotAt - b.kotAt)
   const ready = state.orders.filter((o) => o.status === 'ready').sort((a, b) => a.kotAt - b.kotAt)
 
-  const setStatus = (id, st) => update((s) => { const o = s.orders.find((x) => x.id === id); if (o) o.status = st })
+  // Flipping a ticket also stamps the kitchen milestone (once). These two
+  // timestamps are what the Kitchen Speed report measures against: prep time is
+  // kotAt -> readyAt, and pickup lag is readyAt -> servedAt.
+  const setStatus = (id, st) => update((s) => {
+    const o = s.orders.find((x) => x.id === id)
+    if (!o) return
+    o.status = st
+    if (st === 'ready' && !o.readyAt) o.readyAt = Date.now()
+    if (st === 'served' && !o.servedAt) o.servedAt = Date.now()
+  })
 
   // finishing a ready ticket: dine/takeaway/qr -> served; aggregator/WhatsApp -> completed & paid
   // (online orders never pass through 'served', which would drop them out of Online Orders + recon)

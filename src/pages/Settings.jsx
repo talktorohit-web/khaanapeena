@@ -46,6 +46,10 @@ export default function Settings() {
               <option value="18">18% (hotel ≥₹7,500 tariff / catering)</option>
             </select>
           </Field>
+          <Field label="HSN / SAC code (for the GST report)">
+            <input value={s.hsnCode ?? '996331'} onChange={(e) => set('hsnCode', e.target.value)} placeholder="996331" className={inputCls} />
+            <span className="text-[10px] text-stone-400">996331 is restaurant service. Any item you sell as packaged goods can carry its own code — set it in Menu.</span>
+          </Field>
         </div>
         <div className="grid sm:grid-cols-2 gap-x-4">
           <Field label="Service charge % (0 = off)"><input type="number" value={s.serviceCharge} onChange={(e) => set('serviceCharge', +e.target.value || 0)} className={inputCls} /></Field>

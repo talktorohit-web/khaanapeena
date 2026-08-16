@@ -133,6 +133,12 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
+      {/* Optional per-item HSN — only needed when this item isn't plain restaurant
+          service (bottled water, sweets by weight). Blank uses the shop-wide code. */}
+      <Field label="HSN / SAC code (optional)">
+        <input value={f.hsn ?? ''} onChange={(e) => set('hsn', e.target.value)} placeholder={state.settings.hsnCode || '996331'} className={inputCls} />
+        <span className="text-[10px] text-stone-400">Leave blank unless this is sold as goods, not restaurant service.</span>
+      </Field>
 
       {/* Recipe editor — powers auto stock-deduction on KOT and the Food Cost report */}
       <div className="border border-stone-100 rounded-xl p-3 mb-3 bg-stone-50/50">

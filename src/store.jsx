@@ -201,6 +201,13 @@ export function StoreProvider({ children }) {
       return draft
     })
 
+    // Who is operating this till right now: the RBAC session when staff login is
+    // on, else whoever opened the cash register (Register asks for a name). Stamped
+    // onto orders + bills so the Staff report can attribute sales. null when
+    // neither is known — Firebase drops null keys, so nothing is written remotely.
+    const operatorName = (s) =>
+      s.session?.name || (s.shifts || []).find((sh) => sh.status === 'open')?.openedBy || null
+
     const newOrder = ({ type, tableId = null, source = 'pos' }) => {
       const id = uid('o')
       update((s) => {
@@ -208,6 +215,7 @@ export function StoreProvider({ children }) {
           id, billNo: null, type, tableId, items: [], status: 'open',
           createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
           payment: { method: null, discount: 0, amount: 0 }, source, kotNo: null,
+          takenBy: operatorName(s),
         })
       })
       return id
@@ -291,6 +299,9 @@ export function StoreProvider({ children }) {
       o.status = 'paid'
       o.paidAt = Date.now()
       o.billNo = issued
+      // attribute the collection to whoever is on the till (Staff report / drawer)
+      const who = operatorName(s)
+      if (who) o.settledBy = who
       // advance the local counter past the issued number so an offline bill later
       // can't duplicate an invoice number already used (server or local)
       s.counters.billNo = Math.max(s.counters.billNo || 1, issued + 1)
@@ -338,6 +349,29 @@ export function StoreProvider({ children }) {
         }
       } catch { /* mirror is best-effort — a settled bill is never held up by it */ }
     }
+
+    // ---- physical stock take ----
+    // The only honest way to get a theoretical-vs-actual variance: the system
+    // knows what the recipes SHOULD have consumed, but only a human counting the
+    // godown knows what actually left it. We snapshot both numbers at the moment
+    // of counting (the system figure is stored, not recomputed later, so the
+    // variance stays true even after stock moves on) and optionally correct stock
+    // to the counted reality.
+    const recordStockTake = (lines, { correct = true } = {}) => update((s) => {
+      s.stockTakes = s.stockTakes || []
+      s.stockTakes.push({
+        id: uid('st'), at: Date.now(), by: operatorName(s) || 'Owner', corrected: !!correct,
+        lines: lines.map((l) => ({
+          ingId: l.ingId, system: +l.system || 0, counted: +l.counted || 0, cost: +l.cost || 0,
+        })),
+      })
+      if (correct) {
+        lines.forEach((l) => {
+          const g = s.ingredients.find((x) => x.id === l.ingId)
+          if (g) g.stock = +(+l.counted || 0).toFixed(3)
+        })
+      }
+    })
 
     const resetDemo = () => {
       localStorage.removeItem(KEY)
@@ -676,7 +710,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

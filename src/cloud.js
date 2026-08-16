@@ -57,7 +57,7 @@ export const newCode = () => {
 export const COLLECTIONS = [
   'categories', 'items', 'ingredients', 'tables', 'customers',
   'staff', 'waste', 'feedback', 'reservations', 'shifts', 'voidLog',
-  'vendors', 'purchaseOrders', 'grns',
+  'vendors', 'purchaseOrders', 'grns', 'stockTakes',
 ]
 
 const stripMeta = (o) => { const { _u, ...rest } = o || {}; return rest }
