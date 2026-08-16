@@ -16,7 +16,9 @@ export default function Register() {
   const [closeOpen, setCloseOpen] = useState(false)
   const [viewZ, setViewZ] = useState(null)
 
-  const tot = useMemo(() => (open ? shiftTotals(open, state.orders) : null), [open, state.orders])
+  // cash expenses and cash refunds leave the drawer too — pass them in or the
+  // till reads short at closing time
+  const tot = useMemo(() => (open ? shiftTotals(open, state.orders, state.expenses) : null), [open, state.orders, state.expenses])
 
   return (
     <div className="p-6 max-w-5xl mx-auto">

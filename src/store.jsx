@@ -365,6 +365,63 @@ export function StoreProvider({ children }) {
       } catch { /* mirror is best-effort — a settled bill is never held up by it */ }
     }
 
+    // ---- expenses: money out that isn't stock ----
+    // Recorded separately from GRNs (which buy inventory) and from shift cash
+    // movements (which only move the float). A cash expense is subtracted from the
+    // drawer by shiftTotals, so the register still reconciles.
+    const addExpenses = (rows) => update((s) => {
+      s.expenses = s.expenses || []
+      ;(rows || []).forEach((r) => {
+        if (!r.reason || !(+r.amount > 0)) return
+        s.expenses.push({
+          id: uid('ex'),
+          at: r.at || Date.now(),
+          date: r.date || new Date().toISOString().slice(0, 10),
+          reason: r.reason,
+          amount: +r.amount,
+          note: String(r.note || '').slice(0, 120),
+          staffId: r.staffId || null,
+          staffName: r.staffName || '',
+          paidFrom: r.paidFrom || 'cash',
+          by: operatorName(s) || 'Owner',
+        })
+      })
+    })
+    const deleteExpense = (id) => update((s) => { s.expenses = (s.expenses || []).filter((x) => x.id !== id) })
+
+    // ---- refund / sales return ----
+    // The bill stays settled and keeps its invoice number — a GST invoice is never
+    // deleted, it's credited. Refunded food isn't resellable, so no stock returns.
+    const refundBill = (orderId, { amount, reason, method, by }) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o || o.status !== 'paid' || o.refund) return
+      const paidAmt = o.payment?.amount || 0
+      const amt = Math.max(0, Math.min(paidAmt, Math.round(+amount || 0)))
+      if (!amt) return
+      o.refund = {
+        amount: amt, reason: String(reason || '').slice(0, 80),
+        method: method || o.payment?.method || 'cash',
+        full: amt >= paidAmt, at: Date.now(), by: by || operatorName(s) || 'Manager',
+      }
+      o.updatedAt = Date.now()
+      // claw back the loyalty this bill earned on the refunded portion
+      const c = o.customerId && s.customers.find((x) => x.id === o.customerId)
+      if (c) {
+        c.totalSpend = Math.max(0, (c.totalSpend || 0) - amt)
+        c.points = Math.max(0, (c.points || 0) - Math.floor(amt / 100) * (s.settings.loyaltyEarnPer100 || 1))
+      }
+    })
+
+    // ---- udhaar / credit ----
+    // A bill settled on credit is closed and numbered like any other, but the money
+    // hasn't arrived. It stays outstanding until someone records the collection.
+    const collectDue = (orderId, { method = 'cash' } = {}) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o || o.payment?.method !== 'credit' || o.creditPaid) return
+      o.creditPaid = { at: Date.now(), method, by: operatorName(s) || 'Owner' }
+      o.updatedAt = Date.now()
+    })
+
     // ---- physical stock take ----
     // The only honest way to get a theoretical-vs-actual variance: the system
     // knows what the recipes SHOULD have consumed, but only a human counting the
@@ -732,7 +789,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

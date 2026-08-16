@@ -9,6 +9,7 @@ const MODES = [
   { key: 'upi', label: 'UPI', icon: '📲', color: '#2563eb' },
   { key: 'card', label: 'Card', icon: '💳', color: '#9333ea' },
   { key: 'online', label: 'Online (Zomato/Swiggy)', icon: '🛵', color: '#f06008' },
+  { key: 'credit', label: 'Udhaar (not received yet)', icon: '📒', color: '#dc2626' },
 ]
 
 export default function Sales({ state, range }) {

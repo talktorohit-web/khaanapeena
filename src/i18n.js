@@ -18,6 +18,7 @@ const D = {
   feedback: ['Feedback', 'फ़ीडबैक', 'ਫੀਡਬੈਕ'],
   reports: ['Reports', 'रिपोर्ट', 'ਰਿਪੋਰਟ'],
   register: ['Cash Register', 'कैश रजिस्टर', 'ਕੈਸ਼ ਰਜਿਸਟਰ'],
+  expenses: ['Expenses', 'खर्च', 'ਖਰਚੇ'],
   ai: ['AI Insights', 'AI इनसाइट्स', 'AI ਇਨਸਾਈਟਸ'],
   waste: ['Waste Tracker', 'वेस्ट ट्रैकर', 'ਵੇਸਟ ਟਰੈਕਰ'],
   staff: ['Staff', 'स्टाफ', 'ਸਟਾਫ'],

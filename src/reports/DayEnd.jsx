@@ -23,11 +23,41 @@ export default function DayEnd({ state }) {
   const tax = paid.reduce((s, o) => { const bt = billTotals(o, state.settings); return s + (comp ? 0 : bt.cgst + bt.sgst) }, 0)
   const taxable = paid.reduce((s, o) => s + billTotals(o, state.settings).taxable, 0)
 
-  const modes = [['cash', '💵 Cash'], ['upi', '📲 UPI'], ['card', '💳 Card'], ['online', '🛵 Online']]
+  // Payment-type split in the same shape a Petpooja "Order Summary" prints, so an
+  // owner switching over can reconcile line for line.
+  const modes = [['cash', '💵 Cash'], ['upi', '📲 UPI'], ['card', '💳 Card'], ['online', '🛵 Online orders'], ['credit', '📒 Due (udhaar)']]
     .map(([k, label]) => {
       const os = paid.filter((o) => (o.payment?.method || 'cash') === k)
       return { k, label, bills: os.length, amount: os.reduce((s, o) => s + amt(o), 0) }
     })
+
+  // ---- order status, Petpooja's five buckets ----
+  const inDay = (ts) => ts >= from && ts < to
+  const openOrders = (state.orders || []).filter((o) => ['open', 'kot', 'ready', 'served'].includes(o.status) && inDay(o.createdAt))
+  const cancelledOrders = (state.orders || []).filter((o) => o.status === 'cancelled' && inDay(o.kotAt || o.createdAt))
+  const compBills = paid.filter((o) => {
+    const bt = billTotals(o, state.settings)
+    return o.payment?.discountReason === 'comp' || (bt.discount >= bt.sub && bt.sub > 0)
+  })
+  const returned = paid.filter((o) => o.refund && inDay(o.refund.at))
+  const refundValue = returned.reduce((s, o) => s + o.refund.amount, 0)
+
+  const lineValue = (o) => (o.items || []).reduce((s, li) => s + li.price * li.qty, 0)
+  const statusRows = [
+    { k: 'open', label: 'Still open (not billed)', orders: openOrders.length, my: openOrders.reduce((s, o) => s + lineValue(o), 0), total: 0 },
+    { k: 'billed', label: 'Billed & settled', orders: paid.length, my: paid.reduce((s, o) => s + billTotals(o, state.settings).taxable, 0), total: gross },
+    { k: 'cancelled', label: 'Cancelled', orders: cancelledOrders.length, my: cancelledOrders.reduce((s, o) => s + lineValue(o), 0), total: 0 },
+    { k: 'comp', label: 'Complimentary (free)', orders: compBills.length, my: compBills.reduce((s, o) => s + billTotals(o, state.settings).sub, 0), total: compBills.reduce((s, o) => s + amt(o), 0) },
+    { k: 'return', label: 'Sales return (refunded)', orders: returned.length, my: refundValue, total: refundValue },
+  ]
+
+  // ---- cash movements in and out on this day ----
+  const dayExpenses = (state.expenses || []).filter((e) => inDay(e.at))
+  const expenseTotal = dayExpenses.reduce((s, e) => s + e.amount, 0)
+  const cashExpense = dayExpenses.filter((e) => e.paidFrom === 'cash').reduce((s, e) => s + e.amount, 0)
+  const movements = (state.shifts || []).flatMap((sh) => (sh.cashMovements || []).filter((m) => inDay(m.at || sh.openedAt)).map((m) => ({ ...m, shift: sh })))
+  const topUps = movements.filter((m) => m.type === 'in')
+  const withdrawals = movements.filter((m) => m.type === 'out')
 
   const types = useMemo(() => {
     const m = {}
@@ -70,8 +100,20 @@ export default function DayEnd({ state }) {
       [comp ? 'GST (composition — not collected) ₹' : 'GST collected ₹', Math.round(tax)],
       ['First bill', firstBill ? new Date(firstBill.paidAt).toLocaleTimeString('en-IN') : '—'],
       ['Last bill', lastBill ? new Date(lastBill.paidAt).toLocaleTimeString('en-IN') : '—'],
-      [], ['PAYMENT MODES'], ['Mode', 'Bills', 'Amount ₹']]
+      [], ['ORDER STATUS'], ['Status', 'Orders', 'Before tax ₹', 'Total ₹']]
+    statusRows.forEach((r) => out.push([r.label, r.orders, Math.round(r.my), Math.round(r.total)]))
+    out.push([], ['PAYMENT MODES'], ['Mode', 'Bills', 'Amount ₹'])
     modes.forEach((m) => out.push([m.label, m.bills, Math.round(m.amount)]))
+    out.push([], ['MONEY OUT'],
+      ['Expenses booked ₹', Math.round(expenseTotal)],
+      ['  of which cash ₹', Math.round(cashExpense)],
+      ['Refunds paid back ₹', Math.round(refundValue)],
+      ['Cash withdrawn from till ₹', Math.round(withdrawals.reduce((s, m) => s + (m.amount || 0), 0))],
+      ['Cash added to till ₹', Math.round(topUps.reduce((s, m) => s + (m.amount || 0), 0))])
+    if (dayExpenses.length) {
+      out.push([], ['EXPENSE DETAIL'], ['Head', 'Explanation', 'Employee', 'Paid from', 'Amount ₹'])
+      dayExpenses.forEach((e) => out.push([e.reason, e.note || '', e.staffName || '', e.paidFrom, Math.round(e.amount)]))
+    }
     out.push([], ['ORDER TYPES'], ['Type', 'Bills', 'Revenue ₹'])
     types.forEach((t) => out.push([channelLabel(t.k), t.bills, Math.round(t.rev)]))
     out.push([], ['TOP ITEMS'], ['Item', 'Plates', 'Revenue ₹'])
@@ -149,6 +191,44 @@ export default function DayEnd({ state }) {
                   { h: 'Revenue', num: true, cell: (t) => <b>{inr0(t.rev)}</b> },
                 ]}
               />
+            </Card>
+          </div>
+
+          {/* ORDER STATUS — the block a Petpooja Order Summary opens with */}
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <Card className="!mb-0 kp-card" flush title="Order status" sub="Every order that touched today, by what happened to it">
+              <DataTable
+                rows={statusRows}
+                keyOf={(r) => r.k}
+                cols={[
+                  { h: 'Status', cell: (r) => <span className="font-semibold">{r.label}</span> },
+                  { h: 'Orders', num: true, cell: (r) => r.orders || <span className="text-stone-300">0</span> },
+                  { h: 'Before tax', num: true, cell: (r) => r.my ? inr0(r.my) : <span className="text-stone-300">—</span> },
+                  { h: 'Total', num: true, cell: (r) => r.total ? <b>{inr0(r.total)}</b> : <span className="text-stone-300">—</span> },
+                ]}
+              />
+            </Card>
+            <Card className="!mb-0 kp-card" flush title="Money out today" sub="Expenses, refunds and cash taken from the drawer">
+              <DataTable
+                rows={[
+                  { k: 'exp', label: '💸 Expenses booked', n: dayExpenses.length, v: expenseTotal },
+                  { k: 'expcash', label: '　of which paid in cash', n: dayExpenses.filter((e) => e.paidFrom === 'cash').length, v: cashExpense },
+                  { k: 'ref', label: '↩️ Refunds paid back', n: returned.length, v: refundValue },
+                  { k: 'wd', label: '📤 Cash withdrawn from till', n: withdrawals.length, v: withdrawals.reduce((s, m) => s + (m.amount || 0), 0) },
+                  { k: 'tu', label: '📥 Cash added to till', n: topUps.length, v: topUps.reduce((s, m) => s + (m.amount || 0), 0) },
+                ]}
+                keyOf={(r) => r.k}
+                cols={[
+                  { h: 'What', cell: (r) => <span className={r.k === 'expcash' ? 'text-stone-500 text-xs' : 'font-semibold'}>{r.label}</span> },
+                  { h: 'Entries', num: true, cell: (r) => r.n || <span className="text-stone-300">0</span> },
+                  { h: 'Amount', num: true, cell: (r) => r.v ? <b className={r.k === 'tu' ? 'text-leaf-600' : 'text-red-600'}>{inr0(r.v)}</b> : <span className="text-stone-300">—</span> },
+                ]}
+              />
+              {dayExpenses.length > 0 && (
+                <div className="px-4 pb-4 pt-1 text-[11px] text-stone-500">
+                  {[...new Set(dayExpenses.map((e) => e.reason))].slice(0, 6).join(' · ')}
+                </div>
+              )}
             </Card>
           </div>
 

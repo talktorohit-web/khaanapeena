@@ -18,6 +18,8 @@ import Tax from '../reports/Tax.jsx'
 import Inventory from '../reports/Inventory.jsx'
 import Purchases from '../reports/Purchases.jsx'
 import Variance from '../reports/Variance.jsx'
+import Udhaar from '../reports/Udhaar.jsx'
+import ExpensesReport from '../reports/ExpensesReport.jsx'
 
 const RANGE_KEYS = [
   ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 days'],
@@ -42,13 +44,15 @@ const GROUPS = [
       ['tables', '🪑 Tables', TableReport],
       ['kitchen', '⏱️ Kitchen speed', Kitchen],
       ['staff', '👨‍🍳 Staff', Staff],
-      ['discounts', '🏷️ Discounts & voids', Discounts],
+      ['discounts', '🏷️ Discounts & refunds', Discounts],
     ],
   },
   {
     title: 'Money',
     tabs: [
       ['foodcost', '🍲 Food cost', FoodCost],
+      ['expenses', '💸 Expenses', ExpensesReport],
+      ['udhaar', '📒 Udhaar', Udhaar],
       ['profit', '📈 Profit & loss', Profit],
       ['tax', '🧾 GST & HSN', Tax],
     ],
@@ -69,8 +73,9 @@ const GROUPS = [
 
 const ALL = GROUPS.flatMap((g) => g.tabs)
 
-// these two pick their own period, so the shared range selector would only confuse
-const NO_RANGE = ['dayend', 'variance']
+// these pick their own period (or ignore dates entirely), so the shared range
+// selector would only mislead
+const NO_RANGE = ['dayend', 'variance', 'udhaar']
 
 export default function Reports() {
   const { state, t } = useStore()
@@ -84,19 +89,29 @@ export default function Reports() {
   const Active = (ALL.find(([k]) => k === tab) || ALL[0])[2]
   const showRange = !NO_RANGE.includes(tab)
 
+  const tabLabel = (ALL.find(([k]) => k === tab) || ALL[0])[1]
+  const periodText = showRange
+    ? `${range.label} · ${new Date(range.from).toLocaleDateString('en-IN')} → ${new Date(Math.min(range.to, Date.now())).toLocaleDateString('en-IN')}`
+    : 'This report picks its own period'
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <h1 className="text-2xl font-black text-ink-900">{t('reports')}</h1>
-        <p className="text-xs text-stone-400">
-          {showRange
-            ? `${range.label} · ${new Date(range.from).toLocaleDateString('en-IN')} → ${new Date(Math.min(range.to, Date.now())).toLocaleDateString('en-IN')}`
-            : 'This report picks its own period'}
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap kp-noprint">
+        <div>
+          <h1 className="text-2xl font-black text-ink-900">{t('reports')}</h1>
+          <p className="text-xs text-stone-400">{periodText}</p>
+        </div>
+        {/* Straight to the browser's own Save-as-PDF: no library to bundle, and it
+            works the same in the browser, the PC app and the Android app. */}
+        <button
+          onClick={() => window.print()}
+          title="Opens your print dialog — choose “Save as PDF” as the destination"
+          className="border border-stone-200 hover:bg-stone-50 text-stone-700 font-semibold rounded-xl px-4 py-2 text-sm"
+        >🖨️ Save as PDF</button>
       </div>
 
       {/* TAB BAR */}
-      <div className="bg-white rounded-2xl border border-stone-100 p-3 mb-4 overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-stone-100 p-3 mb-4 overflow-x-auto kp-noprint">
         <div className="flex gap-3 min-w-max">
           {GROUPS.map((g, gi) => (
             <div key={g.title} className={gi ? 'pl-3 border-l border-stone-100' : ''}>
@@ -119,7 +134,7 @@ export default function Reports() {
 
       {/* RANGE SELECTOR */}
       {showRange && (
-        <div className="flex flex-wrap items-center gap-2 mb-5">
+        <div className="flex flex-wrap items-center gap-2 mb-5 kp-noprint">
           {RANGE_KEYS.map(([k, l]) => (
             <button
               key={k}
@@ -138,7 +153,25 @@ export default function Reports() {
         </div>
       )}
 
-      <Active state={state} range={range} />
+      {/* Everything below prints; the id is what the print stylesheet isolates. */}
+      <div id="kp-report">
+        {/* letterhead — hidden on screen, the first thing on the printed page */}
+        <div className="kp-printonly mb-4 pb-3 border-b-2 border-stone-300">
+          <div className="text-xl font-black text-ink-900">{state.settings.name}</div>
+          <div className="text-[11px] text-stone-500">
+            {state.settings.address}
+            {state.settings.gstin ? ` · GSTIN ${state.settings.gstin}` : ''}
+            {state.settings.fssai ? ` · FSSAI ${state.settings.fssai}` : ''}
+          </div>
+          <div className="flex justify-between items-baseline mt-2">
+            <div className="text-base font-bold text-ink-900">{tabLabel.replace(/^\S+\s/, '')}</div>
+            <div className="text-[11px] text-stone-500">{periodText}</div>
+          </div>
+          <div className="text-[10px] text-stone-400">Generated {new Date().toLocaleString('en-IN')} · KhaanaPeena</div>
+        </div>
+
+        <Active state={state} range={range} />
+      </div>
     </div>
   )
 }

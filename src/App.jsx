@@ -13,6 +13,7 @@ import Customers from './pages/Customers.jsx'
 import Feedback from './pages/Feedback.jsx'
 import Reports from './pages/Reports.jsx'
 import Register from './pages/Register.jsx'
+import ExpensesPage from './pages/Expenses.jsx'
 import AIInsights from './pages/AIInsights.jsx'
 import Waste from './pages/Waste.jsx'
 import Staff from './pages/Staff.jsx'
@@ -42,6 +43,7 @@ const NAV = [
   { id: 'feedback', icon: '💬', key: 'feedback' },
   { id: 'reports', icon: '📈', key: 'reports' },
   { id: 'register', icon: '💵', key: 'register' },
+  { id: 'expenses', icon: '💸', key: 'expenses' },
   { id: 'ai', icon: '✨', key: 'ai' },
   { id: 'waste', icon: '🗑️', key: 'waste' },
   { id: 'staff', icon: '🧑‍💼', key: 'staff' },
@@ -51,7 +53,7 @@ const NAV = [
 const PAGES = {
   dashboard: Dashboard, billing: Billing, tables: Tables, reservations: Reservations, kds: KDS,
   online: OnlineOrders, menu: MenuPage, inventory: Inventory, purchase: Purchase, customers: Customers, feedback: Feedback, reports: Reports,
-  register: Register, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
+  register: Register, expenses: ExpensesPage, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 
 // screens shown in the mobile bottom tab bar (the rest live in the "More" drawer)

@@ -16,6 +16,7 @@ export const PAGE_KEYS = {
   feedback: 'F',
   reports: 'R',
   register: 'G',
+  expenses: 'E',
   ai: 'A',
   waste: 'W',
   staff: 'S',
@@ -40,7 +41,7 @@ export const SHORTCUT_GROUPS = [
     items: [
       ['D', 'Dashboard'], ['B', 'Billing (POS)'], ['T', 'Tables'], ['V', 'Reservations'],
       ['K', 'Kitchen (KDS)'], ['O', 'Online Orders'], ['M', 'Menu'], ['I', 'Inventory'],
-      ['P', 'Purchase & Receipts'], ['C', 'Customers'], ['F', 'Feedback & Reviews'], ['R', 'Reports'], ['G', 'Cash Register'], ['A', 'AI Insights'], ['W', 'Waste'], ['S', 'Staff'], [',', 'Settings'],
+      ['P', 'Purchase & Receipts'], ['C', 'Customers'], ['F', 'Feedback & Reviews'], ['R', 'Reports'], ['G', 'Cash Register'], ['E', 'Expenses'], ['A', 'AI Insights'], ['W', 'Waste'], ['S', 'Staff'], [',', 'Settings'],
     ],
   },
   {

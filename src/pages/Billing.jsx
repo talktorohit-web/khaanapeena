@@ -669,16 +669,27 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
     })
   }
   const needsReason = discount > 0 && !reason
+  // an udhaar bill with no customer is an unrecoverable debt
+  const creditOk = !!cust || phone.length === 10
+  const blocked = needsReason || (method === 'credit' && !creditOk)
 
   return (
     <Modal open onClose={onClose} title={`${t('settle')} — ${inr0(payable)}`}>
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {['upi', 'cash', 'card'].map((m) => (
-          <button key={m} onClick={() => setMethod(m)} className={`rounded-xl py-3 font-bold text-sm border-2 transition-colors ${method === m ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}>
-            {m === 'upi' ? '📲 UPI' : m === 'cash' ? `💵 ${t('cash')}` : `💳 ${t('card')}`}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        {[['upi', '📲 UPI'], ['cash', `💵 ${t('cash')}`], ['card', `💳 ${t('card')}`], ['credit', '📒 Udhaar']].map(([m, label]) => (
+          <button key={m} onClick={() => setMethod(m)} className={`rounded-xl py-3 font-bold text-xs border-2 transition-colors ${method === m ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}>
+            {label}
           </button>
         ))}
       </div>
+
+      {method === 'credit' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3 text-xs text-amber-800">
+          <b>Udhaar — money not received yet.</b> The bill closes and keeps its invoice number, and the amount stays
+          outstanding against this customer until you record the payment in <b>Reports → Udhaar</b>.
+          {!creditOk && <div className="mt-1 font-bold">Add the customer's mobile number below — you can't chase a debt with no name against it.</div>}
+        </div>
+      )}
 
       {method === 'upi' && qr && (
         <div className="flex flex-col items-center mb-4 bg-stone-50 rounded-xl p-3">
@@ -743,7 +754,9 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
         </Field>
       ) : null}
 
-      <button onClick={finish} disabled={needsReason} className={btnPrimary + ' w-full'}>✓ Collect {inr0(payable)} & Close Bill</button>
+      <button onClick={finish} disabled={blocked} className={btnPrimary + ' w-full'}>
+        {method === 'credit' ? `📒 Put ${inr0(payable)} on udhaar & Close Bill` : `✓ Collect ${inr0(payable)} & Close Bill`}
+      </button>
     </Modal>
   )
 }

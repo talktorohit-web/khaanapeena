@@ -67,7 +67,13 @@ export default function Profit({ state, range }) {
   const ecoNet = ecoRows.reduce((s, r) => s + r.net, 0)
   const ecoKept = ecoGross - ecoNet
 
-  const netRevenue = ownNet + ecoNet
+  // a refund is revenue handed straight back — it can't stay in the top line
+  const refundTotal = paid.reduce((s, o) => (o.refund && o.refund.at >= range.from && o.refund.at < range.to ? s + o.refund.amount : s), 0)
+  const netRevenue = ownNet + ecoNet - refundTotal
+
+  // udhaar is earned but not collected — profit and cash are different things
+  const udhaarOpen = paid.filter((o) => o.payment?.method === 'credit' && !o.creditPaid)
+  const udhaarValue = udhaarOpen.reduce((s, o) => s + amt(o), 0)
 
   // ---- cost of ingredients ----
   const cogs = useMemo(() => {
@@ -109,9 +115,22 @@ export default function Profit({ state, range }) {
   const monthlyOverheads = OVERHEADS.reduce((s, [k]) => s + (+ov[k] || 0), 0)
   const overheadsForPeriod = (monthlyOverheads / 30) * days
 
+  // Real expenses beat typed estimates. Counting BOTH would double-charge the same
+  // rent, so it's one or the other and the page says which it used.
+  const booked = (state.expenses || []).filter((e) => e.at >= range.from && e.at < range.to)
+  const bookedTotal = booked.reduce((s, e) => s + e.amount, 0)
+  const bookedByHead = useMemo(() => {
+    const m = {}
+    booked.forEach((e) => { m[e.reason] = (m[e.reason] || 0) + e.amount })
+    return Object.entries(m).map(([reason, value]) => ({ reason, value })).sort((a, b) => b.value - a.value)
+  }, [booked])
+  const [useBooked, setUseBooked] = useState(true)
+  const onBooked = bookedTotal > 0 && useBooked
+
+  const runningCosts = onBooked ? bookedTotal : overheadsForPeriod
   const grossProfit = netRevenue - totalCogs - wasteValue - shrinkage
-  const netProfit = grossProfit - overheadsForPeriod
-  const hasOverheads = monthlyOverheads > 0
+  const netProfit = grossProfit - runningCosts
+  const hasOverheads = monthlyOverheads > 0 || bookedTotal > 0
 
   const saveOverheads = () => {
     update((s) => {
@@ -128,6 +147,7 @@ export default function Profit({ state, range }) {
       ['Aggregator customers paid ₹', Math.round(ecoGross)],
       ['Aggregator kept (commission + GST + TDS) ₹', -Math.round(ecoKept)],
       ['Aggregator money received ₹', Math.round(ecoNet)],
+      ['Less refunds / sales returns ₹', -Math.round(refundTotal)],
       ['NET REVENUE ₹', Math.round(netRevenue)], [],
       ['COSTS'],
       ['Ingredients (costed dishes) ₹', -Math.round(cogs.costed)],
@@ -136,12 +156,15 @@ export default function Profit({ state, range }) {
       ['Stock shortage found on counting ₹', -Math.round(shrinkage)],
       ['GROSS PROFIT (before running costs) ₹', Math.round(grossProfit)],
       ['Gross margin %', pct(grossProfit, netRevenue)], [],
-      ['RUNNING COSTS (monthly figures prorated over ' + days.toFixed(0) + ' days)'],
-      ...OVERHEADS.map(([k, label]) => [label.replace(/^\S+\s/, '') + ' ₹', -Math.round(((+ov[k] || 0) / 30) * days)]),
-      ['Total running costs ₹', -Math.round(overheadsForPeriod)], [],
+      [onBooked ? 'RUNNING COSTS (expenses actually booked)' : 'RUNNING COSTS (monthly estimates prorated over ' + days.toFixed(0) + ' days)'],
+      ...(onBooked
+        ? bookedByHead.map((h) => [h.reason + ' ₹', -Math.round(h.value)])
+        : OVERHEADS.map(([k, label]) => [label.replace(/^\S+\s/, '') + ' ₹', -Math.round(((+ov[k] || 0) / 30) * days)])),
+      ['Total running costs ₹', -Math.round(runningCosts)], [],
       ['NET PROFIT ₹', Math.round(netProfit)],
       ['Net margin %', pct(netProfit, netRevenue)],
       ['Profit per day ₹', Math.round(netProfit / days)],
+      ['Udhaar earned but not collected ₹', Math.round(udhaarValue)],
       [], ['Discounts given (already excluded from revenue) ₹', Math.round(discounts)],
       ['Recipe coverage %', Math.round(cogs.coverage * 100)]]
     download(`khaanapeena-profit-loss-${slug(range)}.csv`, out)
@@ -200,6 +223,7 @@ export default function Profit({ state, range }) {
             <L l="Zomato / Swiggy — customers paid" v={ecoGross} />
             <L l="Less what the aggregators kept" note="commission, GST on commission and TDS" v={-ecoKept} neg />
           </>}
+          {refundTotal > 0 && <L l="Less refunds / sales returns" note="money handed back to guests" v={-refundTotal} neg />}
           <Total l="Net revenue" v={netRevenue} />
 
           <Group>Cost of food</Group>
@@ -214,11 +238,25 @@ export default function Profit({ state, range }) {
           <Group>
             <div className="flex items-center justify-between">
               <span>Running costs</span>
-              <button onClick={() => { setDraft(ov); setEditing((e) => !e) }} className="text-xs font-bold text-saffron-700 normal-case tracking-normal">
-                {editing ? 'Cancel' : hasOverheads ? '✏️ Edit' : '➕ Add yours'}
+              <button onClick={() => { setDraft(ov); setEditing((e) => !e) }} className="text-xs font-bold text-saffron-700 normal-case tracking-normal kp-noprint">
+                {editing ? 'Cancel' : monthlyOverheads > 0 ? '✏️ Edit estimates' : '➕ Add estimates'}
               </button>
             </div>
           </Group>
+
+          {bookedTotal > 0 && (
+            <div className="bg-stone-50 rounded-xl p-3 my-2 flex items-start justify-between gap-3">
+              <div className="text-xs text-stone-600 leading-relaxed max-w-md">
+                <b className="text-ink-900">Use the {inr0(bookedTotal)} of expenses you actually booked</b>
+                <div className="mt-0.5">
+                  {onBooked
+                    ? `Real entries from the Expenses screen — ${booked.length} of them. Your typed monthly estimates are ignored, because counting both would charge the same rent twice.`
+                    : `Using your typed monthly estimates (${inr0(overheadsForPeriod)} for these ${days.toFixed(0)} days) instead of the ${booked.length} expenses you booked.`}
+                </div>
+              </div>
+              <Toggle on={useBooked} onChange={setUseBooked} />
+            </div>
+          )}
 
           {editing ? (
             <div className="bg-stone-50 rounded-xl p-4 my-2">
@@ -245,13 +283,21 @@ export default function Profit({ state, range }) {
             </div>
           ) : hasOverheads ? (
             <>
-              {OVERHEADS.filter(([k]) => +ov[k] > 0).map(([k, label]) => (
-                <L key={k} l={label} note={`${inr0(+ov[k])} a month`} v={-((+ov[k] / 30) * days)} neg />
-              ))}
+              {onBooked
+                ? bookedByHead.map((h) => <L key={h.reason} l={h.reason} note="booked in Expenses" v={-h.value} neg />)
+                : OVERHEADS.filter(([k]) => +ov[k] > 0).map(([k, label]) => (
+                  <L key={k} l={label} note={`${inr0(+ov[k])} a month · estimated`} v={-((+ov[k] / 30) * days)} neg />
+                ))}
               <Total l="Net profit" v={netProfit} sub={`${pct(netProfit, netRevenue)}% margin · ${inr0(netProfit / days)} a day`} big />
+              {udhaarValue > 0 && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-3">
+                  ⚠️ {inr0(udhaarValue)} of this is <b>udhaar not yet collected</b> ({udhaarOpen.length} bill{udhaarOpen.length === 1 ? '' : 's'}).
+                  It counts as earned, but it isn't in your hand — chase it in <b>Reports → Udhaar</b>.
+                </p>
+              )}
             </>
           ) : (
-            <p className="text-sm text-stone-400 py-3">Not entered yet — the figure above is profit <i>before</i> rent, salaries and bills.</p>
+            <p className="text-sm text-stone-400 py-3">Not entered yet — the figure above is profit <i>before</i> rent, salaries and bills. Book them on the <b>Expenses</b> screen, or type monthly estimates above.</p>
           )}
         </div>
       </Card>

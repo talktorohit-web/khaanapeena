@@ -20,23 +20,49 @@ export const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000)
 
 // cash-register shift totals — sales during the shift window + drawer math.
 // Used live for the X-report (open shift) and snapshotted into the Z-report on close.
-export function shiftTotals(shift, orders) {
+// `expenses` and refunds both take real cash out of the drawer, so the expected
+// figure has to know about them or every till will read short at closing time.
+export function shiftTotals(shift, orders, expenses) {
   const from = shift.openedAt || 0
   const to = shift.closedAt || Date.now() + 1000
   const paid = (orders || []).filter((o) => o.status === 'paid' && o.paidAt >= from && o.paidAt < to)
   const mode = (m) => paid.filter((o) => (o.payment?.method || 'cash') === m).reduce((s, o) => s + (o.payment?.amount || 0), 0)
-  const cash = mode('cash'), upi = mode('upi'), card = mode('card'), online = mode('online')
+  const cash = mode('cash'), upi = mode('upi'), card = mode('card'), online = mode('online'), credit = mode('credit')
   const cashIn = (shift.cashMovements || []).filter((m) => m.type === 'in').reduce((s, m) => s + (m.amount || 0), 0)
   const cashOut = (shift.cashMovements || []).filter((m) => m.type === 'out').reduce((s, m) => s + (m.amount || 0), 0)
+  const cashExpenses = (expenses || [])
+    .filter((e) => e.paidFrom === 'cash' && e.at >= from && e.at < to)
+    .reduce((s, e) => s + (e.amount || 0), 0)
+  const cashRefunds = paid
+    .filter((o) => o.refund && (o.refund.method || 'cash') === 'cash')
+    .reduce((s, o) => s + (o.refund.amount || 0), 0)
   const openingFloat = shift.openingFloat || 0
   return {
-    cash, upi, card, online, gross: cash + upi + card + online,
+    cash, upi, card, online, credit,
+    gross: cash + upi + card + online + credit,
     bills: paid.length,
     discounts: paid.reduce((s, o) => s + (o.payment?.discount || 0), 0),
-    cashIn, cashOut, openingFloat,
-    expectedCash: openingFloat + cash + cashIn - cashOut, // what should be in the drawer
+    cashIn, cashOut, cashExpenses, cashRefunds, openingFloat,
+    // what should physically be in the drawer right now
+    expectedCash: openingFloat + cash + cashIn - cashOut - cashExpenses - cashRefunds,
   }
 }
+
+// Expense heads a small Indian restaurant actually books money against. Kept as a
+// fixed list so the expense report groups cleanly instead of collecting fifty
+// spellings of "vegetables".
+export const EXPENSE_REASONS = [
+  'Salary / Wages', 'Rent', 'Electricity', 'Water', 'Gas / LPG',
+  'Vegetables & Fruit', 'Milk & Dairy', 'Meat & Poultry', 'Groceries & Provisions',
+  'Repairs & Maintenance', 'Cleaning & Housekeeping', 'Transport / Fuel',
+  'Internet & Phone', 'Licence & Government Fees', 'Marketing & Promotion',
+  'Staff Food', 'Crockery & Utensils', 'Petty Cash', 'Other',
+]
+
+export const PAID_FROM = [
+  ['cash', 'From Cash'], ['bank', 'From Bank / UPI'], ['card', 'From Card'], ['owner', "Owner's pocket"],
+]
+export const paidFromLabel = (k) => PAID_FROM.find(([c]) => c === k)?.[1] || k
 
 // manager authorization: matches the settings Manager PIN, or any staff member
 // with a manager/admin/owner role whose PIN matches. Returns {name} or null.

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { StatCard, Empty, Badge } from '../components.jsx'
 import { HBars } from '../charts.jsx'
-import { inr0, inr } from '../utils.js'
+import { inr0, inr, billTotals } from '../utils.js'
 import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt } from './shared.jsx'
 
 // Menu engineering: every dish lands in one of four boxes depending on whether it
@@ -70,6 +70,53 @@ export default function Items({ state, range }) {
     return Object.values(m).filter((c) => c.items > 0).sort((a, b) => b.rev - a.rev)
   }, [rows])
 
+  /**
+   * Group report — category → item with the accounting columns:
+   * qty, gross before discount, discount, net, tax, and total sales.
+   *
+   * A bill's discount and tax are apportioned down to each line by its share of
+   * the bill's value, which is the only way a mixed bill's ₹100 off can be split
+   * fairly across the dishes on it. Matches the column set a Petpooja "Group
+   * Report" prints, so an owner can reconcile the two side by side.
+   */
+  const groupReport = useMemo(() => {
+    const composition = state.settings.gstScheme === 'composition'
+    const byCat = {}
+    paid.forEach((o) => {
+      const bt = billTotals(o, state.settings)
+      if (!bt.sub) return
+      const billTax = composition ? 0 : bt.cgst + bt.sgst
+      ;(o.items || []).forEach((li) => {
+        const item = (state.items || []).find((i) => i.id === li.itemId)
+        const catId = item?.catId || '__none'
+        const cat = (byCat[catId] = byCat[catId] || { id: catId, name: catName(catId), items: {} })
+        const row = (cat.items[li.itemId + '|' + li.name] = cat.items[li.itemId + '|' + li.name]
+          || { name: li.name, qty: 0, gross: 0, discount: 0, tax: 0 })
+        const lineValue = li.price * li.qty
+        const share = lineValue / bt.sub
+        row.qty += li.qty
+        row.gross += lineValue
+        row.discount += bt.discount * share
+        row.tax += billTax * share
+      })
+    })
+    return Object.values(byCat)
+      .map((c) => {
+        const items = Object.values(c.items)
+          .map((r) => ({ ...r, net: r.gross - r.discount, total: r.gross - r.discount + r.tax }))
+          .sort((a, b) => b.total - a.total)
+        const sum = (k) => items.reduce((s, r) => s + r[k], 0)
+        return { ...c, items, sub: { qty: sum('qty'), gross: sum('gross'), discount: sum('discount'), net: sum('net'), tax: sum('tax'), total: sum('total') } }
+      })
+      .filter((c) => c.items.length)
+      .sort((a, b) => b.sub.total - a.sub.total)
+  }, [paid, state.items, state.settings, cats])
+
+  const grand = groupReport.reduce((a, c) => ({
+    qty: a.qty + c.sub.qty, gross: a.gross + c.sub.gross, discount: a.discount + c.sub.discount,
+    net: a.net + c.sub.net, tax: a.tax + c.sub.tax, total: a.total + c.sub.total,
+  }), { qty: 0, gross: 0, discount: 0, net: 0, tax: 0, total: 0 })
+
   // add-ons: what guests choose on top, and how often. Attach rate is measured
   // against that dish's own plates — "40% of Paneer Tikka went out extra spicy"
   // is actionable; "40 extra-spicy" on its own isn't.
@@ -128,6 +175,14 @@ export default function Items({ state, range }) {
     ]))
     out.push([], ['CATEGORY-WISE'], ['Category', 'Dishes selling', 'Plates', 'Revenue ₹', 'Share %', 'Avg per plate ₹'])
     catRows.forEach((c) => out.push([c.name, `${c.sellingItems}/${c.items}`, c.qty, Math.round(c.rev), pct(c.rev, gross), c.qty ? Math.round(c.rev / c.qty) : 0]))
+    if (groupReport.length) {
+      out.push([], ['GROUP REPORT'], ['Group', 'Item', 'Qty', 'Gross ₹', 'Discount ₹', 'Net ₹', 'Tax ₹', 'Total sales ₹'])
+      out.push(['Total', '-', grand.qty, Math.round(grand.gross), Math.round(grand.discount), Math.round(grand.net), Math.round(grand.tax), Math.round(grand.total)])
+      groupReport.forEach((c) => {
+        c.items.forEach((r) => out.push([c.name, r.name, r.qty, Math.round(r.gross), Math.round(r.discount), Math.round(r.net), Math.round(r.tax), Math.round(r.total)]))
+        out.push(['Sub Total — ' + c.name, '', c.sub.qty, Math.round(c.sub.gross), Math.round(c.sub.discount), Math.round(c.sub.net), Math.round(c.sub.tax), Math.round(c.sub.total)])
+      })
+    }
     if (modRows.length) {
       out.push([], ['CHOICES & ADD-ONS'], ['Choice', 'On dish', 'Times chosen', 'Dish plates', 'Attach rate %', 'Add-on revenue ₹'])
       modRows.forEach((r) => out.push([r.name, r.dish, r.qty, r.dishQty, r.attach == null ? '' : r.attach.toFixed(1), Math.round(r.revenue)]))
@@ -205,6 +260,74 @@ export default function Items({ state, range }) {
             ))}
           </div>
           <p className="text-[11px] text-stone-400 mt-3">Only dishes with a recipe can be placed — {engineered.length} of {soldRows.length} sold dishes qualify. Add recipes in Menu to include the rest.</p>
+        </Card>
+      )}
+
+      {/* GROUP REPORT */}
+      {groupReport.length > 0 && (
+        <Card
+          flush
+          className="kp-card"
+          title="Group report — category → item"
+          sub="Each bill's discount and tax split across its lines by value. Same columns a Petpooja group report prints."
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[760px]">
+              <thead>
+                <tr className="text-xs text-stone-400 border-b border-stone-100">
+                  <th className="py-2 px-4 text-left font-medium">Group / Item</th>
+                  <th className="py-2 px-2 text-right font-medium">Qty</th>
+                  <th className="py-2 px-2 text-right font-medium">Gross</th>
+                  <th className="py-2 px-2 text-right font-medium">Discount</th>
+                  <th className="py-2 px-2 text-right font-medium">Net</th>
+                  <th className="py-2 px-2 text-right font-medium">Tax</th>
+                  <th className="py-2 px-2 text-right font-medium">Total sales</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b-2 border-stone-200 bg-stone-50 font-black text-ink-900">
+                  <td className="py-2.5 px-4">Total — all groups</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums">{grand.qty}</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums">{inr0(grand.gross)}</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums text-red-600">{grand.discount >= 1 ? '−' + inr0(grand.discount) : '—'}</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums">{inr0(grand.net)}</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums">{inr0(grand.tax)}</td>
+                  <td className="py-2.5 px-2 text-right tabular-nums text-saffron-700">{inr0(grand.total)}</td>
+                </tr>
+                {groupReport.map((c) => (
+                  <React.Fragment key={c.id}>
+                    <tr className="bg-stone-50/60">
+                      <td colSpan={7} className="py-2 px-4 font-black text-xs uppercase tracking-wider text-stone-500">{c.name}</td>
+                    </tr>
+                    {c.items.map((r, i) => (
+                      <tr key={i} className="border-b border-stone-50">
+                        <td className="py-2 px-4 pl-8 text-stone-700">{r.name}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{r.qty}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{inr0(r.gross)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{r.discount >= 1 ? <span className="text-red-600">−{inr0(r.discount)}</span> : <span className="text-stone-300">—</span>}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{inr0(r.net)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{inr0(r.tax)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums font-bold">{inr0(r.total)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-b border-stone-200 font-bold text-ink-900">
+                      <td className="py-2 px-4 text-xs">Sub-total · {c.name}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{c.sub.qty}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{inr0(c.sub.gross)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{c.sub.discount >= 1 ? '−' + inr0(c.sub.discount) : '—'}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{inr0(c.sub.net)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{inr0(c.sub.tax)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{inr0(c.sub.total)}</td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-4 py-3 text-[11px] text-stone-400">
+            Gross is what the dishes rang up to before any discount. Net = gross − discount. Total sales = net + tax.
+            {state.settings.gstScheme === 'composition' && ' Composition scheme — no tax is charged, so the tax column is zero.'}
+          </p>
         </Card>
       )}
 

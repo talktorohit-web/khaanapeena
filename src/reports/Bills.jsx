@@ -1,22 +1,106 @@
 import React, { useMemo, useState } from 'react'
-import { StatCard, Badge, Empty } from '../components.jsx'
-import { inr0, billTotals, tableName, fmtTime } from '../utils.js'
+import { useStore } from '../store.jsx'
+import { StatCard, Badge, Empty, Modal, inputCls, btnPrimary } from '../components.jsx'
+import { inr0, billTotals, tableName, fmtTime, verifyManagerPin } from '../utils.js'
 import { Card, DataTable, ExportBtn, download, paidIn, slug, amt, channelOf, channelLabel, coversOf } from './shared.jsx'
 import { discountReasonLabel } from '../utils.js'
 
 // The bill register: every settled bill, searchable, with the full line detail one
 // tap away. This is the screen an owner opens when a customer calls back about a
 // bill, or when the day's cash doesn't tally.
+const REFUND_REASONS = [
+  'Food quality complaint', 'Wrong order served', 'Too long a wait',
+  'Guest changed their mind', 'Billed twice', 'Billed the wrong amount', 'Other',
+]
+
+/**
+ * Refunding a settled bill. Manager-authorised, because it hands real money back.
+ * The invoice keeps its number and date — a GST invoice is credited, never deleted
+ * — and refunded food isn't resellable, so no stock comes back.
+ */
+function RefundModal({ order, state, onClose, onDone }) {
+  const paidAmt = order.payment?.amount || 0
+  const [full, setFull] = useState(true)
+  const [amount, setAmount] = useState(String(paidAmt))
+  const [reason, setReason] = useState('')
+  const [method, setMethod] = useState(order.payment?.method === 'credit' ? 'cash' : (order.payment?.method || 'cash'))
+  const [pin, setPin] = useState('')
+  const [err, setErr] = useState('')
+
+  const amt = full ? paidAmt : Math.max(0, Math.min(paidAmt, +amount || 0))
+  const ready = amt > 0 && !!reason
+
+  const submit = () => {
+    if (!verifyManagerPin(state, pin)) { setErr('Wrong manager PIN'); setPin(''); return }
+    onDone({ amount: amt, reason, method, by: verifyManagerPin(state, pin).name })
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`↩ Refund bill #${order.billNo}`}>
+      <div className="bg-stone-50 rounded-xl p-3 mb-3 text-xs text-stone-600">
+        <div className="flex justify-between"><span>Settled on</span><b>{new Date(order.paidAt).toLocaleString('en-IN')}</b></div>
+        <div className="flex justify-between"><span>Paid by</span><b>{String(order.payment?.method || 'cash').toUpperCase()}</b></div>
+        <div className="flex justify-between"><span>Bill amount</span><b className="text-ink-900">{inr0(paidAmt)}</b></div>
+        <div className="mt-1 text-stone-500">{(order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ')}</div>
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        {[[true, 'Full refund'], [false, 'Part refund']].map(([v, l]) => (
+          <button key={String(v)} onClick={() => setFull(v)} className={`flex-1 rounded-xl py-2.5 font-bold text-sm border-2 ${full === v ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}>{l}</button>
+        ))}
+      </div>
+      {!full && (
+        <label className="block mb-3">
+          <span className="text-xs font-semibold text-stone-500 block mb-1">How much to give back (max {inr0(paidAmt)})</span>
+          <input type="number" min="0" max={paidAmt} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls + ' text-right tabular-nums'} />
+        </label>
+      )}
+
+      <span className="text-xs font-semibold text-stone-500 block mb-1">Why? <span className="text-red-500">*</span></span>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {REFUND_REASONS.map((r) => (
+          <button key={r} onClick={() => setReason(r)} className={`text-[11px] font-semibold rounded-full px-2.5 py-1.5 border ${reason === r ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-stone-200 text-stone-600'}`}>{r}</button>
+        ))}
+      </div>
+
+      <span className="text-xs font-semibold text-stone-500 block mb-1">Money given back as</span>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {[['cash', '💵 Cash'], ['upi', '📲 UPI'], ['card', '💳 Card']].map(([k, l]) => (
+          <button key={k} onClick={() => setMethod(k)} className={`rounded-xl py-2.5 font-bold text-xs border-2 ${method === k ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}>{l}</button>
+        ))}
+      </div>
+
+      <label className="block mb-1">
+        <span className="text-xs font-semibold text-stone-500 block mb-1">Manager PIN</span>
+        <input
+          type="password" inputMode="numeric" value={pin}
+          onChange={(e) => { setPin(e.target.value.replace(/\D/g, '').slice(0, 6)); setErr('') }}
+          onKeyDown={(e) => e.key === 'Enter' && ready && submit()}
+          placeholder="••••" className={inputCls + ' text-center text-xl tracking-[0.4em] font-mono'}
+        />
+      </label>
+      {err && <p className="text-xs text-red-600 mb-2">{err}</p>}
+
+      <button onClick={submit} disabled={!ready || pin.length < 4} className={btnPrimary + ' w-full mt-2'}>
+        ↩ Refund {inr0(amt)}
+      </button>
+      <p className="text-[10px] text-stone-400 mt-2 text-center">The bill keeps invoice #{order.billNo} and its original date. Stock is not returned.</p>
+    </Modal>
+  )
+}
+
 // A busy month is thousands of bills, and a cheap Android till chokes rendering
 // them all. Show a page at a time — search and the mode filter narrow first, so
 // the bill anyone is actually hunting for is nearly always in the first page.
 const PAGE = 250
 
 export default function Bills({ state, range }) {
+  const { refundBill } = useStore()
   const [q, setQ] = useState('')
   const [mode, setMode] = useState('all')
   const [open, setOpen] = useState(null)
   const [limit, setLimit] = useState(PAGE)
+  const [refunding, setRefunding] = useState(null)
 
   const paid = useMemo(() => paidIn(state, range), [state.orders, range])
   const cancelled = useMemo(
@@ -187,7 +271,20 @@ export default function Bills({ state, range }) {
               return state.settings.gstScheme === 'composition' ? <span className="text-stone-300">—</span> : inr0(bt.cgst + bt.sgst)
             }, foot: () => inr0(shownTax) },
             { h: 'Mode', cell: (o) => <Badge color={{ cash: 'green', upi: 'blue', card: 'purple', online: 'saffron' }[o.payment?.method || 'cash'] || 'stone'}>{(o.payment?.method || 'cash').toUpperCase()}</Badge> },
-            { h: 'Total', num: true, cell: (o) => <b className="text-ink-900">{inr0(amt(o))}</b>, foot: () => inr0(shownGross) },
+            { h: 'Total', num: true, cell: (o) => (
+              <div>
+                <b className="text-ink-900">{inr0(amt(o))}</b>
+                {o.refund && <div className="text-[11px] text-red-600">−{inr0(o.refund.amount)} refunded</div>}
+              </div>
+            ), foot: () => inr0(shownGross) },
+            { h: '', cell: (o) => o.refund
+              ? <Badge color="red">returned</Badge>
+              : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setRefunding(o) }}
+                  className="text-xs font-bold text-stone-500 hover:text-red-600 border border-stone-200 rounded-lg px-2 py-1 kp-noprint whitespace-nowrap"
+                >↩ Refund</button>
+              ) },
           ]}
         />
         {rows.length > visible.length && (
@@ -198,6 +295,15 @@ export default function Bills({ state, range }) {
           </div>
         )}
       </Card>
+
+      {refunding && (
+        <RefundModal
+          order={refunding}
+          state={state}
+          onClose={() => setRefunding(null)}
+          onDone={(payload) => { refundBill(refunding.id, payload); setRefunding(null) }}
+        />
+      )}
 
       {cancelled.length > 0 && (
         <Card flush title="🚫 Cancelled orders" sub="Punched but never billed — food may still have been cooked">

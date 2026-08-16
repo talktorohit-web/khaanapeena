@@ -39,7 +39,16 @@ export default function Discounts({ state, range }) {
   const compValue = comps.reduce((s, r) => s + r.bt.discount, 0)
   const hhRows = rows.filter((r) => r.hh)
   const voidValue = voids.reduce((s, v) => s + (v.amount || 0), 0)
-  const totalGiveaway = totalDiscount + voidValue
+
+  // refunds / sales returns — money that came in and went back out again
+  const refunds = useMemo(
+    () => paid.filter((o) => o.refund && o.refund.at >= range.from && o.refund.at < range.to)
+      .sort((a, b) => b.refund.at - a.refund.at),
+    [paid, range]
+  )
+  const refundValue = refunds.reduce((s, o) => s + (o.refund.amount || 0), 0)
+
+  const totalGiveaway = totalDiscount + voidValue + refundValue
 
   // discount over time, so a creeping habit shows up
   const trend = useMemo(
@@ -86,6 +95,7 @@ export default function Discounts({ state, range }) {
       ['100% free bills', comps.length],
       ['Value given free ₹', Math.round(compValue)],
       ['Voided after KOT ₹', Math.round(voidValue)],
+      ['Refunded ₹', Math.round(refundValue)], ['Sales returns', refunds.length],
       ['Total giveaway ₹', Math.round(totalGiveaway)],
       ['Giveaway as % of sales', pct(totalGiveaway, gross + totalDiscount)],
       [], ['WHY DISCOUNTS WERE GIVEN'], ['Reason', 'Bills', 'Value ₹', 'Share of discounts %']]
@@ -98,15 +108,21 @@ export default function Discounts({ state, range }) {
       Math.round(r.bt.sub), Math.round(r.bt.discount),
       r.rate.toFixed(1), r.isComp ? 'YES' : '', r.hh ? 'YES' : '', amt(r.o), r.o.payment?.method || '', r.o.settledBy || '',
     ]))
+    out.push([], ['REFUNDS / SALES RETURNS'], ['Bill No', 'Bill date', 'Refunded on', 'Type', 'Table', 'Reason', 'Bill ₹', 'Refunded ₹', 'Full?', 'Back via', 'By'])
+    refunds.forEach((o) => out.push([
+      o.billNo, new Date(o.paidAt).toLocaleDateString('en-IN'), new Date(o.refund.at).toLocaleString('en-IN'),
+      o.type, tableName(state.tables, o.tableId) || '', o.refund.reason || '',
+      amt(o), Math.round(o.refund.amount), o.refund.full ? 'YES' : '', o.refund.method, o.refund.by,
+    ]))
     out.push([], ['VOIDED AFTER KOT'], ['Item', 'Qty', 'Value ₹', 'By', 'Table', 'When'])
     voids.forEach((v) => out.push([v.item, v.qty, Math.round(v.amount || 0), v.by, v.tableId || '', new Date(v.at).toLocaleString('en-IN')]))
     download(`khaanapeena-discounts-voids-${slug(range)}.csv`, out)
   }
 
-  if (!rows.length && !voids.length) {
+  if (!rows.length && !voids.length && !refunds.length) {
     return (
       <Card>
-        <Empty icon="✅" text={`No discounts, freebies or voids in ${range.label.toLowerCase()} — nothing leaked.`} />
+        <Empty icon="✅" text={`No discounts, refunds, freebies or voids in ${range.label.toLowerCase()} — nothing leaked.`} />
       </Card>
     )
   }
@@ -120,10 +136,29 @@ export default function Discounts({ state, range }) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Total given away" value={inr0(totalGiveaway)} sub={`${giveawayPct}% of what you could have earned`} icon="💸" accent={giveawayPct > 10 ? 'red' : 'saffron'} />
         <StatCard label="Discounts" value={inr0(totalDiscount)} sub={`on ${rows.length} bill${rows.length === 1 ? '' : 's'}`} icon="🏷️" accent="blue" />
+        <StatCard label="Refunded back" value={inr0(refundValue)} sub={`${refunds.length} sales return${refunds.length === 1 ? '' : 's'}`} icon="↩️" accent={refunds.length ? 'red' : 'green'} />
         <StatCard label="Given 100% free" value={comps.length} sub={inr0(compValue)} icon="🎁" accent={comps.length ? 'red' : 'green'} />
         <StatCard label="Voided after cooking" value={voids.length} sub={inr0(voidValue)} icon="🔒" accent={voids.length ? 'red' : 'green'} />
-        <StatCard label="Avg discount" value={rows.length ? inr0(totalDiscount / rows.length) : '₹0'} sub={rows.length ? `${(rows.reduce((s, r) => s + r.rate, 0) / rows.length).toFixed(0)}% off a bill` : ''} icon="📉" accent="purple" />
       </div>
+
+      {refunds.length > 0 && (
+        <Card flush className="kp-card" title="↩️ Refunds / sales returns" sub="Bills that were settled and then paid back. The invoice keeps its number — a GST invoice is credited, never deleted.">
+          <DataTable
+            scroll
+            rows={refunds}
+            keyOf={(o) => o.id}
+            cols={[
+              { h: 'Bill', cell: (o) => <div><span className="font-black">#{o.billNo}</span>{o.refund.full && <div className="mt-0.5"><Badge color="red">FULL</Badge></div>}</div>, foot: () => `${refunds.length} returns` },
+              { h: 'Refunded', cell: (o) => <div><div>{new Date(o.refund.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div><div className="text-[11px] text-stone-400">{fmtTime(o.refund.at)} · by {o.refund.by}</div></div> },
+              { h: 'Type', cell: (o) => <div><div className="text-xs">{channelLabel(channelOf(o))}</div>{o.tableId && <div className="text-[11px] text-stone-400">🪑 {tableName(state.tables, o.tableId)}</div>}</div> },
+              { h: 'Reason', cell: (o) => o.refund.reason || <span className="text-stone-300">not given</span> },
+              { h: 'Bill was', num: true, cell: (o) => inr0(amt(o)), foot: () => inr0(refunds.reduce((s, o) => s + amt(o), 0)) },
+              { h: 'Refunded', num: true, cell: (o) => <b className="text-red-600">−{inr0(o.refund.amount)}</b>, foot: () => inr0(refundValue) },
+              { h: 'Back via', cell: (o) => <Badge color={o.refund.method === 'cash' ? 'green' : 'blue'}>{String(o.refund.method).toUpperCase()}</Badge> },
+            ]}
+          />
+        </Card>
+      )}
 
       {giveawayPct > 10 && (
         <Note tone="red">

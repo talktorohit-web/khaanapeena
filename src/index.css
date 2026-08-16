@@ -36,4 +36,30 @@ body { background: #f7f5f2; }
   body * { visibility: hidden; }
   #kp-print, #kp-print * { visibility: visible; }
   #kp-print { position: absolute; left: 0; top: 0; width: 72mm; font-family: "Courier New", monospace; font-size: 11px; color: #000; }
+
+  /* Reports print to PDF through the browser's own "Save as PDF" — no library,
+     works identically in the browser, the PC app and the Android app. */
+  #kp-report, #kp-report * { visibility: visible; }
+  #kp-report { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+  .kp-noprint { display: none !important; }
+  .kp-printonly { display: block !important; }
+
+  /* on screen these panes scroll; on paper they must show everything */
+  #kp-report .overflow-y-auto,
+  #kp-report .overflow-x-auto { overflow: visible !important; max-height: none !important; }
+
+  /* keep a card, and a table's header with its first rows, off a page break */
+  #kp-report .kp-card { break-inside: avoid; page-break-inside: avoid; }
+  #kp-report thead { display: table-header-group; }
+  #kp-report tr { break-inside: avoid; page-break-inside: avoid; }
+
+  #kp-report table { font-size: 9px; width: 100%; }
+  #kp-report .shadow-sm, #kp-report .shadow, #kp-report .shadow-xl { box-shadow: none !important; }
+
+  /* bars, donuts and status pills carry meaning — don't let the printer drop them */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  @page { size: A4 portrait; margin: 10mm; }
 }
+
+.kp-printonly { display: none; }
