@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName, DISCOUNT_REASONS, discountReasonLabel } from '../utils.js'
+import { inr, inr0, billTotals, verifyManagerPin, tableName, discountReasonLabel, payModeLabel, VOID_REASONS } from '../utils.js'
 import { usePerms } from '../perms.jsx'
 import { hasModifiers, effectivePrice, lineKey, modsLabel, modsTotal } from '../modifiers.js'
 import ModifierPicker from '../ModifierPicker.jsx'
+import SettleModal from './SettleModal.jsx'
 import { printBill, printKOT, inElectron } from '../print.js'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 
@@ -18,12 +19,11 @@ const webSpeechOk = () => typeof window !== 'undefined'
   && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   && !inElectron() && !window.Capacitor
 import { useNav } from '../nav.jsx'
-import QRCode from 'qrcode'
 
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
 
 export default function Billing() {
-  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder } = useStore()
+  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder, moveItems, setOrderWaiter, markPrinted } = useStore()
   const { focusOrderId, clearFocus } = useNav()
   const { can } = usePerms()
   const [orderId, setOrderId] = useState(null)
@@ -33,7 +33,10 @@ export default function Billing() {
   const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
   const [noteIdx, setNoteIdx] = useState(null) // which cart line's instruction is being edited
   const [noteText, setNoteText] = useState('')
-  const [modItem, setModItem] = useState(null) // dish whose choices are being picked
+  // dishes waiting for their choices to be picked. A queue rather than a single
+  // item because one voice command can name several dishes that each need asking.
+  const [modQueue, setModQueue] = useState([])
+  const [voidAsk, setVoidAsk] = useState(null) // { li, delta } awaiting a cancellation reason
 
   // guest count on a dine-in table — feeds spend-per-guest and staffing reports
   const changeCovers = (d) => update((s) => {
@@ -101,7 +104,7 @@ export default function Billing() {
   // Add a dish. When it carries modifier groups the till has to ask first, so the
   // tap opens the picker instead of punching a line straight in.
   const addItem = (item) => {
-    if (hasModifiers(item)) { setModItem(item); return }
+    if (hasModifiers(item)) { setModQueue([{ item, qty: 1 }]); return }
     pushLine(item, [], 1)
   }
 
@@ -222,16 +225,24 @@ export default function Billing() {
     if (!matches.length) return []
     let id = orderId
     if (!order) { id = newOrder({ type: 'takeaway' }); setOrderId(id) }
-    update((s) => {
-      const o = s.orders.find((x) => x.id === id)
-      if (!o) return
-      matches.forEach(({ item, qty }) => {
-        const li = o.items.find((x) => x.itemId === item.id && !x.deducted)
-        if (li) li.qty += qty
-        else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty })
+    // A dish with choices (half/full, spice level) cannot be punched from speech —
+    // nobody said which. Add the plain ones straight away and queue the rest for
+    // the picker, or a spoken "dal makhani" would silently bill a full plate.
+    const plain = matches.filter((m) => !hasModifiers(m.item))
+    const needChoice = matches.filter((m) => hasModifiers(m.item))
+    if (plain.length) {
+      update((s) => {
+        const o = s.orders.find((x) => x.id === id)
+        if (!o) return
+        plain.forEach(({ item, qty }) => {
+          const li = o.items.find((x) => !x.deducted && lineKey(x) === lineKey({ itemId: item.id, deducted: false, mods: [] }))
+          if (li) li.qty += qty
+          else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty })
+        })
       })
-    })
-    return matches.map((m) => `${m.qty}× ${m.item.name}`)
+    }
+    if (needChoice.length) setModQueue(needChoice)
+    return matches.map((m) => `${m.qty}× ${m.item.name}${hasModifiers(m.item) ? ' (choose…)' : ''}`)
   }
 
   const totals = order ? billTotals(order, state.settings) : null
@@ -257,6 +268,9 @@ export default function Billing() {
   // Try the thermal printer; fall back to the printable HTML receipt
   const doPrintBill = async () => {
     if (!order || !totals) return
+    // stamp the print time before sending: the gap to settlement is a report of
+    // its own, and an item deleted after this moment is a different event
+    markPrinted(orderId)
     const res = await printBill(order, state.settings, totals)
     if (res.ok) flashPrint('🖨️ Bill printed')
     else setPrintOrder(order)
@@ -371,6 +385,21 @@ export default function Billing() {
                   {state.tables.map((tb) => <option key={tb.id} value={tb.id}>{tb.name} ({tb.area})</option>)}
                 </select>
               )}
+              {/* Who is serving this table. Assigned at seating so waiter-wise
+                  sales and the employee ranking rest on a real record. */}
+              {order.type === 'dine' && (
+                <select
+                  value={order.waiterId || ''}
+                  onChange={(e) => setOrderWaiter(orderId, e.target.value || null)}
+                  title="Which waiter is looking after this table"
+                  className={`text-xs border rounded-lg px-2 py-1 ${order.waiterId ? 'border-stone-200 text-stone-600' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+                >
+                  <option value="">Waiter…</option>
+                  {(state.staff || []).filter((s) => s.present !== false).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.role ? ` (${s.role})` : ''}</option>
+                  ))}
+                </select>
+              )}
               {/* How many guests are on this table. Amber until it's set, because an
                   unfilled cover count silently blanks the per-guest reports. */}
               {order.type === 'dine' && (
@@ -431,9 +460,9 @@ export default function Billing() {
                     {li.deducted ? (
                       editUnlock ? (
                         <>
-                          <QtyBtn onClick={() => rectifyLine(orderId, li, -1, authManager)}>−</QtyBtn>
+                          <QtyBtn onClick={() => setVoidAsk({ li, delta: -1 })}>−</QtyBtn>
                           <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
-                          <button title="Remove this item" onClick={() => rectifyLine(orderId, li, 'remove', authManager)} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
+                          <button title="Remove this item" onClick={() => setVoidAsk({ li, delta: 'remove' })} className="w-6 h-6 rounded-md bg-red-100 hover:bg-red-200 text-red-600 font-bold text-sm leading-none">🗑</button>
                         </>
                       ) : (
                         <>
@@ -507,11 +536,22 @@ export default function Billing() {
           happyHourNow={happyHourNow}
         />
       )}
-      {modItem && (
+      {voidAsk && (
+        <VoidReasonModal
+          line={voidAsk.li}
+          remove={voidAsk.delta === 'remove'}
+          onClose={() => setVoidAsk(null)}
+          onOk={(reason) => { rectifyLine(orderId, voidAsk.li, voidAsk.delta, authManager, reason); setVoidAsk(null) }}
+        />
+      )}
+      {modQueue.length > 0 && (
         <ModifierPicker
-          item={modItem}
-          onClose={() => setModItem(null)}
-          onAdd={(mods, qty) => { pushLine(modItem, mods, qty); setModItem(null) }}
+          key={modQueue[0].item.id + modQueue.length}
+          item={modQueue[0].item}
+          initialQty={modQueue[0].qty}
+          queued={modQueue.length - 1}
+          onClose={() => setModQueue((q) => q.slice(1))}
+          onAdd={(mods, qty) => { pushLine(modQueue[0].item, mods, qty); setModQueue((q) => q.slice(1)) }}
         />
       )}
       {printOrder && <BillPrint order={printOrder} onClose={() => setPrintOrder(null)} />}
@@ -530,6 +570,7 @@ export default function Billing() {
           tables={state.tables}
           onMerge={(fromId) => { mergeOrders(order.id, fromId); setBillOps(false) }}
           onSplit={(picks) => { const nid = splitOrder(order.id, picks); setBillOps(false); if (nid) setOrderId(nid) }}
+          onMove={(toId, picks) => { moveItems(order.id, toId, picks); setBillOps(false) }}
           onClose={() => setBillOps(false)}
         />
       )}
@@ -537,23 +578,73 @@ export default function Billing() {
   )
 }
 
-function BillOpsModal({ order, orders, tables, onMerge, onSplit, onClose }) {
+function BillOpsModal({ order, orders, tables, onMerge, onSplit, onMove, onClose }) {
   const [tab, setTab] = useState('split')
   const [picks, setPicks] = useState(() => order.items.map(() => 0))
+  const [moveTo, setMoveTo] = useState('')
   const tblName = (id) => tables.find((t) => t.id === id)?.name || id
   const mergeable = orders.filter((o) => o.id !== order.id && ['open', 'kot', 'ready', 'served'].includes(o.status) && !['zomato', 'swiggy', 'whatsapp'].includes(o.type))
   const splitTotal = order.items.reduce((s, li, i) => s + li.price * (picks[i] || 0), 0)
   const anySplit = picks.some((q) => q > 0)
+  const pickList = () => order.items.map((li, i) => ({ idx: i, qty: picks[i] || 0 })).filter((p) => p.qty > 0)
+
+  // the item picker is identical for splitting and moving — only the destination differs
+  const ItemPicker = () => (
+    <div className="space-y-2 mb-3">
+      {order.items.map((li, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-ink-900 truncate">{li.name}</div>
+            <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}{li.deducted ? ' · KOT✓' : ''}{li.mods?.length ? ` · ${modsLabel(li.mods)}` : ''}</div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPicks((p) => p.map((q, j) => (j === i ? Math.max(0, q - 1) : q)))} className="w-7 h-7 rounded-md bg-stone-100 font-bold">−</button>
+            <span className="w-8 text-center text-sm font-bold tabular-nums">{picks[i] || 0}</span>
+            <button onClick={() => setPicks((p) => p.map((q, j) => (j === i ? Math.min(li.qty, q + 1) : q)))} className="w-7 h-7 rounded-md bg-stone-100 font-bold">＋</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
-    <Modal open title="Split / Merge bill" onClose={onClose} wide>
-      <div className="flex gap-2 mb-4">
-        {[['split', '⑂ Split bill'], ['merge', '⇄ Merge tables']].map(([k, l]) => (
+    <Modal open title="Split / Move / Merge" onClose={onClose} wide>
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {[['split', '⑂ Split bill'], ['move', '➡ Move items'], ['merge', '⇄ Merge tables']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${tab === k ? 'bg-ink-900 text-white' : 'bg-stone-100 text-stone-600'}`}>{l}</button>
         ))}
       </div>
 
-      {tab === 'split' ? (
+      {tab === 'move' ? (
+        <div>
+          <p className="text-xs text-stone-400 mb-3">
+            Send selected items to another running table — when a guest moves seats, or a dish was punched on the wrong table.
+            Items already sent to the kitchen carry their KOT status across, so stock isn't deducted twice.
+          </p>
+          {mergeable.length === 0 ? (
+            <Empty icon="➡" text="No other running order to move items to." />
+          ) : (
+            <>
+              <ItemPicker />
+              <label className="block mb-3">
+                <span className="text-xs font-semibold text-stone-500 block mb-1">Move to</span>
+                <select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={inputCls}>
+                  <option value="">Choose the table…</option>
+                  {mergeable.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.tableId ? `🪑 ${tblName(o.tableId)}` : o.type.toUpperCase()} · {(o.items || []).reduce((s, li) => s + li.qty, 0)} items
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center justify-between border-t border-stone-100 pt-3">
+                <div className="text-sm text-stone-500">Moving <b className="text-ink-900 ml-1">{inr0(splitTotal)}</b></div>
+                <button disabled={!anySplit || !moveTo} onClick={() => onMove(moveTo, pickList())} className={btnPrimary}>Move items</button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : tab === 'split' ? (
         <div>
           <p className="text-xs text-stone-400 mb-3">Move items onto a separate bill (for a guest paying on their own). The rest stays on this bill; both are settled separately.</p>
           <div className="space-y-2 mb-3">
@@ -595,6 +686,29 @@ function BillOpsModal({ order, orders, tables, onMerge, onSplit, onClose }) {
   )
 }
 
+// A cancelled item is food already cooked. Asking why at the moment it happens is
+// the only time anyone knows — the cancellation report is built on these answers.
+function VoidReasonModal({ line, remove, onClose, onOk }) {
+  const [reason, setReason] = useState('')
+  return (
+    <Modal open onClose={onClose} title={remove ? `Remove ${line.name}?` : `Reduce ${line.name} by 1?`}>
+      <p className="text-xs text-stone-500 mb-3">
+        This item has already gone to the kitchen. It will be logged against the manager, with the time,
+        and it shows up in the cancellation report.
+      </p>
+      <span className="text-xs font-semibold text-stone-500 block mb-1.5">Why? <span className="text-red-500">*</span></span>
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {VOID_REASONS.map((r) => (
+          <button key={r} onClick={() => setReason(r)} className={`text-[11px] font-semibold rounded-full px-2.5 py-1.5 border ${reason === r ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-stone-200 text-stone-600'}`}>{r}</button>
+        ))}
+      </div>
+      <button onClick={() => onOk(reason)} disabled={!reason} className={btnPrimary + ' w-full'}>
+        {remove ? 'Remove item' : 'Reduce by 1'}
+      </button>
+    </Modal>
+  )
+}
+
 function ManagerPinModal({ title, onClose, verify, onOk }) {
   const [pin, setPin] = useState('')
   const [err, setErr] = useState('')
@@ -628,139 +742,6 @@ const QtyBtn = ({ onClick, disabled, children }) => (
 const Row = ({ l, v, muted, cls = '' }) => (
   <div className={`flex justify-between ${muted ? 'text-stone-400 text-xs' : 'text-stone-600'} ${cls}`}><span>{l}</span><span>{v}</span></div>
 )
-
-function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscount = true }) {
-  const { state, t, update } = useStore()
-  const hh = state.settings.happyHour
-  const [method, setMethod] = useState('upi')
-  const [discount, setDiscount] = useState(allowDiscount && happyHourNow ? Math.round((totals.sub * hh.discountPct) / 100) : 0)
-  const [reason, setReason] = useState(allowDiscount && happyHourNow ? 'happy-hour' : '')
-  const [reasonNote, setReasonNote] = useState('')
-  const [phone, setPhone] = useState('')
-  const [custName, setCustName] = useState('')
-  const [redeem, setRedeem] = useState(0)
-  const [qr, setQr] = useState(null)
-
-  const cust = state.customers.find((c) => c.phone === phone)
-  const effTotals = billTotals({ ...order, payment: { discount: discount + redeem } }, state.settings)
-  const payable = state.settings.gstScheme === 'regular' ? effTotals.total : Math.round(effTotals.taxable + effTotals.svc)
-
-  useEffect(() => {
-    if (method === 'upi') {
-      QRCode.toDataURL(upiLink(state.settings, payable, `Bill ${order.id.slice(-4)}`), { width: 200, margin: 1 })
-        .then(setQr).catch(() => setQr(null))
-    }
-  }, [method, payable])
-
-  const finish = () => {
-    let customerId = cust?.id || null
-    if (!cust && phone.length === 10) {
-      customerId = 'cu' + Math.random().toString(36).slice(2, 8)
-      update((s) => s.customers.push({ id: customerId, name: custName || 'Guest', phone, birthday: null, points: 0, visits: 0, totalSpend: 0, lastVisit: null, tags: [] }))
-    }
-    // points redeemed with no manual discount are self-explanatory — label them
-    // automatically rather than making the cashier state the obvious
-    const total = discount + redeem
-    const finalReason = discount > 0 ? reason : (redeem > 0 ? 'loyalty' : null)
-    onDone({
-      method, discount: total, customerId, redeemPoints: redeem,
-      discountReason: total > 0 ? finalReason : null,
-      discountNote: finalReason === 'other' ? reasonNote.trim() : null,
-    })
-  }
-  const needsReason = discount > 0 && !reason
-  // an udhaar bill with no customer is an unrecoverable debt
-  const creditOk = !!cust || phone.length === 10
-  const blocked = needsReason || (method === 'credit' && !creditOk)
-
-  return (
-    <Modal open onClose={onClose} title={`${t('settle')} — ${inr0(payable)}`}>
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        {[['upi', '📲 UPI'], ['cash', `💵 ${t('cash')}`], ['card', `💳 ${t('card')}`], ['credit', '📒 Udhaar']].map(([m, label]) => (
-          <button key={m} onClick={() => setMethod(m)} className={`rounded-xl py-3 font-bold text-xs border-2 transition-colors ${method === m ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {method === 'credit' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3 text-xs text-amber-800">
-          <b>Udhaar — money not received yet.</b> The bill closes and keeps its invoice number, and the amount stays
-          outstanding against this customer until you record the payment in <b>Reports → Udhaar</b>.
-          {!creditOk && <div className="mt-1 font-bold">Add the customer's mobile number below — you can't chase a debt with no name against it.</div>}
-        </div>
-      )}
-
-      {method === 'upi' && qr && (
-        <div className="flex flex-col items-center mb-4 bg-stone-50 rounded-xl p-3">
-          <img src={qr} alt="UPI QR" className="w-40 h-40" />
-          <div className="text-xs text-stone-500 mt-1">Scan to pay · {state.settings.upiId} · {inr0(payable)}</div>
-        </div>
-      )}
-
-      <Field label={`${t('discount')} (₹)`}>
-        <input type="number" value={discount} min="0" disabled={!allowDiscount} onChange={(e) => setDiscount(Math.max(0, +e.target.value || 0))} className={inputCls + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')} />
-        {!allowDiscount && <span className="text-[11px] text-stone-400">Discounts aren't allowed for your role</span>}
-        {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600">Happy hour −{hh.discountPct}% auto-applied</span>}
-      </Field>
-
-      {/* A discount with no reason is money that leaves without a trace. Asking
-          here is the only moment anyone still knows why. */}
-      {discount > 0 && (
-        <div className="mb-3">
-          <span className="text-xs font-semibold text-stone-500 block mb-1">Why this discount? <span className="text-red-500">*</span></span>
-          <div className="flex flex-wrap gap-1.5">
-            {DISCOUNT_REASONS.map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setReason(k)}
-                className={`text-[11px] font-semibold rounded-full px-2.5 py-1.5 border transition-colors ${reason === k ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
-              >{label}</button>
-            ))}
-          </div>
-          {reason === 'other' && (
-            <input
-              autoFocus value={reasonNote} maxLength={60}
-              onChange={(e) => setReasonNote(e.target.value)}
-              placeholder="Say why in a few words"
-              className={inputCls + ' mt-2 text-sm'}
-            />
-          )}
-          {!reason && <span className="text-[11px] text-red-500 block mt-1">Pick a reason to close this bill — it's what makes the discount report useful.</span>}
-          {discount >= totals.sub && reason && reason !== 'comp' && (
-            <span className="text-[11px] text-amber-600 block mt-1">This is a 100% discount — the guest pays nothing. "On the house" may be the truer reason.</span>
-          )}
-        </div>
-      )}
-
-      <Field label="Customer mobile (loyalty)">
-        <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" className={inputCls} />
-      </Field>
-      {cust ? (
-        <div className="bg-green-50 rounded-xl p-3 mb-3 text-sm">
-          <b>{cust.name}</b> · {cust.points} {t('points')} · {cust.visits} visits
-          {cust.points >= 50 && (
-            <div className="mt-1">
-              <label className="text-xs flex items-center gap-2">
-                <input type="checkbox" checked={redeem > 0} onChange={(e) => setRedeem(e.target.checked ? Math.min(cust.points, Math.floor(totals.sub / 2)) : 0)} />
-                Redeem {Math.min(cust.points, Math.floor(totals.sub / 2))} points (₹{Math.min(cust.points, Math.floor(totals.sub / 2))} off)
-              </label>
-            </div>
-          )}
-        </div>
-      ) : phone.length === 10 ? (
-        <Field label="New customer name">
-          <input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="Name (optional)" className={inputCls} />
-        </Field>
-      ) : null}
-
-      <button onClick={finish} disabled={blocked} className={btnPrimary + ' w-full'}>
-        {method === 'credit' ? `📒 Put ${inr0(payable)} on udhaar & Close Bill` : `✓ Collect ${inr0(payable)} & Close Bill`}
-      </button>
-    </Modal>
-  )
-}
-
 export function BillPrint({ order, onClose }) {
   const { state } = useStore()
   const s = state.settings
@@ -784,16 +765,35 @@ export function BillPrint({ order, onClose }) {
         </div>
         <div className="border-t border-dashed border-stone-400 my-1" />
         <div>Bill No: {order.billNo || 'DRAFT'} · {order.tableId ? `Table ${order.tableId}` : order.type}{order.covers ? ` · ${order.covers} guest${order.covers > 1 ? 's' : ''}` : ''}</div>
+        {order.waiterName && <div>Served by: {order.waiterName}</div>}
+        {order.party?.type === 'firm' && (
+          <div className="border border-dashed border-stone-400 px-1 my-1">
+            <div>Billed to: {order.party.name}</div>
+            <div>GSTIN: {order.party.gstin}</div>
+          </div>
+        )}
         <div>{new Date(order.createdAt).toLocaleString('en-IN')}</div>
         <div className="border-t border-dashed border-stone-400 my-1" />
-        {(order.items || []).map((li, i) => (
-          <div key={i}>
-            <div className="flex justify-between">
-              <span>{li.name} × {li.qty}</span><span>{(li.price * li.qty).toFixed(2)}</span>
+        {(order.items || []).map((li, i) => {
+          // priced add-ons get their own rupee line — a guest who asked for extra
+          // chicken should see what the extra chicken cost, not just a bigger total
+          const base = li.basePrice ?? li.price
+          const priced = (li.mods || []).filter((m) => +m.price > 0)
+          const free = (li.mods || []).filter((m) => !(+m.price > 0))
+          return (
+            <div key={i}>
+              <div className="flex justify-between">
+                <span>{li.name} × {li.qty}</span><span>{(base * li.qty).toFixed(2)}</span>
+              </div>
+              {free.length > 0 && <div className="text-[10px] pl-2">({free.map((m) => m.name).join(', ')})</div>}
+              {priced.map((m, j) => (
+                <div key={j} className="flex justify-between text-[11px] pl-2">
+                  <span>+ {m.name} × {li.qty}</span><span>{(m.price * li.qty).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-            {li.mods?.length > 0 && <div className="text-[10px] pl-2">+ {modsLabel(li.mods)}</div>}
-          </div>
-        ))}
+          )
+        })}
         <div className="border-t border-dashed border-stone-400 my-1" />
         <div className="flex justify-between"><span>Subtotal</span><span>{totals.sub.toFixed(2)}</span></div>
         {totals.discount > 0 && (
@@ -810,12 +810,26 @@ export function BillPrint({ order, onClose }) {
             <div className="flex justify-between"><span>SGST @{totals.gstRate / 2}%</span><span>{totals.sgst.toFixed(2)}</span></div>
           </>
         )}
-        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{s.serviceCharge}%</span><span>{totals.svc.toFixed(2)}</span></div>}
+        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{totals.svcRate}%</span><span>{totals.svc.toFixed(2)}</span></div>}
+        {order.svcWaived && s.serviceCharge > 0 && <div className="text-[10px]">Service charge waived at guest's request</div>}
         <div className="flex justify-between font-black text-sm border-t border-dashed border-stone-400 mt-1 pt-1">
           <span>TOTAL</span><span>₹{payable}</span>
         </div>
+        {order.payment?.nc && (
+          <div className="border border-dashed border-stone-400 px-1 mt-1 text-[10px]">
+            <div className="font-bold">NOT CHARGEABLE — ₹0 collected</div>
+            <div>Ref: {order.payment.nc.reference}</div>
+            <div>{order.payment.nc.explanation}</div>
+            <div>Approved by: {order.payment.nc.by}</div>
+          </div>
+        )}
+        {order.payment?.splits?.length > 1 && (
+          <div className="text-[10px] mt-1">
+            Paid: {order.payment.splits.map((sp) => `${payModeLabel(sp.method).replace(/^\S+\s/, '')} ${sp.amount}`).join(' + ')}
+          </div>
+        )}
         {isComposition && <div className="mt-1 text-[10px]">Composition taxable person, not eligible to collect tax on supplies</div>}
-        <div className="text-center mt-2">🙏 Dhanyavaad! Visit again 🙏<br />Powered by KhaanaPeena</div>
+        <div className="text-center mt-2">🙏 Dhanyavaad! Visit again 🙏<br />Powered by KhaanaPeena<br />Support: {s.supportPhone || '9614300003'}</div>
       </div>
     </Modal>
   )

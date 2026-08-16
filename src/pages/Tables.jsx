@@ -6,11 +6,13 @@ import { useNav } from '../nav.jsx'
 import QRCode from 'qrcode'
 
 export default function Tables() {
-  const { state, t, newOrder, cloud, update } = useStore()
+  const { state, t, newOrder, cloud, update, assignTableWaiter } = useStore()
   const { goTo } = useNav()
   const [qrTable, setQrTable] = useState(null)
   const [editTable, setEditTable] = useState(null) // table object, or 'new'
   const areas = [...new Set(state.tables.map((tb) => tb.area))]
+  // anyone on shift can be put on a table; role is only a hint, not a restriction
+  const waiters = (state.staff || []).filter((s) => s.present !== false)
 
   const orderFor = (tid) => state.orders.find((o) => o.tableId === tid && ['open', 'kot', 'ready', 'served', 'new'].includes(o.status))
 
@@ -48,16 +50,31 @@ export default function Tables() {
                     </span>
                   </div>
                   {o ? (
-                    <button onClick={() => goTo('billing', { orderId: o.id })} className="mt-1 text-xs text-left w-full">
-                      <div className="font-bold">{inr0(amt)}</div>
-                      <div className="text-white/80">{(o.items || []).reduce((s, i) => s + i.qty, 0)} items · {minsSince(o.createdAt)}m</div>
-                      <Badge color={o.status === 'ready' ? 'green' : 'amber'}>{o.status.toUpperCase()}</Badge>
-                      <div className="text-[10px] text-white/90 mt-1 font-bold">Tap to open bill →</div>
-                    </button>
+                    <>
+                      <button onClick={() => goTo('billing', { orderId: o.id })} className="mt-1 text-xs text-left w-full">
+                        <div className="font-bold">{inr0(amt)}</div>
+                        <div className="text-white/80">{(o.items || []).reduce((s, i) => s + i.qty, 0)} items · {minsSince(o.createdAt)}m</div>
+                        <Badge color={o.status === 'ready' ? 'green' : 'amber'}>{o.status.toUpperCase()}</Badge>
+                        <div className="text-[10px] text-white/90 mt-1 font-bold">Tap to open bill →</div>
+                      </button>
+                      {/* who is serving this table — set it as the guests sit down */}
+                      <select
+                        value={o.waiterId || ''}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => assignTableWaiter(tb.id, e.target.value || null)}
+                        className={`w-full mt-1.5 text-[10px] font-bold rounded-lg py-1 px-1 border ${o.waiterId ? 'bg-white/15 border-white/30 text-white' : 'bg-white/90 border-white text-amber-700'}`}
+                      >
+                        <option value="" className="text-stone-700">Assign waiter…</option>
+                        {waiters.map((s) => <option key={s.id} value={s.id} className="text-stone-700">{s.name}</option>)}
+                      </select>
+                    </>
                   ) : (
                     <div className="mt-1 space-y-1">
                       <button onClick={() => openTable(tb)} className="w-full text-[11px] font-bold bg-saffron-50 text-saffron-700 rounded-lg py-1 hover:bg-saffron-100">＋ {t('newOrder')}</button>
                       <button onClick={() => setQrTable(tb)} className="w-full text-[11px] font-bold bg-stone-100 text-stone-600 rounded-lg py-1 hover:bg-stone-200">📱 {t('qrMenu')}</button>
+                      {tb.waiterId && (
+                        <div className="text-[10px] text-stone-400 text-center truncate">👤 {waiters.find((s) => s.id === tb.waiterId)?.name || ''}</div>
+                      )}
                     </div>
                   )}
                 </div>

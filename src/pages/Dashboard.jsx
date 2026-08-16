@@ -34,7 +34,7 @@ export default function Dashboard() {
   const days = []
   for (let i = 13; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i)
-    const k = d.toISOString().slice(0, 10)
+    const k = dayKey(d)
     days.push({ label: fmtDate(d).split(' ')[0], value: byDay[k] || 0 })
   }
 

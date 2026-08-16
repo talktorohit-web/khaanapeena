@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { makeSeed } from './seed.js'
 import { makeT } from './i18n.js'
-import { uid, billTotals, sentiment } from './utils.js'
+import { uid, billTotals, sentiment, todayISO } from './utils.js'
 import { lineKey, repriceLine } from './modifiers.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
@@ -222,6 +222,12 @@ export function StoreProvider({ children }) {
           createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
           payment: { method: null, discount: 0, amount: 0 }, source, kotNo: null,
           takenBy: operatorName(s),
+          // a table already knows who is serving it — inherit rather than re-ask
+          ...(tableId ? (() => {
+            const tb = (s.tables || []).find((x) => x.id === tableId)
+            const st = tb?.waiterId && (s.staff || []).find((x) => x.id === tb.waiterId)
+            return st ? { waiterId: st.id, waiterName: st.name } : {}
+          })() : {}),
         })
       })
       return id
@@ -273,7 +279,7 @@ export function StoreProvider({ children }) {
       return issued
     }
 
-    const settleOrder = async (orderId, { method, discount = 0, discountReason = null, discountNote = null, customerId = null, redeemPoints = 0 }) => {
+    const settleOrder = async (orderId, { method, discount = 0, discountReason = null, discountNote = null, customerId = null, redeemPoints = 0, splits = null, nc = null, party = null }) => {
       // GUARD: never settle an already-paid order twice. An online 'ready' order
       // exposes a settle control on BOTH KDS and Online Orders, so a double-tap
       // (or two staff) would otherwise burn a second invoice number and double the
@@ -311,6 +317,22 @@ export function StoreProvider({ children }) {
       const totals = billTotals(o, s.settings)
       // composition scheme: no GST collected, but service charge still applies
       o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable + totals.svc) : totals.total
+
+      // "Not chargeable" — the food went out and nothing is collected. The bill is
+      // still numbered and kept so the foregone value is auditable; a reference and
+      // an explanation are mandatory at the till, which is why they're recorded here.
+      if (method === 'nc' && nc) {
+        o.payment.nc = { reference: String(nc.reference || '').slice(0, 40), explanation: String(nc.explanation || '').slice(0, 200), by: nc.by || operatorName(s) || 'Manager', value: o.payment.amount }
+        o.payment.amount = 0
+      }
+      // paid across several modes — keep the parts; paymentSplit() reads them
+      if (Array.isArray(splits) && splits.length > 1) {
+        o.payment.splits = splits.map((x) => ({ method: x.method, amount: Math.round(+x.amount || 0) })).filter((x) => x.amount > 0)
+      }
+      // a firm needs its GSTIN on the invoice to claim input credit
+      if (party && party.type === 'firm' && (party.gstin || party.name)) {
+        o.party = { type: 'firm', name: String(party.name || '').slice(0, 80), gstin: String(party.gstin || '').toUpperCase().slice(0, 15) }
+      }
       o.status = 'paid'
       o.paidAt = Date.now()
       o.billNo = issued
@@ -365,6 +387,65 @@ export function StoreProvider({ children }) {
       } catch { /* mirror is best-effort — a settled bill is never held up by it */ }
     }
 
+    // ---- table service: who is looking after this table ----
+    // Assigning at seating time is what makes waiter-wise sales and the
+    // employee-of-the-month ranking real rather than guessed.
+    const assignTableWaiter = (tableId, staffId) => update((s) => {
+      const tb = (s.tables || []).find((x) => x.id === tableId)
+      const st = (s.staff || []).find((x) => x.id === staffId)
+      if (tb) tb.waiterId = staffId || null
+      // carry it onto whatever order is running on that table right now
+      ;(s.orders || []).forEach((o) => {
+        if (o.tableId !== tableId || !['open', 'kot', 'ready', 'served'].includes(o.status)) return
+        o.waiterId = staffId || null
+        o.waiterName = st?.name || null
+        o.updatedAt = Date.now()
+      })
+    })
+
+    const setOrderWaiter = (orderId, staffId) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o) return
+      const st = (s.staff || []).find((x) => x.id === staffId)
+      o.waiterId = staffId || null
+      o.waiterName = st?.name || null
+      o.updatedAt = Date.now()
+      // keep the table's default in step, so the next order inherits it
+      const tb = (s.tables || []).find((x) => x.id === o.tableId)
+      if (tb) tb.waiterId = staffId || null
+    })
+
+    // stamp when the bill was first printed — the gap between this and paidAt is
+    // how long a table sat holding a printed bill, and it anchors the
+    // cancellation report ("item deleted 12 minutes AFTER the bill was printed")
+    const markPrinted = (orderId) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (o && !o.printedAt) { o.printedAt = Date.now(); o.updatedAt = Date.now() }
+    })
+
+    // ---- move selected items onto another running order ----
+    // Different from split (which makes a NEW bill) and merge (which moves ALL of
+    // them): this is one dish walking to another table.
+    const moveItems = (fromId, toId, picks) => update((s) => {
+      const from = s.orders.find((x) => x.id === fromId)
+      const to = s.orders.find((x) => x.id === toId)
+      if (!from || !to || from.id === to.id || from.status === 'paid' || to.status === 'paid') return
+      to.items = to.items || []
+      picks.forEach(({ idx, qty }) => {
+        const li = from.items[idx]
+        const take = Math.min(+qty || 0, li ? li.qty : 0)
+        if (!li || take <= 0) return
+        // a KOT'd line keeps its deducted flag so stock isn't taken twice
+        const existing = to.items.find((x) => lineKey(x) === lineKey(li))
+        if (existing) existing.qty += take
+        else to.items.push({ ...li, qty: take })
+        li.qty -= take
+      })
+      from.items = from.items.filter((li) => li.qty > 0)
+      from.updatedAt = Date.now()
+      to.updatedAt = Date.now()
+    })
+
     // ---- expenses: money out that isn't stock ----
     // Recorded separately from GRNs (which buy inventory) and from shift cash
     // movements (which only move the float). A cash expense is subtracted from the
@@ -376,7 +457,7 @@ export function StoreProvider({ children }) {
         s.expenses.push({
           id: uid('ex'),
           at: r.at || Date.now(),
-          date: r.date || new Date().toISOString().slice(0, 10),
+          date: r.date || todayISO(),
           reason: r.reason,
           amount: +r.amount,
           note: String(r.note || '').slice(0, 120),
@@ -514,7 +595,7 @@ export function StoreProvider({ children }) {
     // manager-authorized correction of a punched (KOT'd) line: reduce qty or remove.
     // Restores the recipe stock that was deducted, and records a void-log entry.
     // delta: a negative number to decrement, or 'remove' to void the whole line.
-    const rectifyLine = (orderId, line, delta, manager) => update((s) => {
+    const rectifyLine = (orderId, line, delta, manager, reason) => update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
       if (!o) return
       // match the full line identity (dish + kitchen state + chosen options) —
@@ -537,6 +618,10 @@ export function StoreProvider({ children }) {
       s.voidLog.push({
         id: uid('v'), at: Date.now(), orderId, tableId: o.tableId || null,
         item: li.name, qty: removed, amount: li.price * removed, by: manager?.name || 'Manager',
+        // context the cancellation report needs: an item pulled AFTER the bill was
+        // printed is a different (and more suspicious) event than one pulled before
+        billNo: o.billNo || null, printedAt: o.printedAt || null, orderCreatedAt: o.createdAt || null,
+        reason: reason || null,
       })
       if (newQty <= 0) o.items = o.items.filter((x) => x !== li)
       else { li.qty = newQty; li.updatedAt = Date.now() }
@@ -789,7 +874,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

@@ -94,6 +94,15 @@ export default function Settings() {
 
       <SyncSection />
 
+      <Section title="🆘 Help & support">
+        <p className="text-sm text-stone-600 mb-2">Stuck on something, or want a change made to the app? Call or WhatsApp the KhaanaPeena support line.</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <a href="tel:9614300003" className="text-lg font-black text-saffron-700">📞 9614300003</a>
+          <a href="https://wa.me/919614300003" target="_blank" rel="noreferrer" className={btnGhost}>💬 WhatsApp us</a>
+        </div>
+        <p className="text-[11px] text-stone-400 mt-2">This number is also printed at the bottom of every bill.</p>
+      </Section>
+
       <Section title="🧹 Demo data">
         <p className="text-xs text-stone-400 mb-2">Everything is stored on this device (works fully offline). Reset restores the sample restaurant.</p>
         <button onClick={() => { if (confirm('Reset all data to the demo seed?')) resetDemo() }} className={btnGhost}>↺ Reset demo data</button>
@@ -234,6 +243,23 @@ function SecuritySection() {
         <span className="font-mono tracking-[0.3em] text-lg text-stone-400">••••</span>
         <Badge color={isSet ? 'green' : 'red'}>{isSet ? 'Set' : 'Not set'}</Badge>
         {!open && <button onClick={() => { reset(); setOpen(true) }} className={btnGhost + ' ml-auto'}>Change PIN</button>}
+      </div>
+
+      {/* Discounts are the easiest way for money to walk out of a restaurant, so
+          the default is to make a manager put their PIN against every one. */}
+      <div className="flex items-start justify-between gap-3 bg-stone-50 rounded-xl p-3 mt-3 max-w-xl">
+        <div>
+          <div className="text-sm font-semibold text-ink-900">Manager PIN needed for every discount</div>
+          <div className="text-[11px] text-stone-500 leading-snug">
+            {isSet
+              ? 'A cashier can enter a discount, but the bill will not close until a manager approves it with their PIN. The approving name is recorded on the bill and in the discount report.'
+              : 'Set a manager PIN above first — without one there is nothing to check the discount against.'}
+          </div>
+        </div>
+        <Toggle
+          on={isSet && state.settings.discountNeedsPin !== false}
+          onChange={(v) => isSet && update((s) => { s.settings.discountNeedsPin = v })}
+        />
       </div>
 
       {open && (

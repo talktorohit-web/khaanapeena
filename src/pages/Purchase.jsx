@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr0, fmtDate } from '../utils.js'
+import { inr0, fmtDate, todayISO } from '../utils.js'
 
 const STATUS = {
   sent: { label: 'Awaiting delivery', color: 'blue' },
@@ -9,7 +9,7 @@ const STATUS = {
   received: { label: 'Received', color: 'green' },
   cancelled: { label: 'Cancelled', color: 'stone' },
 }
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => todayISO()
 
 export default function Purchase() {
   const { state, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN } = useStore()

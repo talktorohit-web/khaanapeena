@@ -20,13 +20,17 @@ import Purchases from '../reports/Purchases.jsx'
 import Variance from '../reports/Variance.jsx'
 import Udhaar from '../reports/Udhaar.jsx'
 import ExpensesReport from '../reports/ExpensesReport.jsx'
+import Cancellations from '../reports/Cancellations.jsx'
+import Timing from '../reports/Timing.jsx'
+import CashInHand from '../reports/CashInHand.jsx'
+import Live from '../reports/Live.jsx'
 
 const RANGE_KEYS = [
   ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 days'],
   ['week', 'This week'], ['30d', '30 days'], ['month', 'This month'], ['all', 'All'],
 ]
 
-// Grouped so sixteen reports still read as four ideas, not a wall of buttons.
+// Grouped so a couple of dozen reports still read as five ideas, not a wall of buttons.
 const GROUPS = [
   {
     title: 'Sales',
@@ -35,6 +39,7 @@ const GROUPS = [
       ['hourly', '⏰ Peak hours', Hourly],
       ['items', '🍽️ Items', Items],
       ['bills', '🧾 Bill register', Bills],
+      ['live', '🔴 Running now', Live],
       ['dayend', '🌙 Day-end', DayEnd],
     ],
   },
@@ -43,8 +48,10 @@ const GROUPS = [
     tabs: [
       ['tables', '🪑 Tables', TableReport],
       ['kitchen', '⏱️ Kitchen speed', Kitchen],
+      ['timing', '⏱️ Bill timing', Timing],
       ['staff', '👨‍🍳 Staff', Staff],
       ['discounts', '🏷️ Discounts & refunds', Discounts],
+      ['cancellations', '🚫 Cancellations', Cancellations],
     ],
   },
   {
@@ -52,6 +59,7 @@ const GROUPS = [
     tabs: [
       ['foodcost', '🍲 Food cost', FoodCost],
       ['expenses', '💸 Expenses', ExpensesReport],
+      ['cashinhand', '💰 Cash in hand', CashInHand],
       ['udhaar', '📒 Udhaar', Udhaar],
       ['profit', '📈 Profit & loss', Profit],
       ['tax', '🧾 GST & HSN', Tax],
@@ -75,7 +83,7 @@ const ALL = GROUPS.flatMap((g) => g.tabs)
 
 // these pick their own period (or ignore dates entirely), so the shared range
 // selector would only mislead
-const NO_RANGE = ['dayend', 'variance', 'udhaar']
+const NO_RANGE = ['dayend', 'variance', 'udhaar', 'live']
 
 export default function Reports() {
   const { state, t } = useStore()
@@ -92,7 +100,9 @@ export default function Reports() {
   const tabLabel = (ALL.find(([k]) => k === tab) || ALL[0])[1]
   const periodText = showRange
     ? `${range.label} · ${new Date(range.from).toLocaleDateString('en-IN')} → ${new Date(Math.min(range.to, Date.now())).toLocaleDateString('en-IN')}`
-    : 'This report picks its own period'
+    : tab === 'live'
+      ? 'Right now — this report has no date range'
+      : 'This report picks its own period'
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

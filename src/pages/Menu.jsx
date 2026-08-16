@@ -2,6 +2,10 @@ import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, VegDot, Toggle, Field, inputCls, btnPrimary, btnGhost, Badge, Empty } from '../components.jsx'
 import { inr0, inr, uid } from '../utils.js'
+import { toHindi, toPunjabi } from '../translit.js'
+import { subCatsFor, subCatOf, groupBySubCat } from '../subcategories.js'
+import { stationsInUse, normalizeStation } from '../stations.js'
+import { PORTION_GID, portionPrices, buildPortionGroup } from '../portions.js'
 
 export default function MenuPage() {
   const { state, t, update } = useStore()
@@ -11,7 +15,12 @@ export default function MenuPage() {
   const [q, setQ] = useState('')
 
   const ql = q.trim().toLowerCase()
-  const match = (i) => !ql || i.name.toLowerCase().includes(ql) || (i.nameHi || '').includes(q.trim())
+  const match = (i) =>
+    !ql ||
+    i.name.toLowerCase().includes(ql) ||
+    subCatOf(i).toLowerCase().includes(ql) ||
+    (i.nameHi || '').includes(q.trim()) ||
+    (i.namePa || '').includes(q.trim())
   const totalItems = state.items.length
   const shown = state.items.filter(match).length
 
@@ -32,20 +41,39 @@ export default function MenuPage() {
       {state.categories.map((c) => {
         const items = state.items.filter((i) => i.catId === c.id && match(i))
         if (!items.length) return null
+        // sub-category headings only earn their space once the category actually
+        // uses them — a category with no sub-categories still reads as one list
+        const groups = groupBySubCat(items)
+        const showSubs = groups.some(([sub]) => sub)
         return (
           <div key={c.id} className="mb-6">
             <h3 className="font-bold text-stone-500 text-sm mb-2 uppercase tracking-wide">{c.name} <span className="text-stone-300">· {items.length}</span></h3>
-            <div className="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-50">
-              {items.map((i) => (
-                <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <VegDot veg={i.veg} />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-ink-900">{i.name} {i.recipe?.length > 0 && <span title="Has recipe — food cost tracked" className="text-[10px]">🧪</span>}</div>
-                    <div className="text-[11px] text-stone-400">{i.nameHi} · {i.station}</div>
+            <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+              {groups.map(([sub, list], gi) => (
+                <div key={sub || '_'}>
+                  {showSubs && (
+                    <div className={'px-4 py-1.5 bg-stone-50/70 text-[10px] font-bold uppercase tracking-wide text-stone-400' + (gi ? ' border-t border-stone-100' : '')}>
+                      {sub || 'Not sorted'}
+                    </div>
+                  )}
+                  <div className="divide-y divide-stone-50">
+                    {list.map((i) => {
+                      const pp = portionPrices(i)
+                      return (
+                        <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <VegDot veg={i.veg} />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm text-ink-900">{i.name} {i.recipe?.length > 0 && <span title="Has recipe — food cost tracked" className="text-[10px]">🧪</span>}</div>
+                            <div className="text-[11px] text-stone-400 truncate">{[i.nameHi, subCatOf(i), i.station].filter(Boolean).join(' · ')}</div>
+                            {pp && <div className="text-[11px] font-semibold text-saffron-700">Half {inr0(pp.half)} · Full {inr0(pp.full)}</div>}
+                          </div>
+                          <span className="font-bold text-sm w-16 text-right">{inr0(i.price)}</span>
+                          <button onClick={() => setEditItem(i)} className="text-xs text-stone-400 hover:text-saffron-600 font-bold px-2">✏️</button>
+                          <Toggle on={i.available} onChange={(v) => update((s) => { const x = s.items.find((y) => y.id === i.id); if (x) x.available = v })} />
+                        </div>
+                      )
+                    })}
                   </div>
-                  <span className="font-bold text-sm w-16 text-right">{inr0(i.price)}</span>
-                  <button onClick={() => setEditItem(i)} className="text-xs text-stone-400 hover:text-saffron-600 font-bold px-2">✏️</button>
-                  <Toggle on={i.available} onChange={(v) => update((s) => { const x = s.items.find((y) => y.id === i.id); if (x) x.available = v })} />
                 </div>
               ))}
             </div>
@@ -67,8 +95,50 @@ export default function MenuPage() {
 
 function ItemModal({ item, onClose }) {
   const { state, update } = useStore()
-  const [f, setF] = useState(item || { name: '', nameHi: '', price: '', catId: state.categories[0]?.id ?? '', veg: true, station: 'kitchen', available: true, recipe: [] })
+  // the Portion group is edited by its own quick-setup below, so it's held out of
+  // `f.modifiers` while the modal is open and rebuilt on save
+  const [f, setF] = useState(() =>
+    item
+      ? { ...item, modifiers: (item.modifiers || []).filter((g) => g?.id !== PORTION_GID) }
+      : { name: '', nameHi: '', namePa: '', price: '', catId: state.categories[0]?.id ?? '', subCat: '', veg: true, station: 'kitchen', available: true, recipe: [] })
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+
+  // ---- Half / Full portions (a required single-choice modifier group) ----
+  // The form holds the two ABSOLUTE prices a guest pays; the deltas are worked
+  // out at save time against the base price. Editing an existing item reads them
+  // back the same way, so a save → reopen shows exactly what was typed.
+  const [portions, setPortions] = useState(() => {
+    const pp = portionPrices(item)
+    return pp ? { on: true, half: pp.half ?? '', full: pp.full ?? '' } : { on: false, half: '', full: '' }
+  })
+  const togglePortions = (on) => {
+    if (!on) return setPortions((p) => ({ ...p, on: false }))
+    const base = +f.price || 0
+    setPortions((p) => ({
+      on: true,
+      // a sensible first guess: full = the price already typed, half ≈ 60% of it
+      full: p.full === '' ? (base || '') : p.full,
+      half: p.half === '' ? (base ? Math.round((base * 0.6) / 5) * 5 : '') : p.half,
+    }))
+  }
+  // the item's own price IS the full-plate price, so the two move together
+  const setPrice = (v) => { set('price', v); setPortions((p) => (p.on ? { ...p, full: v } : p)) }
+  const setFull = (v) => { setPortions((p) => ({ ...p, full: v })); set('price', v) }
+  const portionsReady = !portions.on || (+portions.half > 0 && +portions.full > 0)
+
+  // ---- auto Hindi / Punjabi from the English name ----
+  // Auto-fill stops the moment the owner types in the field themselves — their
+  // spelling always wins over the machine's guess.
+  const [autoHi, setAutoHi] = useState(!item?.nameHi)
+  const [autoPa, setAutoPa] = useState(!item?.namePa)
+  const setName = (v) => setF((p) => ({
+    ...p, name: v,
+    ...(autoHi ? { nameHi: toHindi(v) } : {}),
+    ...(autoPa ? { namePa: toPunjabi(v) } : {}),
+  }))
+
+  const subCats = subCatsFor(state.items, f.catId)
+  const stations = stationsInUse(state.items)
 
   const ings = state.ingredients || []
   const recipe = f.recipe || []
@@ -107,12 +177,27 @@ function ItemModal({ item, onClose }) {
     const cleanMods = groups
       .map((g) => ({ ...g, name: (g.name || '').trim(), options: (g.options || []).filter((o) => (o.name || '').trim()).map((o) => ({ ...o, name: o.name.trim(), price: +o.price || 0 })) }))
       .filter((g) => g.name && g.options.length)
+    // portions go first so the till asks the size before the add-ons
+    const base = +f.price || 0
+    if (portions.on && +portions.half > 0 && +portions.full > 0) {
+      cleanMods.unshift(buildPortionGroup(base, portions.half, portions.full))
+    }
+    const fields = {
+      ...f,
+      price: base,
+      nameHi: (f.nameHi || '').trim(),
+      namePa: (f.namePa || '').trim(),
+      subCat: (f.subCat || '').trim(),
+      station: normalizeStation(f.station),
+      recipe: cleanRecipe,
+      modifiers: cleanMods,
+    }
     update((s) => {
       if (item) {
         const x = s.items.find((y) => y.id === item.id)
-        Object.assign(x, { ...f, price: +f.price, recipe: cleanRecipe, modifiers: cleanMods })
+        Object.assign(x, fields)
       } else {
-        s.items.push({ ...f, id: uid('i'), price: +f.price, recipe: cleanRecipe, modifiers: cleanMods })
+        s.items.push({ ...fields, id: uid('i') })
       }
     })
     onClose()
@@ -126,21 +211,41 @@ function ItemModal({ item, onClose }) {
 
   return (
     <Modal open onClose={onClose} title={item ? 'Edit item' : 'Add item'}>
-      <Field label="Name (English)"><input value={f.name} onChange={(e) => set('name', e.target.value)} className={inputCls} /></Field>
-      <Field label="Name (Hindi)"><input value={f.nameHi} onChange={(e) => set('nameHi', e.target.value)} className={inputCls} /></Field>
+      <Field label="Name (English)"><input value={f.name} onChange={(e) => setName(e.target.value)} className={inputCls} /></Field>
+      <Field label="Name (Hindi)">
+        <div className="flex gap-1.5">
+          <input value={f.nameHi || ''} onChange={(e) => { setAutoHi(!e.target.value); set('nameHi', e.target.value) }} className={inputCls} />
+          <button onClick={() => { setAutoHi(true); set('nameHi', toHindi(f.name)) }} title="Fill again from the English name" className="shrink-0 px-2.5 rounded-lg border border-stone-200 text-xs font-bold text-stone-500 hover:bg-stone-50">↻ auto</button>
+        </div>
+      </Field>
+      <Field label="Name (Punjabi)">
+        <div className="flex gap-1.5">
+          <input value={f.namePa || ''} onChange={(e) => { setAutoPa(!e.target.value); set('namePa', e.target.value) }} className={inputCls} />
+          <button onClick={() => { setAutoPa(true); set('namePa', toPunjabi(f.name)) }} title="Fill again from the English name" className="shrink-0 px-2.5 rounded-lg border border-stone-200 text-xs font-bold text-stone-500 hover:bg-stone-50">↻ auto</button>
+        </div>
+        <span className="text-[10px] text-stone-400">Filled automatically as you type the English name — it's a guess, so please correct it.</span>
+      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Price (₹)"><input type="number" min="0" value={f.price} onChange={(e) => set('price', e.target.value)} className={inputCls} /></Field>
+        <Field label={portions.on ? 'Price (₹) — full plate' : 'Price (₹)'}>
+          <input type="number" min="0" value={f.price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+        </Field>
         <Field label="Category">
           <select value={f.catId} onChange={(e) => set('catId', e.target.value)} className={inputCls}>
             {state.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
       </div>
+      <Field label="Sub-category (optional)">
+        <input list="kp-subcats" value={f.subCat || ''} onChange={(e) => set('subCat', e.target.value)} placeholder="e.g. Paneer, Chicken, Tandoori" className={inputCls} />
+        <datalist id="kp-subcats">{subCats.map((s) => <option key={s} value={s} />)}</datalist>
+        <span className="text-[10px] text-stone-400">Groups this dish inside its category on the menu screen. Pick one you already use, or type a new one.</span>
+      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Station">
-          <select value={f.station} onChange={(e) => set('station', e.target.value)} className={inputCls}>
-            {['kitchen', 'tandoor', 'chinese', 'beverage'].map((st) => <option key={st}>{st}</option>)}
-          </select>
+        {/* station = which kitchen printer gets the ticket. Free text with a
+            datalist so a sweets counter or bar can have its own route. */}
+        <Field label="Which kitchen printer prints this?">
+          <input list="kp-stations" value={f.station || ''} onChange={(e) => set('station', e.target.value)} placeholder="kitchen" className={inputCls} />
+          <datalist id="kp-stations">{stations.map((st) => <option key={st} value={st} />)}</datalist>
         </Field>
         <Field label="Type">
           <select value={f.veg ? 'veg' : 'nonveg'} onChange={(e) => set('veg', e.target.value === 'veg')} className={inputCls}>
@@ -148,12 +253,43 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
+      <p className="text-[10px] text-stone-400 -mt-1 mb-3">Each station's printer IP is set once in <b>Settings → 🖨️ Thermal printer</b>.</p>
       {/* Optional per-item HSN — only needed when this item isn't plain restaurant
           service (bottled water, sweets by weight). Blank uses the shop-wide code. */}
       <Field label="HSN / SAC code (optional)">
         <input value={f.hsn ?? ''} onChange={(e) => set('hsn', e.target.value)} placeholder={state.settings.hsnCode || '996331'} className={inputCls} />
         <span className="text-[10px] text-stone-400">Leave blank unless this is sold as goods, not restaurant service.</span>
       </Field>
+
+      {/* Portions — a shortcut that writes the required "Portion" modifier group,
+          so half plates flow through the till picker, KOT, bill and reports on
+          the same rails as every other choice. The owner types the two prices a
+          guest pays; the ± difference stored on each option is our problem. */}
+      <div className="border border-stone-100 rounded-xl p-3 mb-3 bg-stone-50/50">
+        <label className="flex items-center gap-2 text-xs font-semibold text-stone-600">
+          <input type="checkbox" checked={portions.on} onChange={(e) => togglePortions(e.target.checked)} className="w-3.5 h-3.5 accent-saffron-600" />
+          🍽️ This dish comes in Half and Full
+        </label>
+        {!portions.on && <p className="text-[11px] text-stone-400 mt-1.5">Tick this and the till will ask <b>Half or Full</b> every time the dish is punched, and print the size on the kitchen ticket.</p>}
+        {portions.on && (
+          <>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Field label="Half plate (₹)">
+                <input type="number" min="0" value={portions.half} onChange={(e) => setPortions((p) => ({ ...p, half: e.target.value }))} className={inputCls} />
+              </Field>
+              <Field label="Full plate (₹)">
+                <input type="number" min="0" value={portions.full} onChange={(e) => setFull(e.target.value)} className={inputCls} />
+              </Field>
+            </div>
+            <p className="text-[11px] -mt-1">
+              {portionsReady
+                ? <span className="text-stone-500">Guest is asked: <b className="text-ink-900">Half {inr0(portions.half)} · Full {inr0(portions.full)}</b></span>
+                : <span className="text-red-500 font-semibold">Enter both prices — what the guest pays for each size.</span>}
+            </p>
+            <p className="text-[10px] text-stone-400 mt-1">The full-plate price is this item's price, so changing one changes the other.</p>
+          </>
+        )}
+      </div>
 
       {/* Recipe editor — powers auto stock-deduction on KOT and the Food Cost report */}
       <div className="border border-stone-100 rounded-xl p-3 mb-3 bg-stone-50/50">
@@ -241,7 +377,7 @@ function ItemModal({ item, onClose }) {
         </div>
       </div>
 
-      <button onClick={save} disabled={!f.name || !(+f.price > 0)} className={btnPrimary + ' w-full'}>Save</button>
+      <button onClick={save} disabled={!f.name || !(+f.price > 0) || !portionsReady} className={btnPrimary + ' w-full'}>Save</button>
       {item && <button onClick={remove} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Remove from menu</button>}
     </Modal>
   )
@@ -249,10 +385,10 @@ function ItemModal({ item, onClose }) {
 
 // AI photo→menu onboarding (simulated extraction — production uses vision model)
 const SCAN_RESULT = [
-  { name: 'Amritsari Kulcha', nameHi: 'अमृतसरी कुलचा', price: 120, veg: true, station: 'tandoor', cat: 'c_breads' },
-  { name: 'Sarson Da Saag', nameHi: 'सरसों दा साग', price: 210, veg: true, station: 'kitchen', cat: 'c_main' },
-  { name: 'Makki Di Roti', nameHi: 'मक्की दी रोटी', price: 40, veg: true, station: 'tandoor', cat: 'c_breads' },
-  { name: 'Patiala Lassi (Large)', nameHi: 'पटियाला लस्सी', price: 130, veg: true, station: 'beverage', cat: 'c_bev' },
+  { name: 'Amritsari Kulcha', nameHi: 'अमृतसरी कुलचा', price: 120, veg: true, station: 'tandoor', cat: 'c_breads', sub: 'Tandoori' },
+  { name: 'Sarson Da Saag', nameHi: 'सरसों दा साग', price: 210, veg: true, station: 'kitchen', cat: 'c_main', sub: 'Veg' },
+  { name: 'Makki Di Roti', nameHi: 'मक्की दी रोटी', price: 40, veg: true, station: 'tandoor', cat: 'c_breads', sub: 'Tawa' },
+  { name: 'Patiala Lassi (Large)', nameHi: 'पटियाला लस्सी', price: 130, veg: true, station: 'beverage', cat: 'c_bev', sub: 'Cold' },
 ]
 
 function ScanModal({ onClose }) {
@@ -264,7 +400,7 @@ function ScanModal({ onClose }) {
     update((s) => {
       SCAN_RESULT.forEach((r, i) => {
         if (picked[i] && !s.items.some((x) => x.name === r.name)) {
-          s.items.push({ id: uid('i'), catId: r.cat, name: r.name, nameHi: r.nameHi, price: r.price, veg: r.veg, station: r.station, available: true, recipe: [] })
+          s.items.push({ id: uid('i'), catId: r.cat, name: r.name, nameHi: r.nameHi, namePa: toPunjabi(r.name), price: r.price, veg: r.veg, station: r.station, subCat: r.sub || '', available: true, recipe: [] })
         }
       })
     })

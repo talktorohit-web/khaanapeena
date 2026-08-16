@@ -10,14 +10,14 @@ import { modGroups, effectivePrice, modsTotal, missingRequired } from './modifie
  * Required single-choice groups pre-select their first option, because the common
  * case ("Spice level: Medium") should cost one tap, not two.
  */
-export default function ModifierPicker({ item, onClose, onAdd, addLabel = 'Add to order' }) {
+export default function ModifierPicker({ item, onClose, onAdd, addLabel = 'Add to order', initialQty = 1, queued = 0 }) {
   const groups = modGroups(item)
   const [sel, setSel] = useState(() =>
     groups
       .filter((g) => g.required && !g.multi && g.options[0])
       .map((g) => ({ gid: g.id, oid: g.options[0].id, name: g.options[0].name, price: +g.options[0].price || 0 }))
   )
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState(initialQty)
 
   const picked = (g, o) => sel.some((m) => m.gid === g.id && m.oid === o.id)
   const toggle = (g, o) => setSel((cur) => {
@@ -36,6 +36,9 @@ export default function ModifierPicker({ item, onClose, onAdd, addLabel = 'Add t
 
   return (
     <Modal open onClose={onClose} title={item.name}>
+      {queued > 0 && (
+        <p className="text-[11px] text-stone-400 mb-2">{queued} more dish{queued > 1 ? 'es' : ''} still to choose for after this one.</p>
+      )}
       <div className="space-y-4 mb-4">
         {groups.map((g) => (
           <div key={g.id}>

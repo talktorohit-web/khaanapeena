@@ -84,12 +84,21 @@ export function buildBill(order, settings, totals, width = 48) {
   e.align('left').rule()
   e.line(`Bill: ${order.billNo || 'DRAFT'}   ${order.tableId ? 'Table ' + order.tableId : (order.type || '').toUpperCase()}`)
   if (order.covers) e.line(`Guests: ${order.covers}`)
+  if (order.waiterName) e.line(`Served by: ${order.waiterName}`)
   e.line(new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('en-IN'))
+  if (order.party?.type === 'firm') {
+    e.rule().line(`Billed to: ${order.party.name || ''}`).line(`GSTIN: ${order.party.gstin || ''}`)
+  }
   e.rule()
   ;(order.items || []).forEach((li) => {
-    e.item(li.name, li.qty, money(li.price * li.qty))
-    // the guest paid extra for these, so they belong on the bill they're handed
-    if (li.mods?.length) e.line('   + ' + asciiMods(li.mods))
+    // a priced add-on gets its own rupee line — the guest should see what the
+    // extra chicken cost, not just a larger number against the dish
+    const base = li.basePrice ?? li.price
+    const priced = (li.mods || []).filter((m) => +m.price > 0)
+    const free = (li.mods || []).filter((m) => !(+m.price > 0))
+    e.item(li.name, li.qty, money(base * li.qty))
+    if (free.length) e.line('   (' + asciiMods(free) + ')')
+    priced.forEach((m) => e.item('  + ' + m.name, li.qty, money(m.price * li.qty)))
   })
   e.rule()
   e.row('Subtotal', money(totals.sub))
@@ -104,11 +113,23 @@ export function buildBill(order, settings, totals, width = 48) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))
   }
-  if (totals.svc > 0) e.row(`Service charge ${settings.serviceCharge}%`, money(totals.svc))
+  if (totals.svc > 0) e.row(`Service charge ${totals.svcRate}%`, money(totals.svc))
+  else if (order.svcWaived && settings.serviceCharge > 0) e.line("Service charge waived at guest's request")
   e.size(true).bold(true).row('TOTAL', money(payable)).bold(false).size(false)
-  if (order.payment?.method) e.line('Paid by: ' + String(order.payment.method).toUpperCase())
+  if (order.payment?.splits?.length > 1) {
+    e.line('Paid: ' + order.payment.splits.map((s) => `${String(s.method).toUpperCase()} ${s.amount}`).join(' + '))
+  } else if (order.payment?.method) {
+    e.line('Paid by: ' + String(order.payment.method).toUpperCase())
+  }
+  if (order.payment?.nc) {
+    e.rule().bold(true).line('NOT CHARGEABLE - Rs 0 collected').bold(false)
+    e.line('Ref: ' + (order.payment.nc.reference || ''))
+    e.line(order.payment.nc.explanation || '')
+    e.line('Approved by: ' + (order.payment.nc.by || ''))
+  }
   if (isComposition) e.rule().line('Composition taxable person, not').line('eligible to collect tax on supplies')
-  e.rule().align('center').line('Dhanyavaad! Visit again').line('Powered by KhaanaPeena').feed(1)
+  e.rule().align('center').line('Dhanyavaad! Visit again')
+  e.line('Powered by KhaanaPeena').line('Support: ' + (settings.supportPhone || '9614300003')).feed(1)
   return e.cut().done()
 }
 

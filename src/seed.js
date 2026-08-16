@@ -1,4 +1,6 @@
 import { uid } from './utils.js'
+import { buildPortionGroup } from './portions.js'
+import { toPunjabi } from './translit.js'
 
 const CATS = [
   { id: 'c_starters', name: 'Starters', hi: 'स्टार्टर', pa: 'ਸਟਾਰਟਰ' },
@@ -10,41 +12,42 @@ const CATS = [
   { id: 'c_desserts', name: 'Desserts', hi: 'मिठाई', pa: 'ਮਿਠਾਈ' },
 ]
 
-// station: kitchen | tandoor | chinese | beverage
+// station: kitchen | tandoor | chinese | beverage (free text — see stations.js)
+// last column is the optional sub-category shown inside its menu category
 const ITEMS = [
-  ['i01', 'c_starters', 'Paneer Tikka', 'पनीर टिक्का', 260, true, 'tandoor'],
-  ['i02', 'c_starters', 'Chicken Tikka', 'चिकन टिक्का', 320, false, 'tandoor'],
-  ['i03', 'c_starters', 'Veg Spring Roll', 'वेज स्प्रिंग रोल', 180, true, 'chinese'],
-  ['i04', 'c_starters', 'Chilli Paneer', 'चिली पनीर', 240, true, 'chinese'],
-  ['i05', 'c_starters', 'Tandoori Chicken (Half)', 'तंदूरी चिकन (हाफ)', 340, false, 'tandoor'],
-  ['i06', 'c_main', 'Dal Makhani', 'दाल मखनी', 220, true, 'kitchen'],
-  ['i07', 'c_main', 'Shahi Paneer', 'शाही पनीर', 260, true, 'kitchen'],
-  ['i08', 'c_main', 'Butter Chicken', 'बटर चिकन', 360, false, 'kitchen'],
-  ['i09', 'c_main', 'Kadai Paneer', 'कड़ाही पनीर', 250, true, 'kitchen'],
-  ['i10', 'c_main', 'Chicken Curry', 'चिकन करी', 300, false, 'kitchen'],
-  ['i11', 'c_main', 'Palak Paneer', 'पालक पनीर', 240, true, 'kitchen'],
-  ['i12', 'c_main', 'Chole Masala', 'छोले मसाला', 190, true, 'kitchen'],
-  ['i13', 'c_breads', 'Butter Naan', 'बटर नान', 55, true, 'tandoor'],
-  ['i14', 'c_breads', 'Garlic Naan', 'गार्लिक नान', 70, true, 'tandoor'],
-  ['i15', 'c_breads', 'Tandoori Roti', 'तंदूरी रोटी', 25, true, 'tandoor'],
-  ['i16', 'c_breads', 'Laccha Paratha', 'लच्छा पराठा', 60, true, 'tandoor'],
-  ['i17', 'c_breads', 'Jeera Rice', 'जीरा राइस', 160, true, 'kitchen'],
-  ['i18', 'c_breads', 'Veg Biryani', 'वेज बिरयानी', 220, true, 'kitchen'],
-  ['i19', 'c_breads', 'Chicken Biryani', 'चिकन बिरयानी', 290, false, 'kitchen'],
-  ['i20', 'c_south', 'Masala Dosa', 'मसाला डोसा', 140, true, 'kitchen'],
-  ['i21', 'c_south', 'Idli Sambar (2 pc)', 'इडली सांभर', 90, true, 'kitchen'],
-  ['i22', 'c_south', 'Uttapam', 'उत्तपम', 130, true, 'kitchen'],
-  ['i23', 'c_chinese', 'Veg Hakka Noodles', 'वेज हक्का नूडल्स', 180, true, 'chinese'],
-  ['i24', 'c_chinese', 'Chicken Fried Rice', 'चिकन फ्राइड राइस', 220, false, 'chinese'],
-  ['i25', 'c_chinese', 'Veg Manchurian', 'वेज मंचूरियन', 200, true, 'chinese'],
-  ['i26', 'c_bev', 'Masala Chai', 'मसाला चाय', 40, true, 'beverage'],
-  ['i27', 'c_bev', 'Sweet Lassi', 'मीठी लस्सी', 90, true, 'beverage'],
-  ['i28', 'c_bev', 'Fresh Lime Soda', 'फ्रेश लाइम सोडा', 70, true, 'beverage'],
-  ['i29', 'c_bev', 'Cold Coffee', 'कोल्ड कॉफ़ी', 120, true, 'beverage'],
-  ['i30', 'c_bev', 'Mineral Water', 'मिनरल वाटर', 25, true, 'beverage'],
-  ['i31', 'c_desserts', 'Gulab Jamun (2 pc)', 'गुलाब जामुन', 90, true, 'kitchen'],
-  ['i32', 'c_desserts', 'Rasmalai (2 pc)', 'रसमलाई', 110, true, 'kitchen'],
-  ['i33', 'c_desserts', 'Ice Cream Scoop', 'आइसक्रीम स्कूप', 80, true, 'beverage'],
+  ['i01', 'c_starters', 'Paneer Tikka', 'पनीर टिक्का', 260, true, 'tandoor', 'Veg Tikka'],
+  ['i02', 'c_starters', 'Chicken Tikka', 'चिकन टिक्का', 320, false, 'tandoor', 'Non-veg Tikka'],
+  ['i03', 'c_starters', 'Veg Spring Roll', 'वेज स्प्रिंग रोल', 180, true, 'chinese', 'Chinese Starters'],
+  ['i04', 'c_starters', 'Chilli Paneer', 'चिली पनीर', 240, true, 'chinese', 'Chinese Starters'],
+  ['i05', 'c_starters', 'Tandoori Chicken (Half)', 'तंदूरी चिकन (हाफ)', 340, false, 'tandoor', 'Non-veg Tikka'],
+  ['i06', 'c_main', 'Dal Makhani', 'दाल मखनी', 220, true, 'kitchen', 'Dal'],
+  ['i07', 'c_main', 'Shahi Paneer', 'शाही पनीर', 260, true, 'kitchen', 'Paneer'],
+  ['i08', 'c_main', 'Butter Chicken', 'बटर चिकन', 360, false, 'kitchen', 'Chicken'],
+  ['i09', 'c_main', 'Kadai Paneer', 'कड़ाही पनीर', 250, true, 'kitchen', 'Paneer'],
+  ['i10', 'c_main', 'Chicken Curry', 'चिकन करी', 300, false, 'kitchen', 'Chicken'],
+  ['i11', 'c_main', 'Palak Paneer', 'पालक पनीर', 240, true, 'kitchen', 'Paneer'],
+  ['i12', 'c_main', 'Chole Masala', 'छोले मसाला', 190, true, 'kitchen', 'Dal'],
+  ['i13', 'c_breads', 'Butter Naan', 'बटर नान', 55, true, 'tandoor', 'Tandoori'],
+  ['i14', 'c_breads', 'Garlic Naan', 'गार्लिक नान', 70, true, 'tandoor', 'Tandoori'],
+  ['i15', 'c_breads', 'Tandoori Roti', 'तंदूरी रोटी', 25, true, 'tandoor', 'Tandoori'],
+  ['i16', 'c_breads', 'Laccha Paratha', 'लच्छा पराठा', 60, true, 'tandoor', 'Tawa'],
+  ['i17', 'c_breads', 'Jeera Rice', 'जीरा राइस', 160, true, 'kitchen', 'Rice'],
+  ['i18', 'c_breads', 'Veg Biryani', 'वेज बिरयानी', 220, true, 'kitchen', 'Rice'],
+  ['i19', 'c_breads', 'Chicken Biryani', 'चिकन बिरयानी', 290, false, 'kitchen', 'Rice'],
+  ['i20', 'c_south', 'Masala Dosa', 'मसाला डोसा', 140, true, 'kitchen', 'Dosa'],
+  ['i21', 'c_south', 'Idli Sambar (2 pc)', 'इडली सांभर', 90, true, 'kitchen', 'Idli & Vada'],
+  ['i22', 'c_south', 'Uttapam', 'उत्तपम', 130, true, 'kitchen', 'Uttapam'],
+  ['i23', 'c_chinese', 'Veg Hakka Noodles', 'वेज हक्का नूडल्स', 180, true, 'chinese', 'Noodles'],
+  ['i24', 'c_chinese', 'Chicken Fried Rice', 'चिकन फ्राइड राइस', 220, false, 'chinese', 'Rice'],
+  ['i25', 'c_chinese', 'Veg Manchurian', 'वेज मंचूरियन', 200, true, 'chinese', 'Gravy'],
+  ['i26', 'c_bev', 'Masala Chai', 'मसाला चाय', 40, true, 'beverage', 'Hot'],
+  ['i27', 'c_bev', 'Sweet Lassi', 'मीठी लस्सी', 90, true, 'beverage', 'Cold'],
+  ['i28', 'c_bev', 'Fresh Lime Soda', 'फ्रेश लाइम सोडा', 70, true, 'beverage', 'Cold'],
+  ['i29', 'c_bev', 'Cold Coffee', 'कोल्ड कॉफ़ी', 120, true, 'beverage', 'Cold'],
+  ['i30', 'c_bev', 'Mineral Water', 'मिनरल वाटर', 25, true, 'beverage', 'Packaged'],
+  ['i31', 'c_desserts', 'Gulab Jamun (2 pc)', 'गुलाब जामुन', 90, true, 'kitchen', 'Indian Sweets'],
+  ['i32', 'c_desserts', 'Rasmalai (2 pc)', 'रसमलाई', 110, true, 'kitchen', 'Indian Sweets'],
+  ['i33', 'c_desserts', 'Ice Cream Scoop', 'आइसक्रीम स्कूप', 80, true, 'beverage', 'Ice Cream'],
 ]
 
 const INGREDIENTS = [
@@ -185,11 +188,15 @@ const MODIFIERS = {
       { id: 'mo_butter', name: 'Extra butter', price: 20 },
     ] },
   ],
+  // half plates — the item price is the full plate, so Half carries a negative
+  // delta (see portions.js). Dal Makhani ₹130/₹220, Butter Chicken ₹210/₹360.
+  i06: [buildPortionGroup(220, 130, 220)],
+  i08: [buildPortionGroup(360, 210, 360)],
 }
 
 export function makeSeed() {
-  const items = ITEMS.map(([id, catId, name, hi, price, veg, station]) => ({
-    id, catId, name, nameHi: hi, price, veg, station, available: true,
+  const items = ITEMS.map(([id, catId, name, hi, price, veg, station, subCat]) => ({
+    id, catId, name, nameHi: hi, namePa: toPunjabi(name), price, veg, station, subCat, available: true,
     recipe: (RECIPES[id] || []).map(([ingId, qty]) => ({ ingId, qty })),
     ...(MODIFIERS[id] ? { modifiers: MODIFIERS[id] } : {}),
   }))
@@ -202,7 +209,10 @@ export function makeSeed() {
     settings: {
       name: 'Sharma Ji Da Dhaba', tagline: 'Since 1987', address: '12, GT Road, Jalandhar, Punjab 144001',
       phone: '0181-2223344', gstin: '03ABCDE1234F1Z5', fssai: '12123456789012',
-      gstScheme: 'regular', gstRate: 5, serviceCharge: 0, hsnCode: '996331',
+      // 5% service charge on by default, and waivable per bill — a guest may
+      // decline it, so it is never treated as compulsory
+      gstScheme: 'regular', gstRate: 5, serviceCharge: 5, hsnCode: '996331',
+      supportPhone: '9614300003', discountNeedsPin: true,
       upiId: 'sharmajidadhaba@okhdfcbank', lang: 'en',
       managerPin: '1111',
       printer: { enabled: false, mode: 'browser', ip: '', port: 9100, width: 48, kitchenIp: '' },

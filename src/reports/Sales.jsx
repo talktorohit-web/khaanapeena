@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { Bars, Donut, HBars } from '../charts.jsx'
-import { inr0, bucketize, billTotals } from '../utils.js'
+import { inr0, bucketize, billTotals, dayKey } from '../utils.js'
 import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, channelOf, CHANNELS, isAggregator, coversOf } from './shared.jsx'
 
 const MODES = [
@@ -52,7 +52,7 @@ export default function Sales({ state, range }) {
   const dayRows = useMemo(() => {
     const map = {}
     paid.forEach((o) => {
-      const k = new Date(o.paidAt).toISOString().slice(0, 10)
+      const k = dayKey(o.paidAt)
       const d = (map[k] = map[k] || { k, bills: 0, gross: 0, discount: 0, taxable: 0, tax: 0, cash: 0, digital: 0 })
       const bt = billTotals(o, state.settings)
       d.bills++

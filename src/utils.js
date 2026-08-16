@@ -6,9 +6,21 @@ export const inr = (n) =>
 export const inr0 = (n) =>
   '₹' + Math.round(Number(n || 0)).toLocaleString('en-IN')
 
-export const todayISO = () => new Date().toISOString().slice(0, 10)
+/**
+ * The LOCAL calendar day as YYYY-MM-DD.
+ *
+ * `toISOString()` converts to UTC first, so in India (UTC+5:30) every bill,
+ * expense or register entry between midnight and 05:29 was filed against the
+ * previous day while being labelled with today's date. A restaurant closing at
+ * 1am had its whole late-night trade land on the wrong row.
+ */
+const localDay = (d) => {
+  const x = new Date(d)
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+export const todayISO = () => localDay(new Date())
 
-export const dayKey = (ts) => new Date(ts).toISOString().slice(0, 10)
+export const dayKey = (ts) => localDay(ts)
 
 export const fmtTime = (ts) =>
   new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -26,7 +38,8 @@ export function shiftTotals(shift, orders, expenses) {
   const from = shift.openedAt || 0
   const to = shift.closedAt || Date.now() + 1000
   const paid = (orders || []).filter((o) => o.status === 'paid' && o.paidAt >= from && o.paidAt < to)
-  const mode = (m) => paid.filter((o) => (o.payment?.method || 'cash') === m).reduce((s, o) => s + (o.payment?.amount || 0), 0)
+  // via paymentSplit so a half-cash-half-UPI bill lands in both buckets, not one
+  const mode = (m) => paid.reduce((s, o) => s + paidByMode(o, m), 0)
   const cash = mode('cash'), upi = mode('upi'), card = mode('card'), online = mode('online'), credit = mode('credit')
   const cashIn = (shift.cashMovements || []).filter((m) => m.type === 'in').reduce((s, m) => s + (m.amount || 0), 0)
   const cashOut = (shift.cashMovements || []).filter((m) => m.type === 'out').reduce((s, m) => s + (m.amount || 0), 0)
@@ -36,15 +49,20 @@ export function shiftTotals(shift, orders, expenses) {
   const cashRefunds = paid
     .filter((o) => o.refund && (o.refund.method || 'cash') === 'cash')
     .reduce((s, o) => s + (o.refund.amount || 0), 0)
+  // an OLD udhaar bill collected in cash during this shift is cash in the drawer
+  // now, even though its sale belongs to an earlier day
+  const creditCollected = (orders || [])
+    .filter((o) => o.creditPaid && o.creditPaid.at >= from && o.creditPaid.at < to && (o.creditPaid.method || 'cash') === 'cash')
+    .reduce((s, o) => s + ((o.payment?.amount || 0) - (o.refund?.amount || 0)), 0)
   const openingFloat = shift.openingFloat || 0
   return {
     cash, upi, card, online, credit,
     gross: cash + upi + card + online + credit,
     bills: paid.length,
     discounts: paid.reduce((s, o) => s + (o.payment?.discount || 0), 0),
-    cashIn, cashOut, cashExpenses, cashRefunds, openingFloat,
+    cashIn, cashOut, cashExpenses, cashRefunds, creditCollected, openingFloat,
     // what should physically be in the drawer right now
-    expectedCash: openingFloat + cash + cashIn - cashOut - cashExpenses - cashRefunds,
+    expectedCash: openingFloat + cash + creditCollected + cashIn - cashOut - cashExpenses - cashRefunds,
   }
 }
 
@@ -123,10 +141,10 @@ export function bucketize(points, range) {
     const end = Math.min(range.to, Date.now() + 1000)
     const map = {}
     for (let t = start.getTime(); t < end; t += DAY) {
-      const k = new Date(t).toISOString().slice(0, 10)
+      const k = localDay(t)
       map[k] = { key: k, label: new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), value: 0 }
     }
-    points.forEach((p) => { const k = new Date(p.ts).toISOString().slice(0, 10); if (map[k]) map[k].value += p.value })
+    points.forEach((p) => { const k = localDay(p.ts); if (map[k]) map[k].value += p.value })
     return Object.values(map)
   }
   // week buckets
@@ -134,7 +152,7 @@ export function bucketize(points, range) {
   points.forEach((p) => {
     const d = new Date(p.ts); const dow = (d.getDay() + 6) % 7
     const monday = new Date(d); monday.setDate(d.getDate() - dow); monday.setHours(0, 0, 0, 0)
-    const k = monday.toISOString().slice(0, 10)
+    const k = localDay(monday)
     if (!map[k]) map[k] = { key: k, ts: monday.getTime(), label: 'w/o ' + monday.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), value: 0 }
     map[k].value += p.value
   })
@@ -151,10 +169,38 @@ export function billTotals(order, settings) {
   const gstRate = settings.gstRate ?? 5
   const cgst = (taxable * gstRate) / 200
   const sgst = (taxable * gstRate) / 200
-  const svc = settings.serviceCharge ? (taxable * settings.serviceCharge) / 100 : 0
+  // Service charge is NOT a tax and is not compulsory — a guest may decline it
+  // (CCPA guidelines, India). `svcWaived` on the order is that refusal.
+  const svcRate = order.svcWaived ? 0 : (settings.serviceCharge || 0)
+  const svc = (taxable * svcRate) / 100
   const total = Math.round(taxable + cgst + sgst + svc)
-  return { sub, discount, taxable, cgst, sgst, svc, gstRate, total, roundOff: total - (taxable + cgst + sgst + svc) }
+  return { sub, discount, taxable, cgst, sgst, svc, svcRate, gstRate, total, roundOff: total - (taxable + cgst + sgst + svc) }
 }
+
+/**
+ * What a bill was actually paid with, as {mode: amount}.
+ *
+ * A guest can settle across several modes ("half cash, half UPI"), so anything
+ * that buckets money by mode MUST go through this. Reading `payment.method`
+ * directly would drop a split bill entirely into one bucket and every drawer and
+ * payment-mix figure downstream would be wrong.
+ */
+export function paymentSplit(order) {
+  const p = order?.payment || {}
+  if (Array.isArray(p.splits) && p.splits.length) {
+    const out = {}
+    p.splits.forEach((s) => { out[s.method] = (out[s.method] || 0) + (+s.amount || 0) })
+    return out
+  }
+  return { [p.method || 'cash']: p.amount || 0 }
+}
+export const paidByMode = (order, mode) => paymentSplit(order)[mode] || 0
+
+export const PAY_MODES = [
+  ['cash', '💵 Cash'], ['upi', '📲 UPI'], ['card', '💳 Card'],
+  ['online', '🛵 Online'], ['credit', '📒 Udhaar'], ['nc', '🚫 Not chargeable'],
+]
+export const payModeLabel = (k) => PAY_MODES.find(([c]) => c === k)?.[1] || k
 
 export function upiLink(settings, amount, note) {
   const p = new URLSearchParams({
@@ -186,6 +232,13 @@ export const DISCOUNT_REASONS = [
   ['other', '✏️ Other'],
 ]
 export const AUTO_REASONS = [['loyalty', '🎟️ Loyalty points redeemed']]
+
+// Why an item was pulled off a bill after the kitchen already had it. Without a
+// reason the cancellation report can only count events, not explain them.
+export const VOID_REASONS = [
+  'Out of stock / 86', 'Punched by mistake', 'Guest changed their mind',
+  'Taking too long', 'Wrong item made', 'Quality not right', 'Duplicate punch', 'Other',
+]
 export const discountReasonLabel = (k) =>
   [...DISCOUNT_REASONS, ...AUTO_REASONS].find(([c]) => c === k)?.[1] || (k ? '✏️ ' + k : 'Not recorded')
 
