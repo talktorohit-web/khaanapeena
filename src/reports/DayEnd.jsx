@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Donut } from '../charts.jsx'
 import { inr0, billTotals, todayISO, fmtTime } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, pct, amt, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, ExportBtn, download, pct, amt, channelOf, channelLabel, coversOf } from './shared.jsx'
 
 // Close-of-day: everything an owner checks before locking up, on one screen.
 // Deliberately ignores the page-level range — a day-end is always ONE day.
@@ -56,11 +56,14 @@ export default function DayEnd({ state }) {
 
   const firstBill = paid[0]
   const lastBill = paid[paid.length - 1]
+  const guests = paid.reduce((s, o) => s + coversOf(o), 0)
 
   const exportCsv = () => {
     const out = [['DAY-END SUMMARY'], ['Date', new Date(from).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })], [],
       ['Total collected ₹', Math.round(gross)],
       ['Bills', paid.length],
+      ['Guests served', guests || '—'],
+      ['Spend per guest ₹', guests ? Math.round(gross / guests) : '—'],
       ['Average bill ₹', paid.length ? Math.round(gross / paid.length) : 0],
       ['Discounts given ₹', Math.round(discount)],
       ['Taxable value ₹', Math.round(taxable)],
@@ -112,8 +115,9 @@ export default function DayEnd({ state }) {
         <Card><Empty icon="🌙" text="No bills settled on this day." /></Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
             <StatCard label="Collected" value={inr0(gross)} sub={`${paid.length} bills`} icon="💰" accent="saffron" />
+            <StatCard label="Guests served" value={guests || '—'} sub={guests ? `${inr0(gross / guests)} per guest` : 'guest count not entered'} icon="👥" accent={guests ? 'green' : 'stone'} />
             <StatCard label="Average bill" value={inr0(gross / paid.length)} icon="📊" accent="purple" />
             <StatCard label="Discounts" value={inr0(discount)} sub={`${pct(discount, gross + discount)}% of sales`} icon="🏷️" accent={discount > gross * 0.1 ? 'red' : 'green'} />
             <StatCard label={comp ? 'Taxable turnover' : 'GST collected'} value={inr0(comp ? taxable : tax)} sub={comp ? 'composition levy base' : 'CGST + SGST'} icon="🧾" accent="blue" />

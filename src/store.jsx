@@ -267,7 +267,7 @@ export function StoreProvider({ children }) {
       return issued
     }
 
-    const settleOrder = async (orderId, { method, discount = 0, customerId = null, redeemPoints = 0 }) => {
+    const settleOrder = async (orderId, { method, discount = 0, discountReason = null, discountNote = null, customerId = null, redeemPoints = 0 }) => {
       // GUARD: never settle an already-paid order twice. An online 'ready' order
       // exposes a settle control on BOTH KDS and Online Orders, so a double-tap
       // (or two staff) would otherwise burn a second invoice number and double the
@@ -293,6 +293,12 @@ export function StoreProvider({ children }) {
         o.sanitized = true
       }
       o.payment = { method, discount }
+      // why the money was given up — only stored when there was a discount, so
+      // Firebase never carries an empty key on the overwhelming majority of bills
+      if (discount > 0 && discountReason) {
+        o.payment.discountReason = discountReason
+        if (discountNote) o.payment.discountNote = String(discountNote).slice(0, 60)
+      }
       const totals = billTotals(o, s.settings)
       // composition scheme: no GST collected, but service charge still applies
       o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable + totals.svc) : totals.total
@@ -427,6 +433,10 @@ export function StoreProvider({ children }) {
           id: oid, billNo: null, type: 'dine', tableId: tid, items: [], status: 'open',
           createdAt: Date.now(), kotAt: null, paidAt: null, customerId: null,
           payment: { method: null, discount: 0, amount: 0 }, source: 'reservation', kotNo: null,
+          // the booking already told us how many are coming — pre-fill the cover
+          // count so the waiter only corrects it if the party turns up different
+          covers: +r.partySize || null,
+          takenBy: operatorName(s),
         })
         r.status = 'seated'
         r.orderId = oid

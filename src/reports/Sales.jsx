@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { Bars, Donut, HBars } from '../charts.jsx'
 import { inr0, bucketize, billTotals } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, channelOf, CHANNELS, isAggregator } from './shared.jsx'
+import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, channelOf, CHANNELS, isAggregator, coversOf } from './shared.jsx'
 
 const MODES = [
   { key: 'cash', label: 'Cash', icon: '💵', color: '#16a34a' },
@@ -20,6 +20,10 @@ export default function Sales({ state, range }) {
   const discount = paid.reduce((s, o) => s + (o.payment?.discount || 0), 0)
   const bills = paid.length
   const avg = bills ? Math.round(gross / bills) : 0
+  // spend per guest, from the bills that actually recorded a head count
+  const counted = paid.filter((o) => coversOf(o) > 0)
+  const guests = counted.reduce((s, o) => s + coversOf(o), 0)
+  const perGuest = guests ? counted.reduce((s, o) => s + amt(o), 0) / guests : null
   // taxable value computed from each bill (not gross/1.05) — correct for composition
   // (no GST), service charge, and non-5% GST rates
   const netTaxable = Math.round(paid.reduce((s, o) => s + billTotals(o, state.settings).taxable, 0))
@@ -99,11 +103,12 @@ export default function Sales({ state, range }) {
     <>
       <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard label="Total earnings" value={inr0(gross)} sub={range.label} icon="💰" accent="saffron" />
         <StatCard label="Sales before GST" value={inr0(netTaxable)} sub="before tax is added" icon="🧮" accent="blue" />
         <StatCard label="Bills" value={bills} icon="🧾" accent="green" />
         <StatCard label="Avg. bill" value={inr0(avg)} icon="📊" accent="purple" />
+        <StatCard label="Spend per guest" value={perGuest == null ? '—' : inr0(perGuest)} sub={perGuest == null ? 'enter guest counts in Billing' : `${guests} guests counted`} icon="👥" accent={perGuest == null ? 'stone' : 'green'} />
         <StatCard label="Discounts given" value={inr0(discount)} icon="🏷️" accent="red" />
       </div>
 

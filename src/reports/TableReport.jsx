@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty, Badge } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, amt, mins, median, dur, spanDays, earliestOf } from './shared.jsx'
+import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, amt, mins, median, dur, spanDays, earliestOf, coversOf } from './shared.jsx'
 
 // Table & section performance. Turnaround is measured from when the order was
 // opened to when the bill was settled — the seat-time a table is actually blocked
@@ -16,6 +16,11 @@ export default function TableReport({ state, range }) {
     const os = dine.filter((o) => o.tableId === tb.id)
     const rev = os.reduce((s, o) => s + amt(o), 0)
     const times = os.map((o) => mins((o.servedAt || o.paidAt) - o.createdAt)).filter((m) => m > 0 && m < 600)
+    // per-guest figures come only from bills that actually recorded a head count —
+    // averaging in bills with no count would quietly halve the spend per guest
+    const counted = os.filter((o) => coversOf(o) > 0)
+    const guests = counted.reduce((s, o) => s + coversOf(o), 0)
+    const countedRev = counted.reduce((s, o) => s + amt(o), 0)
     return {
       id: tb.id, name: tb.name, area: tb.area || '—', seats: tb.seats || 0,
       bills: os.length, rev,
@@ -23,6 +28,10 @@ export default function TableReport({ state, range }) {
       tat: median(times),
       perSeat: tb.seats ? rev / tb.seats : 0,
       turnsPerDay: os.length / days,
+      guests, countedBills: counted.length,
+      perGuest: guests ? countedRev / guests : null,
+      partySize: counted.length ? guests / counted.length : null,
+      fill: counted.length && tb.seats ? (guests / counted.length) / tb.seats : null,
     }
   }), [state.tables, dine, days])
 
@@ -31,12 +40,19 @@ export default function TableReport({ state, range }) {
     rows.forEach((r) => {
       const a = (m[r.area] = m[r.area] || { area: r.area, tables: 0, seats: 0, bills: 0, rev: 0, tats: [] })
       a.tables++; a.seats += r.seats; a.bills += r.bills; a.rev += r.rev
+      a.guests = (a.guests || 0) + r.guests
       if (r.tat != null) a.tats.push(r.tat)
     })
     return Object.values(m).map((a) => ({ ...a, tat: median(a.tats), perSeat: a.seats ? a.rev / a.seats : 0 })).sort((x, y) => y.rev - x.rev)
   }, [rows])
 
   const dineRev = dine.reduce((s, o) => s + amt(o), 0)
+  const countedDine = dine.filter((o) => coversOf(o) > 0)
+  const totalGuests = countedDine.reduce((s, o) => s + coversOf(o), 0)
+  const guestRev = countedDine.reduce((s, o) => s + amt(o), 0)
+  const perGuest = totalGuests ? guestRev / totalGuests : null
+  const avgParty = countedDine.length ? totalGuests / countedDine.length : null
+  const coverCoverage = dine.length ? countedDine.length / dine.length : 0
   const allTats = dine.map((o) => mins((o.servedAt || o.paidAt) - o.createdAt)).filter((m) => m > 0 && m < 600)
   const medTat = median(allTats)
   const totalSeats = rows.reduce((s, r) => s + r.seats, 0)
@@ -49,13 +65,14 @@ export default function TableReport({ state, range }) {
 
   const exportCsv = () => {
     const out = [['TABLE PERFORMANCE — ' + range.label], [],
-      ['Table', 'Area', 'Seats', 'Parties served', 'Revenue ₹', 'Avg bill ₹', 'Median seat-time (min)', '₹ per seat', 'Turns/day']]
+      ['Table', 'Area', 'Seats', 'Parties served', 'Guests', 'Avg party size', 'Revenue ₹', 'Avg bill ₹', '₹ per guest', 'Median seat-time (min)', '₹ per seat', 'Turns/day']]
     ;[...rows].sort((a, b) => b.rev - a.rev).forEach((r) => out.push([
-      r.name, r.area, r.seats, r.bills, Math.round(r.rev), Math.round(r.avg),
+      r.name, r.area, r.seats, r.bills, r.guests || '', r.partySize == null ? '' : r.partySize.toFixed(1),
+      Math.round(r.rev), Math.round(r.avg), r.perGuest == null ? '' : Math.round(r.perGuest),
       r.tat == null ? '' : r.tat.toFixed(0), Math.round(r.perSeat), r.turnsPerDay.toFixed(2),
     ]))
-    out.push([], ['BY SECTION'], ['Area', 'Tables', 'Seats', 'Parties', 'Revenue ₹', '₹ per seat', 'Median seat-time (min)'])
-    areas.forEach((a) => out.push([a.area, a.tables, a.seats, a.bills, Math.round(a.rev), Math.round(a.perSeat), a.tat == null ? '' : a.tat.toFixed(0)]))
+    out.push([], ['BY SECTION'], ['Area', 'Tables', 'Seats', 'Parties', 'Guests', 'Revenue ₹', '₹ per seat', 'Median seat-time (min)'])
+    areas.forEach((a) => out.push([a.area, a.tables, a.seats, a.bills, a.guests || '', Math.round(a.rev), Math.round(a.perSeat), a.tat == null ? '' : a.tat.toFixed(0)]))
     download(`khaanapeena-tables-${slug(range)}.csv`, out)
   }
 
@@ -63,19 +80,27 @@ export default function TableReport({ state, range }) {
     return <Card><Empty icon="🪑" text={`No dine-in bills in ${range.label.toLowerCase()} — table performance needs settled dine-in orders.`} /></Card>
   }
 
-  const best = [...rows].sort((a, b) => b.rev - a.rev)[0]
-
   return (
     <>
       <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard label="Dine-in revenue" value={inr0(dineRev)} sub={`${dine.length} parties`} icon="🍽️" accent="saffron" />
+        <StatCard label="Guests served" value={totalGuests || '—'} sub={totalGuests ? `party of ${avgParty.toFixed(1)} on average` : 'guest count not entered'} icon="👥" accent={totalGuests ? 'green' : 'stone'} />
+        <StatCard label="Spend per guest" value={perGuest == null ? '—' : inr0(perGuest)} sub={perGuest == null ? 'needs guest counts' : 'what each person spends'} icon="🙋" accent={perGuest == null ? 'stone' : 'blue'} />
         <StatCard label="Typical seat-time" value={dur(medTat)} sub="opened → bill settled" icon="⏱️" accent="blue" />
-        <StatCard label="Best table" value={best?.name || '—'} sub={best ? `${inr0(best.rev)} · ${best.bills} parties` : ''} icon="🏆" accent="green" />
         <StatCard label="₹ per seat" value={inr0(totalSeats ? dineRev / totalSeats : 0)} sub={`${totalSeats} seats · ${range.label}`} icon="💺" accent="purple" />
         <StatCard label="Tables never used" value={idle.length} sub={idle.length ? idle.slice(0, 3).map((t) => t.name).join(', ') : 'all earning ✓'} icon="🈳" accent={idle.length ? 'red' : 'green'} />
       </div>
+
+      {coverCoverage < 0.5 && dine.length > 3 && (
+        <Note>
+          {totalGuests
+            ? <>Only <b>{Math.round(coverCoverage * 100)}%</b> of dine-in bills recorded how many guests were at the table, so spend-per-guest is based on just those.</>
+            : <>No dine-in bill recorded a guest count yet.</>}{' '}
+          Tap the <b>👥</b> counter next to the table picker in Billing when you seat a table — it's one tap per guest and it turns on spend-per-guest, party size and how full your tables really run.
+        </Note>
+      )}
 
       {flatTat && (
         <Note tone="blue">
@@ -91,6 +116,7 @@ export default function TableReport({ state, range }) {
             cols={[
               { h: 'Section', cell: (a) => <div><span className="font-semibold">{a.area}</span><div className="text-[11px] text-stone-400">{a.tables} tables · {a.seats} seats</div></div>, foot: () => 'All' },
               { h: 'Parties', num: true, cell: (a) => a.bills, foot: () => dine.length },
+              { h: 'Guests', num: true, cell: (a) => a.guests || <span className="text-stone-300">—</span>, foot: () => totalGuests || '—' },
               { h: 'Revenue', num: true, cell: (a) => <b>{inr0(a.rev)}</b>, foot: () => inr0(dineRev) },
               { h: '₹/seat', num: true, cell: (a) => inr0(a.perSeat), foot: () => inr0(totalSeats ? dineRev / totalSeats : 0) },
               { h: 'Seat-time', num: true, cell: (a) => dur(a.tat) },
@@ -110,8 +136,13 @@ export default function TableReport({ state, range }) {
           cols={[
             { h: 'Table', cell: (r) => <div><span className="font-semibold text-ink-900">{r.name}</span><div className="text-[11px] text-stone-400">{r.area} · {r.seats} seats</div></div>, foot: () => 'Total' },
             { h: 'Parties', num: true, cell: (r) => r.bills || <span className="text-stone-300">0</span>, foot: () => dine.length },
+            { h: 'Guests', num: true, cell: (r) => r.guests || <span className="text-stone-300">—</span>, foot: () => totalGuests || '—' },
+            { h: 'Party size', num: true, cell: (r) => r.partySize == null
+              ? <span className="text-stone-300">—</span>
+              : <span title={r.seats ? `table seats ${r.seats}` : undefined}>{r.partySize.toFixed(1)}{r.fill != null && r.fill < 0.5 && r.seats > 2 ? ' 🪑' : ''}</span> },
             { h: 'Revenue', num: true, cell: (r) => r.rev ? <b>{inr0(r.rev)}</b> : <span className="text-stone-300">—</span>, foot: () => inr0(dineRev) },
             { h: 'Avg bill', num: true, cell: (r) => r.bills ? inr0(r.avg) : <span className="text-stone-300">—</span>, foot: () => inr0(dine.length ? dineRev / dine.length : 0) },
+            { h: '₹/guest', num: true, cell: (r) => r.perGuest == null ? <span className="text-stone-300">—</span> : inr0(r.perGuest), foot: () => perGuest == null ? '—' : inr0(perGuest) },
             { h: 'Seat-time', num: true, cell: (r) => r.tat == null ? <span className="text-stone-300">—</span> : <Badge color={r.tat > 90 ? 'red' : r.tat > 60 ? 'amber' : 'green'}>{dur(r.tat)}</Badge> },
             { h: '₹/seat', num: true, cell: (r) => r.seats ? inr0(r.perSeat) : <span className="text-stone-300">—</span> },
             { h: 'Turns/day', num: true, cell: (r) => r.turnsPerDay.toFixed(1) },

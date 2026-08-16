@@ -5,6 +5,8 @@
 // Basic thermal printers use single-byte code pages and cannot render the ₹ glyph
 // or Devanagari, so we transliterate ₹ -> "Rs " and drop non-ASCII from names.
 
+import { discountReasonLabel } from './utils.js'
+
 const ESC = 0x1b, GS = 0x1d
 
 function sanitize(s) {
@@ -77,12 +79,19 @@ export function buildBill(order, settings, totals, width = 48) {
   e.bold(true).line(isComposition ? 'BILL OF SUPPLY' : 'TAX INVOICE').bold(false)
   e.align('left').rule()
   e.line(`Bill: ${order.billNo || 'DRAFT'}   ${order.tableId ? 'Table ' + order.tableId : (order.type || '').toUpperCase()}`)
+  if (order.covers) e.line(`Guests: ${order.covers}`)
   e.line(new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('en-IN'))
   e.rule()
   ;(order.items || []).forEach((li) => e.item(li.name, li.qty, money(li.price * li.qty)))
   e.rule()
   e.row('Subtotal', money(totals.sub))
-  if (totals.discount > 0) e.row('Discount', '-' + money(totals.discount))
+  if (totals.discount > 0) {
+    e.row('Discount', '-' + money(totals.discount))
+    // the reason belongs on the printed slip too — it's the owner's audit trail
+    // for a comped or heavily-discounted bill long after the shift has gone home
+    const r = order.payment?.discountReason
+    if (r) e.line('  (' + discountReasonLabel(r).replace(/^\S+\s/, '') + (order.payment.discountNote ? ' - ' + order.payment.discountNote : '') + ')')
+  }
   if (!isComposition) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))

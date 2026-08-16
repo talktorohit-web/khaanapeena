@@ -47,6 +47,10 @@ export const spanDays = (range, earliest) => {
 // smallest timestamp in a list, or 0 when there's nothing to go on
 export const earliestOf = (list, pick) => (list.length ? Math.min(...list.map(pick)) : 0)
 
+// guests on a bill (dine-in cover count). 0 when the till never recorded it —
+// per-guest figures must exclude those bills, not treat them as a table of nobody
+export const coversOf = (o) => +o.covers || 0
+
 export const AGGREGATORS = ['zomato', 'swiggy']
 export const isAggregator = (o) => AGGREGATORS.includes(o.type)
 

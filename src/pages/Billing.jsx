@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName } from '../utils.js'
+import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName, DISCOUNT_REASONS, discountReasonLabel } from '../utils.js'
 import { usePerms } from '../perms.jsx'
 import { printBill, printKOT, inElectron } from '../print.js'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
@@ -31,6 +31,12 @@ export default function Billing() {
   const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
   const [noteIdx, setNoteIdx] = useState(null) // which cart line's instruction is being edited
   const [noteText, setNoteText] = useState('')
+
+  // guest count on a dine-in table — feeds spend-per-guest and staffing reports
+  const changeCovers = (d) => update((s) => {
+    const o = s.orders.find((x) => x.id === orderId)
+    if (o) o.covers = Math.max(0, Math.min(99, (o.covers || 0) + d)) || null
+  })
 
   // per-item cooking instruction (e.g. "less chilly") — saved on the line and printed on the KOT
   const saveNote = (idx, text) => {
@@ -343,6 +349,19 @@ export default function Billing() {
                   {state.tables.map((tb) => <option key={tb.id} value={tb.id}>{tb.name} ({tb.area})</option>)}
                 </select>
               )}
+              {/* How many guests are on this table. Amber until it's set, because an
+                  unfilled cover count silently blanks the per-guest reports. */}
+              {order.type === 'dine' && (
+                <div
+                  title="How many guests are eating on this table"
+                  className={`flex items-center gap-0.5 text-xs border rounded-lg px-1.5 py-0.5 shrink-0 ${order.covers ? 'border-stone-200 text-stone-600' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+                >
+                  <span className="mr-0.5">👥</span>
+                  <button onClick={() => changeCovers(-1)} className="w-4 font-black leading-none disabled:opacity-30" disabled={!order.covers}>−</button>
+                  <span className="w-5 text-center font-bold tabular-nums">{order.covers || '–'}</span>
+                  <button onClick={() => changeCovers(1)} className="w-4 font-black leading-none">＋</button>
+                </div>
+              )}
               <Badge color={order.status === 'kot' ? 'amber' : order.status === 'ready' ? 'green' : 'blue'}>{order.status.toUpperCase()}</Badge>
             </div>
           )}
@@ -581,6 +600,8 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
   const hh = state.settings.happyHour
   const [method, setMethod] = useState('upi')
   const [discount, setDiscount] = useState(allowDiscount && happyHourNow ? Math.round((totals.sub * hh.discountPct) / 100) : 0)
+  const [reason, setReason] = useState(allowDiscount && happyHourNow ? 'happy-hour' : '')
+  const [reasonNote, setReasonNote] = useState('')
   const [phone, setPhone] = useState('')
   const [custName, setCustName] = useState('')
   const [redeem, setRedeem] = useState(0)
@@ -603,8 +624,17 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
       customerId = 'cu' + Math.random().toString(36).slice(2, 8)
       update((s) => s.customers.push({ id: customerId, name: custName || 'Guest', phone, birthday: null, points: 0, visits: 0, totalSpend: 0, lastVisit: null, tags: [] }))
     }
-    onDone({ method, discount: discount + redeem, customerId, redeemPoints: redeem })
+    // points redeemed with no manual discount are self-explanatory — label them
+    // automatically rather than making the cashier state the obvious
+    const total = discount + redeem
+    const finalReason = discount > 0 ? reason : (redeem > 0 ? 'loyalty' : null)
+    onDone({
+      method, discount: total, customerId, redeemPoints: redeem,
+      discountReason: total > 0 ? finalReason : null,
+      discountNote: finalReason === 'other' ? reasonNote.trim() : null,
+    })
   }
+  const needsReason = discount > 0 && !reason
 
   return (
     <Modal open onClose={onClose} title={`${t('settle')} — ${inr0(payable)}`}>
@@ -629,6 +659,35 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
         {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600">Happy hour −{hh.discountPct}% auto-applied</span>}
       </Field>
 
+      {/* A discount with no reason is money that leaves without a trace. Asking
+          here is the only moment anyone still knows why. */}
+      {discount > 0 && (
+        <div className="mb-3">
+          <span className="text-xs font-semibold text-stone-500 block mb-1">Why this discount? <span className="text-red-500">*</span></span>
+          <div className="flex flex-wrap gap-1.5">
+            {DISCOUNT_REASONS.map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setReason(k)}
+                className={`text-[11px] font-semibold rounded-full px-2.5 py-1.5 border transition-colors ${reason === k ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+              >{label}</button>
+            ))}
+          </div>
+          {reason === 'other' && (
+            <input
+              autoFocus value={reasonNote} maxLength={60}
+              onChange={(e) => setReasonNote(e.target.value)}
+              placeholder="Say why in a few words"
+              className={inputCls + ' mt-2 text-sm'}
+            />
+          )}
+          {!reason && <span className="text-[11px] text-red-500 block mt-1">Pick a reason to close this bill — it's what makes the discount report useful.</span>}
+          {discount >= totals.sub && reason && reason !== 'comp' && (
+            <span className="text-[11px] text-amber-600 block mt-1">This is a 100% discount — the guest pays nothing. "On the house" may be the truer reason.</span>
+          )}
+        </div>
+      )}
+
       <Field label="Customer mobile (loyalty)">
         <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile" className={inputCls} />
       </Field>
@@ -650,7 +709,7 @@ function SettleModal({ order, totals, onClose, onDone, happyHourNow, allowDiscou
         </Field>
       ) : null}
 
-      <button onClick={finish} className={btnPrimary + ' w-full'}>✓ Collect {inr0(payable)} & Close Bill</button>
+      <button onClick={finish} disabled={needsReason} className={btnPrimary + ' w-full'}>✓ Collect {inr0(payable)} & Close Bill</button>
     </Modal>
   )
 }
@@ -677,7 +736,7 @@ export function BillPrint({ order, onClose }) {
           <div className="font-bold mt-1">{isComposition ? 'BILL OF SUPPLY' : 'TAX INVOICE'}</div>
         </div>
         <div className="border-t border-dashed border-stone-400 my-1" />
-        <div>Bill No: {order.billNo || 'DRAFT'} · {order.tableId ? `Table ${order.tableId}` : order.type}</div>
+        <div>Bill No: {order.billNo || 'DRAFT'} · {order.tableId ? `Table ${order.tableId}` : order.type}{order.covers ? ` · ${order.covers} guest${order.covers > 1 ? 's' : ''}` : ''}</div>
         <div>{new Date(order.createdAt).toLocaleString('en-IN')}</div>
         <div className="border-t border-dashed border-stone-400 my-1" />
         {(order.items || []).map((li, i) => (
@@ -687,7 +746,14 @@ export function BillPrint({ order, onClose }) {
         ))}
         <div className="border-t border-dashed border-stone-400 my-1" />
         <div className="flex justify-between"><span>Subtotal</span><span>{totals.sub.toFixed(2)}</span></div>
-        {totals.discount > 0 && <div className="flex justify-between"><span>Discount</span><span>-{totals.discount.toFixed(2)}</span></div>}
+        {totals.discount > 0 && (
+          <>
+            <div className="flex justify-between"><span>Discount</span><span>-{totals.discount.toFixed(2)}</span></div>
+            {order.payment?.discountReason && (
+              <div className="text-[10px] text-stone-600">({discountReasonLabel(order.payment.discountReason).replace(/^\S+\s/, '')}{order.payment.discountNote ? ` — ${order.payment.discountNote}` : ''})</div>
+            )}
+          </>
+        )}
         {!isComposition && (
           <>
             <div className="flex justify-between"><span>CGST @{totals.gstRate / 2}%</span><span>{totals.cgst.toFixed(2)}</span></div>

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { Bars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, spanDays, earliestOf } from './shared.jsx'
+import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, spanDays, earliestOf, coversOf } from './shared.jsx'
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'am' : 'pm'}`
@@ -26,8 +26,8 @@ export default function Hourly({ state, range }) {
   // hour-of-day collapsed ACROSS every day in the range (deliberately not
   // bucketize(), which lays hours out along a single day's timeline)
   const hours = useMemo(() => {
-    const h = Array.from({ length: 24 }, (_, i) => ({ hour: i, bills: 0, rev: 0 }))
-    paid.forEach((o) => { const x = h[new Date(o.paidAt).getHours()]; x.bills++; x.rev += amt(o) })
+    const h = Array.from({ length: 24 }, (_, i) => ({ hour: i, bills: 0, rev: 0, guests: 0 }))
+    paid.forEach((o) => { const x = h[new Date(o.paidAt).getHours()]; x.bills++; x.rev += amt(o); x.guests += coversOf(o) })
     return h
   }, [paid])
 
@@ -57,17 +57,19 @@ export default function Hourly({ state, range }) {
   const parts = DAYPARTS.map((p) => {
     const os = paid.filter((o) => { const h = new Date(o.paidAt).getHours(); return h >= p.from && h < p.to })
     const rev = os.reduce((s, o) => s + amt(o), 0)
-    return { ...p, bills: os.length, rev, avg: os.length ? Math.round(rev / os.length) : 0, share: pct(rev, gross) }
+    const guests = os.reduce((s, o) => s + coversOf(o), 0)
+    return { ...p, bills: os.length, rev, guests, avg: os.length ? Math.round(rev / os.length) : 0, share: pct(rev, gross) }
   }).filter((p) => p.bills > 0)
 
   const exportCsv = () => {
     const rows = [['PEAK HOURS — ' + range.label], [],
-      ['Hour', 'Bills', 'Revenue ₹', 'Avg bill ₹', 'Share of sales %', 'Avg bills/day']]
+      ['Hour', 'Bills', 'Guests', 'Revenue ₹', 'Avg bill ₹', 'Share of sales %', 'Avg bills/day', 'Avg guests/day']]
     hours.filter((h) => h.bills).forEach((h) => rows.push([
-      hourSpan(h.hour), h.bills, Math.round(h.rev), Math.round(h.rev / h.bills), pct(h.rev, gross), (h.bills / days).toFixed(1),
+      hourSpan(h.hour), h.bills, h.guests || '', Math.round(h.rev), Math.round(h.rev / h.bills),
+      pct(h.rev, gross), (h.bills / days).toFixed(1), h.guests ? (h.guests / days).toFixed(1) : '',
     ]))
-    rows.push([], ['DAY-PARTS'], ['Part', 'Bills', 'Revenue ₹', 'Avg bill ₹', 'Share %'])
-    parts.forEach((p) => rows.push([p.label, p.bills, Math.round(p.rev), p.avg, p.share]))
+    rows.push([], ['DAY-PARTS'], ['Part', 'Bills', 'Guests', 'Revenue ₹', 'Avg bill ₹', 'Share %'])
+    parts.forEach((p) => rows.push([p.label, p.bills, p.guests || '', Math.round(p.rev), p.avg, p.share]))
     rows.push([], ['WEEKDAY × HOUR (revenue ₹)'], ['Day', ...gridHours.map(hourLabel)])
     grid.forEach((row, i) => rows.push([DOW[i], ...gridHours.map((h) => Math.round(row[h].rev))]))
     download(`khaanapeena-peak-hours-${slug(range)}.csv`, rows)
@@ -78,6 +80,7 @@ export default function Hourly({ state, range }) {
   }
 
   const busiestDow = DOW[dowTotals.indexOf(Math.max(...dowTotals))]
+  const anyGuests = hours.reduce((s, h) => s + h.guests, 0)
 
   return (
     <>
@@ -142,10 +145,11 @@ export default function Hourly({ state, range }) {
           cols={[
             { h: 'Part of day', cell: (p) => <div><span className="font-semibold">{p.label}</span><div className="text-[11px] text-stone-400">{hourLabel(p.from)} – {hourLabel(p.to % 24)}</div></div>, foot: () => 'All day' },
             { h: 'Bills', num: true, cell: (p) => p.bills, foot: () => paid.length },
+            { h: 'Guests', num: true, cell: (p) => p.guests || <span className="text-stone-300">—</span>, foot: () => anyGuests || '—' },
             { h: 'Revenue', num: true, cell: (p) => <b>{inr0(p.rev)}</b>, foot: () => inr0(gross) },
             { h: 'Avg bill', num: true, cell: (p) => inr0(p.avg), foot: () => inr0(paid.length ? gross / paid.length : 0) },
             { h: 'Share', num: true, cell: (p) => p.share + '%', foot: () => '100%' },
-            { h: 'Bills / day', num: true, cell: (p) => (p.bills / days).toFixed(1), foot: () => (paid.length / days).toFixed(1) },
+            { h: 'Guests / day', num: true, cell: (p) => p.guests ? (p.guests / days).toFixed(1) : <span className="text-stone-300">—</span> },
           ]}
         />
       </Card>
@@ -158,10 +162,11 @@ export default function Hourly({ state, range }) {
           cols={[
             { h: 'Hour', cell: (h) => <span className="font-semibold">{hourSpan(h.hour)}</span> },
             { h: 'Bills', num: true, cell: (h) => h.bills },
+            { h: 'Guests', num: true, cell: (h) => h.guests || <span className="text-stone-300">—</span> },
             { h: 'Revenue', num: true, cell: (h) => <b>{inr0(h.rev)}</b> },
             { h: 'Avg bill', num: true, cell: (h) => inr0(h.rev / h.bills) },
             { h: 'Share', num: true, cell: (h) => pct(h.rev, gross) + '%' },
-            { h: 'Avg bills/day', num: true, cell: (h) => (h.bills / days).toFixed(1) },
+            { h: 'Guests/day', num: true, cell: (h) => h.guests ? (h.guests / days).toFixed(1) : <span className="text-stone-300">—</span> },
           ]}
         />
       </Card>

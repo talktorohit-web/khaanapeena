@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { inr0, billTotals, tableName, fmtTime } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, amt, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, ExportBtn, download, paidIn, slug, amt, channelOf, channelLabel, coversOf } from './shared.jsx'
+import { discountReasonLabel } from '../utils.js'
 
 // The bill register: every settled bill, searchable, with the full line detail one
 // tap away. This is the screen an owner opens when a customer calls back about a
@@ -51,18 +52,22 @@ export default function Bills({ state, range }) {
 
   const exportCsv = () => {
     const out = [['BILL REGISTER — ' + range.label + (q ? ` (search: ${q})` : '')], [],
-      ['Bill No', 'Date', 'Time', 'KOT', 'Type', 'Table', 'Customer', 'Items', 'Taken by', 'Settled by', 'Sub ₹', 'Discount ₹', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Mode', 'Total ₹']]
+      ['Bill No', 'Date', 'Time', 'KOT', 'Type', 'Table', 'Guests', 'Customer', 'Items', 'Taken by', 'Settled by', 'Sub ₹', 'Discount ₹', 'Discount reason', 'Discount note', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Mode', 'Total ₹', '₹ per guest']]
     ;[...rows].reverse().forEach((o) => {
       const bt = billTotals(o, state.settings)
       const comp = state.settings.gstScheme === 'composition'
+      const g = coversOf(o)
       out.push([
         o.billNo, new Date(o.paidAt).toLocaleDateString('en-IN'), new Date(o.paidAt).toLocaleTimeString('en-IN'),
-        o.kotNo || '', o.type, tableName(state.tables, o.tableId) || '', custName(o.customerId),
+        o.kotNo || '', o.type, tableName(state.tables, o.tableId) || '', g || '', custName(o.customerId),
         (o.items || []).map((i) => `${i.qty}x ${i.name}${i.notes ? ` (${i.notes})` : ''}`).join('; '),
         o.takenBy || '', o.settledBy || '',
-        Math.round(bt.sub), bt.discount, Math.round(bt.taxable),
+        Math.round(bt.sub), bt.discount,
+        bt.discount > 0 && o.payment?.discountReason ? discountReasonLabel(o.payment.discountReason) : '',
+        o.payment?.discountNote || '',
+        Math.round(bt.taxable),
         comp ? 0 : Math.round(bt.cgst), comp ? 0 : Math.round(bt.sgst),
-        o.payment?.method || '', amt(o),
+        o.payment?.method || '', amt(o), g ? Math.round(amt(o) / g) : '',
       ])
     })
     out.push([], ['TOTAL', '', '', '', '', '', '', '', '', '', '', Math.round(shownDiscount), '', '', '', '', Math.round(shownGross)])
@@ -131,7 +136,7 @@ export default function Bills({ state, range }) {
             { h: 'Type', cell: (o) => (
               <div>
                 <div className="text-xs">{channelLabel(channelOf(o))}</div>
-                {o.tableId && <div className="text-[11px] text-stone-400">🪑 {tableName(state.tables, o.tableId)}</div>}
+                {o.tableId && <div className="text-[11px] text-stone-400">🪑 {tableName(state.tables, o.tableId)}{coversOf(o) ? ` · 👥 ${coversOf(o)}` : ''}</div>}
               </div>
             ) },
             { h: 'Items', cell: (o) => (
@@ -154,7 +159,12 @@ export default function Bills({ state, range }) {
                       return (
                         <div className="border-t border-stone-200 mt-1 pt-1 text-[11px] text-stone-500 space-y-0.5">
                           <div className="flex justify-between"><span>Sub-total</span><span className="tabular-nums">{inr0(bt.sub)}</span></div>
-                          {bt.discount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span className="tabular-nums">−{inr0(bt.discount)}</span></div>}
+                          {bt.discount > 0 && (
+                            <div className="flex justify-between text-red-600">
+                              <span>Discount{o.payment?.discountReason ? ` · ${discountReasonLabel(o.payment.discountReason)}${o.payment.discountNote ? ` (${o.payment.discountNote})` : ''}` : ''}</span>
+                              <span className="tabular-nums">−{inr0(bt.discount)}</span>
+                            </div>
+                          )}
                           {!comp && <div className="flex justify-between"><span>CGST + SGST</span><span className="tabular-nums">{inr0(bt.cgst + bt.sgst)}</span></div>}
                           {bt.svc > 0 && <div className="flex justify-between"><span>Service charge</span><span className="tabular-nums">{inr0(bt.svc)}</span></div>}
                           {(o.takenBy || o.settledBy) && (

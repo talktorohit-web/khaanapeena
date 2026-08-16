@@ -145,6 +145,24 @@ export function upiLink(settings, amount, note) {
 // never changes, so displays must look up the name or a rename won't show through)
 export const tableName = (tables, id) => (tables || []).find((t) => t.id === id)?.name || id
 
+// Why a discount was given. Recording the reason is what turns "we gave away
+// ₹12,000 last month" into something an owner can act on. A fixed list keeps the
+// report groupable; 'other' carries a free-text note alongside it. 'loyalty' is
+// stamped automatically when points are redeemed, so it isn't offered at the till.
+export const DISCOUNT_REASONS = [
+  ['happy-hour', '🕒 Happy hour'],
+  ['regular', '🙏 Regular customer'],
+  ['complaint', '😞 Complaint — made good'],
+  ['staff', '👨‍🍳 Staff / family meal'],
+  ['comp', '🎁 On the house (free)'],
+  ['party', '🎉 Bulk / party order'],
+  ['negotiated', '🤝 Price agreed with guest'],
+  ['other', '✏️ Other'],
+]
+export const AUTO_REASONS = [['loyalty', '🎟️ Loyalty points redeemed']]
+export const discountReasonLabel = (k) =>
+  [...DISCOUNT_REASONS, ...AUTO_REASONS].find(([c]) => c === k)?.[1] || (k ? '✏️ ' + k : 'Not recorded')
+
 // naive sentiment for feedback (offline, rule-based)
 const NEG = ['bad', 'worst', 'cold', 'late', 'slow', 'stale', 'rude', 'dirty', 'गंदा', 'खराब', 'ठंडा', 'बुरा']
 const POS = ['good', 'great', 'tasty', 'amazing', 'best', 'fresh', 'love', 'बढ़िया', 'स्वादिष्ट', 'अच्छा', 'वधीਆ']

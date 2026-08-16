@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Bars, HBars } from '../charts.jsx'
-import { inr0, billTotals, tableName, fmtTime, bucketize } from '../utils.js'
+import { inr0, billTotals, tableName, fmtTime, bucketize, discountReasonLabel } from '../utils.js'
 import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt, channelOf, channelLabel } from './shared.jsx'
 
 // Discounts, freebies and voids — everything that left the kitchen but didn't turn
@@ -24,8 +24,11 @@ export default function Discounts({ state, range }) {
     .filter((o) => (o.payment?.discount || 0) > 0)
     .map((o) => {
       const bt = billTotals(o, state.settings)
-      const isComp = bt.discount >= bt.sub && bt.sub > 0
-      return { o, bt, isComp, rate: bt.sub ? (bt.discount / bt.sub) * 100 : 0, hh: inHappyHour(o) }
+      const reason = o.payment?.discountReason || null
+      // "free" is either explicitly recorded as on-the-house, or inferred from a
+      // bill that was discounted down to nothing (older bills carry no reason)
+      const isComp = reason === 'comp' || (bt.discount >= bt.sub && bt.sub > 0)
+      return { o, bt, isComp, reason, note: o.payment?.discountNote || '', rate: bt.sub ? (bt.discount / bt.sub) * 100 : 0, hh: inHappyHour(o) }
     })
     .sort((a, b) => b.bt.discount - a.bt.discount),
   [paid, state.settings, hh])
@@ -43,6 +46,19 @@ export default function Discounts({ state, range }) {
     () => bucketize(rows.map((r) => ({ ts: r.o.paidAt, value: r.bt.discount })), range),
     [rows, range]
   )
+
+  // the headline of this report: not how much was given away, but WHY
+  const byReason = useMemo(() => {
+    const m = {}
+    rows.forEach((r) => {
+      const k = r.reason || '__none'
+      const g = (m[k] = m[k] || { key: k, label: r.reason ? discountReasonLabel(r.reason) : '❓ Not recorded', bills: 0, value: 0, notes: [] })
+      g.bills++; g.value += r.bt.discount
+      if (r.note) g.notes.push(r.note)
+    })
+    return Object.values(m).sort((a, b) => b.value - a.value)
+  }, [rows])
+  const unrecorded = byReason.find((g) => g.key === '__none')
 
   const byChannel = useMemo(() => {
     const m = {}
@@ -72,11 +88,15 @@ export default function Discounts({ state, range }) {
       ['Voided after KOT ₹', Math.round(voidValue)],
       ['Total giveaway ₹', Math.round(totalGiveaway)],
       ['Giveaway as % of sales', pct(totalGiveaway, gross + totalDiscount)],
-      [], ['DISCOUNTED BILLS'], ['Bill No', 'Date', 'Time', 'Type', 'Table', 'Sub-total ₹', 'Discount ₹', 'Discount %', 'Free?', 'Happy hour?', 'Paid ₹', 'Mode']]
+      [], ['WHY DISCOUNTS WERE GIVEN'], ['Reason', 'Bills', 'Value ₹', 'Share of discounts %']]
+    byReason.forEach((g) => out.push([g.label, g.bills, Math.round(g.value), pct(g.value, totalDiscount)]))
+    out.push([], ['DISCOUNTED BILLS'], ['Bill No', 'Date', 'Time', 'Type', 'Table', 'Reason', 'Note', 'Sub-total ₹', 'Discount ₹', 'Discount %', 'Free?', 'Happy hour?', 'Paid ₹', 'Mode', 'Settled by'])
     ;[...rows].reverse().forEach((r) => out.push([
       r.o.billNo, new Date(r.o.paidAt).toLocaleDateString('en-IN'), new Date(r.o.paidAt).toLocaleTimeString('en-IN'),
-      r.o.type, tableName(state.tables, r.o.tableId) || '', Math.round(r.bt.sub), Math.round(r.bt.discount),
-      r.rate.toFixed(1), r.isComp ? 'YES' : '', r.hh ? 'YES' : '', amt(r.o), r.o.payment?.method || '',
+      r.o.type, tableName(state.tables, r.o.tableId) || '',
+      r.reason ? discountReasonLabel(r.reason) : 'Not recorded', r.note,
+      Math.round(r.bt.sub), Math.round(r.bt.discount),
+      r.rate.toFixed(1), r.isComp ? 'YES' : '', r.hh ? 'YES' : '', amt(r.o), r.o.payment?.method || '', r.o.settledBy || '',
     ]))
     out.push([], ['VOIDED AFTER KOT'], ['Item', 'Qty', 'Value ₹', 'By', 'Table', 'When'])
     voids.forEach((v) => out.push([v.item, v.qty, Math.round(v.amount || 0), v.by, v.tableId || '', new Date(v.at).toLocaleString('en-IN')]))
@@ -117,6 +137,38 @@ export default function Discounts({ state, range }) {
         </Note>
       )}
 
+      {/* WHY — the whole point of asking at the till */}
+      {rows.length > 0 && (
+        <div className="grid lg:grid-cols-2 gap-4 mb-4">
+          <Card className="!mb-0" flush title="Why discounts were given" sub="Recorded by whoever closed the bill">
+            <DataTable
+              rows={byReason}
+              keyOf={(g) => g.key}
+              cols={[
+                { h: 'Reason', cell: (g) => (
+                  <div>
+                    <span className="font-semibold">{g.label}</span>
+                    {g.notes.length > 0 && <div className="text-[11px] text-stone-400 truncate max-w-[200px]">{[...new Set(g.notes)].slice(0, 3).join(' · ')}</div>}
+                  </div>
+                ), foot: () => 'Total' },
+                { h: 'Bills', num: true, cell: (g) => g.bills, foot: () => rows.length },
+                { h: 'Value', num: true, cell: (g) => <b className="text-red-600">{inr0(g.value)}</b>, foot: () => inr0(totalDiscount) },
+                { h: 'Share', num: true, cell: (g) => pct(g.value, totalDiscount) + '%', foot: () => '100%' },
+              ]}
+            />
+          </Card>
+          <Card className="!mb-0" title="Where the money went" sub="Biggest give-away reason first">
+            <HBars data={byReason.map((g) => ({ label: g.label.replace(/^\S+\s/, ''), value: Math.round(g.value) }))} color="#dc2626" />
+          </Card>
+        </div>
+      )}
+
+      {unrecorded && unrecorded.bills > 0 && (
+        <Note>
+          {unrecorded.bills} discounted bill{unrecorded.bills > 1 ? 's' : ''} worth {inr0(unrecorded.value)} {unrecorded.bills > 1 ? 'carry' : 'carries'} no reason — {unrecorded.bills === rows.length ? 'these were settled before the reason prompt existed' : 'settled before the reason prompt existed'}. Every discount from now on has to state why before the bill can close.
+        </Note>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-4 mb-4">
         <Card className="!mb-0" title="Discounts over time" sub="A rising line means the habit is spreading">
           {trend.length ? <Bars data={trend} color="#dc2626" /> : <Empty text="No discounts" />}
@@ -145,7 +197,10 @@ export default function Discounts({ state, range }) {
               { h: 'Bill', cell: (r) => <div><span className="font-black">#{r.o.billNo}</span>{r.isComp && <div className="mt-0.5"><Badge color="red">100% FREE</Badge></div>}</div>, foot: () => `${rows.length} bills` },
               { h: 'When', cell: (r) => <div><div>{new Date(r.o.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div><div className="text-[11px] text-stone-400">{fmtTime(r.o.paidAt)}{r.hh ? ' · happy hr' : ''}</div></div> },
               { h: 'Type', cell: (r) => <div><div className="text-xs">{channelLabel(channelOf(r.o))}</div>{r.o.tableId && <div className="text-[11px] text-stone-400">🪑 {tableName(state.tables, r.o.tableId)}</div>}</div> },
-              { h: 'Items', cell: (r) => <span className="text-stone-600 text-xs">{(r.o.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ')}</span> },
+              { h: 'Reason', cell: (r) => r.reason
+                ? <div><span className="text-xs font-semibold">{discountReasonLabel(r.reason)}</span>{r.note && <div className="text-[11px] text-stone-400">{r.note}</div>}</div>
+                : <span className="text-[11px] text-stone-300">not recorded</span> },
+              { h: 'Given by', cell: (r) => <span className="text-xs text-stone-500">{r.o.settledBy || '—'}</span> },
               { h: 'Bill was', num: true, cell: (r) => inr0(r.bt.sub), foot: () => inr0(rows.reduce((s, r) => s + r.bt.sub, 0)) },
               { h: 'Discount', num: true, cell: (r) => <b className="text-red-600">−{inr0(r.bt.discount)}</b>, foot: () => inr0(totalDiscount) },
               { h: '% off', num: true, cell: (r) => <Badge color={r.rate >= 100 ? 'red' : r.rate > 20 ? 'amber' : 'stone'}>{r.rate.toFixed(0)}%</Badge> },
