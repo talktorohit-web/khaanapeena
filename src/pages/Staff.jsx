@@ -57,10 +57,24 @@ export default function Staff() {
 }
 
 function StaffModal({ staff, onClose }) {
-  const { update } = useStore()
+  const { state, update } = useStore()
   const [f, setF] = useState(staff
     ? { name: staff.name, role: staff.role, phone: staff.phone || '', pin: staff.pin || '' }
     : { name: '', role: 'Waiter', phone: '', pin: '' })
+
+  // A PIN that collides is worse than no PIN: resolveSession checks the manager
+  // PIN first, so a staff member sharing it can never log in as themselves and
+  // every bill they settle is filed against "Owner". Catch it at entry.
+  const pinClash = (() => {
+    const p = String(f.pin || '').trim()
+    if (p.length < 4) return null
+    if (state.settings?.managerPin && p === String(state.settings.managerPin)) {
+      return 'This is the Manager PIN. Whoever types it signs in as Owner, so this person could never log in as themselves — and their bills would be filed against "Owner". Pick a different number.'
+    }
+    const other = (state.staff || []).find((s) => s.id !== staff?.id && String(s.pin) === p)
+    return other ? `${other.name} already uses this PIN. Two people on one PIN means their sales, discounts and voids all land on one name.` : null
+  })()
+
   const save = () => {
     update((s) => {
       if (staff) {
@@ -87,10 +101,13 @@ function StaffModal({ staff, onClose }) {
             {ROLES.map((r) => <option key={r}>{r}</option>)}
           </select>
         </Field>
-        <Field label="POS PIN (4 digit)"><input value={f.pin} maxLength={4} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, '') })} className={inputCls} /></Field>
+        <Field label="POS PIN (4 digit)">
+          <input value={f.pin} maxLength={4} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, '') })} className={inputCls + (pinClash ? ' !border-red-400' : '')} />
+        </Field>
       </div>
+      {pinClash && <p className="text-[11px] text-red-600 -mt-2 mb-3 leading-snug">⚠️ {pinClash}</p>}
       <Field label="Phone"><input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} className={inputCls} /></Field>
-      <button onClick={save} disabled={!f.name} className={btnPrimary + ' w-full'}>Save</button>
+      <button onClick={save} disabled={!f.name || !!pinClash} className={btnPrimary + ' w-full'}>Save</button>
       {staff && <button onClick={remove} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Remove staff</button>}
     </Modal>
   )

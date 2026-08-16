@@ -318,6 +318,36 @@ function RolesSection() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 mb-3">⚠️ Set a <b>Manager PIN</b> above first — it's how you (the owner) unlock full access at the till.</div>
       )}
 
+      {/* Pre-flight. These two problems only bite AFTER staff login is switched
+          on, by which point the owner is staring at a lock screen. */}
+      {hasPin && (() => {
+        const staff = state.staff || []
+        const clashManager = staff.filter((s) => String(s.pin) === String(state.settings.managerPin))
+        const noPin = staff.filter((s) => s.present !== false && !String(s.pin || '').trim())
+        const dupes = staff.filter((s, i) => s.pin && staff.findIndex((x) => String(x.pin) === String(s.pin)) !== i)
+        if (!clashManager.length && !noPin.length && !dupes.length) {
+          return (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-800 mb-3">
+              ✓ Ready — every staff member on shift has their own PIN, and none of them clash with your Manager PIN.
+            </div>
+          )
+        }
+        return (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-800 mb-3 space-y-1">
+            <div className="font-bold">Fix these on the Staff screen before turning this on:</div>
+            {clashManager.map((s) => (
+              <div key={s.id}>• <b>{s.name}</b> has the same PIN as your Manager PIN — they'd sign in as "Owner" and every bill they settle would be filed against Owner, not them.</div>
+            ))}
+            {dupes.map((s) => (
+              <div key={s.id}>• <b>{s.name}</b> shares a PIN with someone else — their sales and voids would land on one name.</div>
+            ))}
+            {noPin.map((s) => (
+              <div key={s.id}>• <b>{s.name}</b> is on shift with no PIN set — they won't be able to sign in at the till.</div>
+            ))}
+          </div>
+        )
+      })()}
+
       <div className="flex items-center gap-3 mb-3">
         <Toggle on={enabled} onChange={(v) => { if (v && !hasPin) return; toggle(v) }} />
         <span className="text-sm text-stone-600">Require staff PIN sign-in & enforce role permissions</span>

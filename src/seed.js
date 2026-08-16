@@ -102,7 +102,9 @@ const CUSTOMERS = [
 ]
 
 const STAFF = [
-  { id: 's1', name: 'Ramesh Kumar', role: 'Manager', phone: '9811100001', pin: '1111', present: true },
+  // NB: no staff PIN may equal settings.managerPin (1111) — resolveSession checks
+  // the manager PIN first, so a clash makes that person unable to sign in at all
+  { id: 's1', name: 'Ramesh Kumar', role: 'Manager', phone: '9811100001', pin: '1010', present: true },
   { id: 's2', name: 'Suresh Yadav', role: 'Cashier', phone: '9811100002', pin: '2222', present: true },
   { id: 's3', name: 'Deepak Chef', role: 'Head Chef', phone: '9811100003', pin: '3333', present: true },
   { id: 's4', name: 'Anita Devi', role: 'Waiter', phone: '9811100004', pin: '4444', present: true },
