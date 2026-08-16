@@ -3,6 +3,8 @@ import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, tableName, DISCOUNT_REASONS, discountReasonLabel } from '../utils.js'
 import { usePerms } from '../perms.jsx'
+import { hasModifiers, effectivePrice, lineKey, modsLabel, modsTotal } from '../modifiers.js'
+import ModifierPicker from '../ModifierPicker.jsx'
 import { printBill, printKOT, inElectron } from '../print.js'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 
@@ -31,6 +33,7 @@ export default function Billing() {
   const [pinAsk, setPinAsk] = useState(null) // { title, onOk }
   const [noteIdx, setNoteIdx] = useState(null) // which cart line's instruction is being edited
   const [noteText, setNoteText] = useState('')
+  const [modItem, setModItem] = useState(null) // dish whose choices are being picked
 
   // guest count on a dine-in table — feeds spend-per-guest and staffing reports
   const changeCovers = (d) => update((s) => {
@@ -95,25 +98,41 @@ export default function Billing() {
     )
   }, [state.items, cat, q, vegOnly])
 
+  // Add a dish. When it carries modifier groups the till has to ask first, so the
+  // tap opens the picker instead of punching a line straight in.
   const addItem = (item) => {
+    if (hasModifiers(item)) { setModItem(item); return }
+    pushLine(item, [], 1)
+  }
+
+  const pushLine = (item, mods, qty = 1) => {
     let id = orderId
     if (!order) {
       id = newOrder({ type: 'takeaway' })
       setOrderId(id)
     }
+    const price = effectivePrice(item, mods)
     update((s) => {
       const o = s.orders.find((x) => x.id === id)
       if (!o) return
-      const li = o.items.find((x) => x.itemId === item.id && !x.deducted)
-      if (li) li.qty++
-      else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty: 1 })
+      const draft = { itemId: item.id, deducted: false, mods }
+      // only merge into a line with the SAME choices — "extra spicy" is a
+      // different thing to sell than the plain dish
+      const li = o.items.find((x) => !x.deducted && lineKey(x) === lineKey(draft))
+      if (li) li.qty += qty
+      else o.items.push({
+        itemId: item.id, name: item.name, price, qty,
+        ...(mods.length ? { mods, basePrice: item.price } : {}),
+      })
     })
   }
 
   const changeQty = (li, d) =>
     update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
-      const line = o?.items.find((x) => x.itemId === li.itemId && x.deducted === li.deducted)
+      // match on the full line identity (dish + kitchen state + chosen options),
+      // never itemId alone — the same dish can sit on two lines with different mods
+      const line = o?.items.find((x) => lineKey(x) === lineKey(li))
       if (!line) return
       line.qty += d
       if (line.qty <= 0) o.items = o.items.filter((x) => x !== line)
@@ -279,7 +298,10 @@ export default function Billing() {
               </div>
               <div className="font-semibold text-[13px] text-ink-900 mt-1 leading-tight">{i.name}</div>
               {state.settings.lang !== 'en' && <div className="text-[11px] text-stone-400">{i.nameHi}</div>}
-              <div className="text-saffron-700 font-bold text-sm mt-1">{inr0(i.price)}</div>
+              <div className="flex items-baseline gap-1.5 mt-1">
+                <span className="text-saffron-700 font-bold text-sm">{inr0(i.price)}</span>
+                {hasModifiers(i) && <span className="text-[10px] font-bold text-blue-600">🧩 choices</span>}
+              </div>
             </button>
           ))}
         </div>
@@ -392,6 +414,11 @@ export default function Billing() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-ink-900 truncate">{li.name} {li.deducted && <span className="text-[9px] text-amber-600 font-bold">KOT✓</span>}</div>
+                    {li.mods?.length > 0 && (
+                      <div className="text-[11px] text-blue-600 leading-tight break-words">
+                        {modsLabel(li.mods)}{modsTotal(li.mods) > 0 ? <span className="text-stone-400"> · +{inr0(modsTotal(li.mods))}</span> : null}
+                      </div>
+                    )}
                     <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
                     {li.notes && <div className="text-[11px] text-saffron-700 font-semibold mt-0.5 flex items-start gap-1"><span>📝</span><span className="break-words">{li.notes}</span></div>}
                   </div>
@@ -478,6 +505,13 @@ export default function Billing() {
             setCartOpen(false)
           }}
           happyHourNow={happyHourNow}
+        />
+      )}
+      {modItem && (
+        <ModifierPicker
+          item={modItem}
+          onClose={() => setModItem(null)}
+          onAdd={(mods, qty) => { pushLine(modItem, mods, qty); setModItem(null) }}
         />
       )}
       {printOrder && <BillPrint order={printOrder} onClose={() => setPrintOrder(null)} />}
@@ -740,8 +774,11 @@ export function BillPrint({ order, onClose }) {
         <div>{new Date(order.createdAt).toLocaleString('en-IN')}</div>
         <div className="border-t border-dashed border-stone-400 my-1" />
         {(order.items || []).map((li, i) => (
-          <div key={i} className="flex justify-between">
-            <span>{li.name} × {li.qty}</span><span>{(li.price * li.qty).toFixed(2)}</span>
+          <div key={i}>
+            <div className="flex justify-between">
+              <span>{li.name} × {li.qty}</span><span>{(li.price * li.qty).toFixed(2)}</span>
+            </div>
+            {li.mods?.length > 0 && <div className="text-[10px] pl-2">+ {modsLabel(li.mods)}</div>}
           </div>
         ))}
         <div className="border-t border-dashed border-stone-400 my-1" />

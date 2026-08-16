@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { makeSeed } from './seed.js'
 import { makeT } from './i18n.js'
 import { uid, billTotals, sentiment } from './utils.js'
+import { lineKey, repriceLine } from './modifiers.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote, nextCounterAtLeast, claimRestaurant, publishPublic,
@@ -110,8 +111,13 @@ export function StoreProvider({ children }) {
             if (o.source !== 'qr-guest' || o.sanitized) return
             ;(o.items || []).forEach((li) => {
               const item = merged.items.find((i) => i.id === li.itemId)
-              if (!item) { li.qty = 0; li.price = 0; return }
-              li.price = item.price
+              if (!item) { li.qty = 0; li.price = 0; li.mods = []; return }
+              // add-ons are re-looked-up by id and re-priced from the menu too —
+              // otherwise a guest could invent a "-₹500 discount" option
+              const { mods, price } = repriceLine(li, item)
+              li.mods = mods
+              li.basePrice = item.price
+              li.price = price
               li.qty = Math.max(1, Math.min(50, Math.floor(+li.qty || 1)))
               if (li.notes) li.notes = String(li.notes).slice(0, 80) // cap any instruction a guest attached
             })
@@ -286,8 +292,11 @@ export function StoreProvider({ children }) {
       if (o.source === 'qr-guest' && !o.sanitized) {
         ;(o.items || []).forEach((li) => {
           const item = s.items.find((i) => i.id === li.itemId)
-          if (!item) { li.qty = 0; li.price = 0; return }
-          li.price = item.price
+          if (!item) { li.qty = 0; li.price = 0; li.mods = []; return }
+          const { mods, price } = repriceLine(li, item)
+          li.mods = mods
+          li.basePrice = item.price
+          li.price = price
           li.qty = Math.max(1, Math.min(50, Math.floor(+li.qty || 1)))
         })
         o.sanitized = true
@@ -451,7 +460,10 @@ export function StoreProvider({ children }) {
     const rectifyLine = (orderId, line, delta, manager) => update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
       if (!o) return
-      const li = o.items.find((x) => x.itemId === line.itemId && !!x.deducted === !!line.deducted)
+      // match the full line identity (dish + kitchen state + chosen options) —
+      // itemId alone would hit the wrong line when a dish is on the bill twice
+      // with different add-ons
+      const li = o.items.find((x) => lineKey(x) === lineKey(line))
       if (!li) return
       const oldQty = li.qty
       const newQty = delta === 'remove' ? 0 : Math.max(0, oldQty + delta)

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
 import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
+import { hasModifiers, effectivePrice, modsKey, modsLabel, modsTotal, repriceMods } from '../modifiers.js'
+import ModifierPicker from '../ModifierPicker.jsx'
 import { fetchMenu, pushGuestOrder, updateGuestOrder, pushGuestFeedback } from '../cloud.js'
 import { signInAnon } from '../auth.js'
 
@@ -24,8 +26,11 @@ export default function QRMenu({ hash }) {
       .catch(() => setRemoteErr(true))
   }, [code])
 
-  const [cart, setCart] = useState({})
+  // The cart is a list of LINES, not a qty-per-dish map: the same dish ordered
+  // twice with different choices ("extra spicy" vs plain) has to stay two lines.
+  const [cart, setCart] = useState([]) // [{ key, itemId, mods, qty }]
   const [notes, setNotes] = useState({}) // itemId -> cooking instruction for the kitchen
+  const [modItem, setModItem] = useState(null)
   const [placed, setPlaced] = useState(null)
   const [paid, setPaid] = useState(false)
   const [vegOnly, setVegOnly] = useState(false)
@@ -38,26 +43,50 @@ export default function QRMenu({ hash }) {
   const categories = src?.categories || []
 
   const items = allItems.filter((i) => i.available && (!vegOnly || i.veg))
-  const count = Object.values(cart).reduce((a, b) => a + b, 0)
-  const total = useMemo(() => Object.entries(cart).reduce((sum, [id, qty]) => {
-    const it = allItems.find((x) => x.id === id)
-    return sum + (it ? it.price * qty : 0)
+  const count = cart.reduce((a, l) => a + l.qty, 0)
+  const total = useMemo(() => cart.reduce((sum, l) => {
+    const it = allItems.find((x) => x.id === l.itemId)
+    return sum + (it ? effectivePrice(it, l.mods) * l.qty : 0)
   }, 0), [cart, allItems])
 
-  const add = (id, d) => setCart((c) => {
-    const n = { ...c, [id]: Math.max(0, (c[id] || 0) + d) }
-    if (!n[id]) delete n[id]
-    return n
+  const linesOf = (id) => cart.filter((l) => l.itemId === id)
+  const plainQty = (id) => cart.find((l) => l.key === id + '|')?.qty || 0
+
+  // step a line up or down by its key; dropping to zero removes it
+  const bump = (key, d) => setCart((c) => {
+    const i = c.findIndex((l) => l.key === key)
+    if (i < 0) return c
+    const qty = c[i].qty + d
+    return qty <= 0 ? c.filter((_, j) => j !== i) : c.map((l, j) => (j === i ? { ...l, qty } : l))
   })
+
+  const addLine = (item, mods, qty = 1) => setCart((c) => {
+    const key = item.id + '|' + modsKey(mods)
+    const i = c.findIndex((l) => l.key === key)
+    if (i >= 0) return c.map((l, j) => (j === i ? { ...l, qty: l.qty + qty } : l))
+    return [...c, { key, itemId: item.id, mods, qty }]
+  })
+
+  // a dish with choices always opens the sheet — tapping ADD twice may mean two
+  // different orders, not two of the same thing
+  const onAdd = (item) => (hasModifiers(item) ? setModItem(item) : addLine(item, [], 1))
 
   const placeOrder = async () => {
     const id = uid('o')
-    const lines = Object.entries(cart).map(([itemId, qty]) => {
-      const it = allItems.find((x) => x.id === itemId)
+    const lines = cart.map((l) => {
+      const it = allItems.find((x) => x.id === l.itemId)
       // an item pulled from the menu (or marked unavailable) while it sat in the
       // guest's cart would otherwise crash on it.name — skip it
-      const note = (notes[itemId] || '').trim().slice(0, 80)
-      return it ? { itemId, name: it.name, price: it.price, qty, ...(note ? { notes: note } : {}) } : null
+      if (!it) return null
+      // price the add-ons off the menu we hold; the owner device re-prices them
+      // again on arrival, so a tampered payload never reaches a bill
+      const mods = repriceMods(it, l.mods)
+      const note = (notes[l.itemId] || '').trim().slice(0, 80)
+      return {
+        itemId: l.itemId, name: it.name, price: effectivePrice(it, mods), qty: l.qty,
+        ...(mods.length ? { mods, basePrice: it.price } : {}),
+        ...(note ? { notes: note } : {}),
+      }
     }).filter(Boolean)
     if (!lines.length) { alert('Those items are no longer available — please refresh the menu'); return }
     const totals = billTotals({ items: lines, payment: { discount: 0 } }, s)
@@ -85,7 +114,7 @@ export default function QRMenu({ hash }) {
       store.sendKot(id)
     }
     setPlaced({ id, total: payable })
-    setCart({})
+    setCart([])
     setNotes({})
   }
 
@@ -188,40 +217,78 @@ export default function QRMenu({ hash }) {
                 <div key={c.id} className="mb-4">
                   <h3 className="font-black text-stone-500 text-xs uppercase tracking-wider mb-2 px-1">{c.name}</h3>
                   <div className="bg-white rounded-2xl divide-y divide-stone-50">
-                    {its.map((i) => (
-                      <div key={i.id} className="p-3">
-                        <div className="flex items-center gap-3">
-                          <VegDot veg={i.veg} />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm text-ink-900">{i.name}</div>
-                            <div className="text-[11px] text-stone-400">{i.nameHi}</div>
-                            <div className="text-sm font-bold text-saffron-700 mt-0.5">{inr0(i.price)}</div>
-                          </div>
-                          {cart[i.id] ? (
-                            <div className="flex items-center gap-2 bg-saffron-50 rounded-xl px-2 py-1">
-                              <button onClick={() => add(i.id, -1)} className="text-saffron-700 font-black w-5">−</button>
-                              <b className="text-sm">{cart[i.id]}</b>
-                              <button onClick={() => add(i.id, 1)} className="text-saffron-700 font-black w-5">＋</button>
+                    {its.map((i) => {
+                      const lines = linesOf(i.id)
+                      const withMods = hasModifiers(i)
+                      return (
+                        <div key={i.id} className="p-3">
+                          <div className="flex items-center gap-3">
+                            <VegDot veg={i.veg} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm text-ink-900">{i.name}</div>
+                              <div className="text-[11px] text-stone-400">{i.nameHi}</div>
+                              <div className="text-sm font-bold text-saffron-700 mt-0.5">
+                                {inr0(i.price)}
+                                {withMods && <span className="text-[11px] text-blue-600 font-semibold ml-1.5">🧩 choices</span>}
+                              </div>
                             </div>
-                          ) : (
-                            <button onClick={() => add(i.id, 1)} className="bg-saffron-600 text-white text-xs font-black rounded-xl px-4 py-2">ADD</button>
+                            {/* a dish with choices always re-opens the sheet, so a second
+                                order of it can be a different one */}
+                            {!withMods && plainQty(i.id) > 0 ? (
+                              <div className="flex items-center gap-2 bg-saffron-50 rounded-xl px-2 py-1">
+                                <button onClick={() => bump(i.id + '|', -1)} className="text-saffron-700 font-black w-5">−</button>
+                                <b className="text-sm">{plainQty(i.id)}</b>
+                                <button onClick={() => bump(i.id + '|', 1)} className="text-saffron-700 font-black w-5">＋</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => onAdd(i)} className="bg-saffron-600 text-white text-xs font-black rounded-xl px-4 py-2">ADD</button>
+                            )}
+                          </div>
+
+                          {/* each variant already in the cart, so a guest can see and
+                              adjust "one extra spicy, one plain" separately */}
+                          {withMods && lines.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {lines.map((l) => (
+                                <div key={l.key} className="flex items-center gap-2 bg-stone-50 rounded-lg px-2.5 py-1.5">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[11px] text-ink-900 font-semibold break-words">{modsLabel(l.mods) || 'No extras'}</div>
+                                    <div className="text-[10px] text-stone-400">{inr0(effectivePrice(i, l.mods))} each{modsTotal(l.mods) > 0 ? ` · +${inr0(modsTotal(l.mods))} add-ons` : ''}</div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button onClick={() => bump(l.key, -1)} className="text-saffron-700 font-black w-5">−</button>
+                                    <b className="text-sm">{l.qty}</b>
+                                    <button onClick={() => bump(l.key, 1)} className="text-saffron-700 font-black w-5">＋</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {lines.length > 0 && (
+                            <input
+                              value={notes[i.id] || ''} maxLength={80}
+                              onChange={(e) => setNotes((n) => ({ ...n, [i.id]: e.target.value }))}
+                              placeholder="Note for kitchen (optional) — e.g. kam mirchi / less spicy"
+                              className="w-full mt-2 text-xs border border-stone-200 rounded-lg px-2.5 py-1.5"
+                            />
                           )}
                         </div>
-                        {cart[i.id] > 0 && (
-                          <input
-                            value={notes[i.id] || ''} maxLength={80}
-                            onChange={(e) => setNotes((n) => ({ ...n, [i.id]: e.target.value }))}
-                            placeholder="Note for kitchen (optional) — e.g. kam mirchi / less spicy"
-                            className="w-full mt-2 text-xs border border-stone-200 rounded-lg px-2.5 py-1.5"
-                          />
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
             })}
           </div>
+          {modItem && (
+            <ModifierPicker
+              item={modItem}
+              onClose={() => setModItem(null)}
+              onAdd={(mods, qty) => { addLine(modItem, mods, qty); setModItem(null) }}
+              addLabel="Add"
+            />
+          )}
           {count > 0 && (
             <div className="fixed bottom-0 inset-x-0 max-w-md mx-auto p-3">
               <button onClick={placeOrder} className="w-full bg-leaf-600 text-white font-black rounded-2xl py-4 shadow-xl flex items-center justify-between px-5">

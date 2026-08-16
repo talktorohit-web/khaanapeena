@@ -7,6 +7,10 @@
 
 import { discountReasonLabel } from './utils.js'
 
+// on screen modifiers read "A · B", but this printer drops non-ASCII, which would
+// leave a confusing double space — use a comma on paper
+const asciiMods = (mods) => (mods || []).map((m) => m.name).join(', ')
+
 const ESC = 0x1b, GS = 0x1d
 
 function sanitize(s) {
@@ -82,7 +86,11 @@ export function buildBill(order, settings, totals, width = 48) {
   if (order.covers) e.line(`Guests: ${order.covers}`)
   e.line(new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('en-IN'))
   e.rule()
-  ;(order.items || []).forEach((li) => e.item(li.name, li.qty, money(li.price * li.qty)))
+  ;(order.items || []).forEach((li) => {
+    e.item(li.name, li.qty, money(li.price * li.qty))
+    // the guest paid extra for these, so they belong on the bill they're handed
+    if (li.mods?.length) e.line('   + ' + asciiMods(li.mods))
+  })
   e.rule()
   e.row('Subtotal', money(totals.sub))
   if (totals.discount > 0) {
@@ -112,6 +120,8 @@ export function buildKOT(order, width = 48) {
   e.size(false).align('left').line(new Date(order.kotAt || Date.now()).toLocaleTimeString('en-IN')).rule()
   ;(order.items || []).forEach((li) => {
     e.size(true).bold(true).line(`${li.qty} x ${li.name}`).size(false).bold(false)
+    // choices print BIG too — a cook skimming a ticket must not miss "no onion"
+    if (li.mods?.length) e.bold(true).line('   > ' + asciiMods(li.mods)).bold(false)
     if (li.notes) e.line('   * ' + li.notes)
   })
   e.rule()

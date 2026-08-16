@@ -85,6 +85,16 @@ function ItemModal({ item, onClose }) {
   const setLine = (idx, patch) => set('recipe', recipe.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
   const rmLine = (idx) => set('recipe', recipe.filter((_, i) => i !== idx))
 
+  // ---- modifier groups (spice level, add-ons) ----
+  const groups = f.modifiers || []
+  const setGroups = (g) => set('modifiers', g)
+  const addGroup = () => setGroups([...groups, { id: uid('mg'), name: '', required: false, multi: true, options: [{ id: uid('mo'), name: '', price: 0 }] }])
+  const setGroup = (gi, patch) => setGroups(groups.map((g, i) => (i === gi ? { ...g, ...patch } : g)))
+  const rmGroup = (gi) => setGroups(groups.filter((_, i) => i !== gi))
+  const addOpt = (gi) => setGroup(gi, { options: [...(groups[gi].options || []), { id: uid('mo'), name: '', price: 0 }] })
+  const setOpt = (gi, oi, patch) => setGroup(gi, { options: groups[gi].options.map((o, i) => (i === oi ? { ...o, ...patch } : o)) })
+  const rmOpt = (gi, oi) => setGroup(gi, { options: groups[gi].options.filter((_, i) => i !== oi) })
+
   const save = () => {
     // keep only complete recipe lines (ingredient + positive per-plate qty), and
     // MERGE duplicate lines for the same ingredient — two lines for one ingredient
@@ -92,12 +102,17 @@ function ItemModal({ item, onClose }) {
     const byIng = {}
     recipe.forEach((r) => { if (r.ingId && +r.qty > 0) byIng[r.ingId] = (byIng[r.ingId] || 0) + +r.qty })
     const cleanRecipe = Object.entries(byIng).map(([ingId, qty]) => ({ ingId, qty: +qty.toFixed(3) }))
+    // drop half-typed modifier groups: a group needs a name and at least one named
+    // option, or the till would show an unanswerable question
+    const cleanMods = groups
+      .map((g) => ({ ...g, name: (g.name || '').trim(), options: (g.options || []).filter((o) => (o.name || '').trim()).map((o) => ({ ...o, name: o.name.trim(), price: +o.price || 0 })) }))
+      .filter((g) => g.name && g.options.length)
     update((s) => {
       if (item) {
         const x = s.items.find((y) => y.id === item.id)
-        Object.assign(x, { ...f, price: +f.price, recipe: cleanRecipe })
+        Object.assign(x, { ...f, price: +f.price, recipe: cleanRecipe, modifiers: cleanMods })
       } else {
-        s.items.push({ ...f, id: uid('i'), price: +f.price, recipe: cleanRecipe })
+        s.items.push({ ...f, id: uid('i'), price: +f.price, recipe: cleanRecipe, modifiers: cleanMods })
       }
     })
     onClose()
@@ -166,6 +181,64 @@ function ItemModal({ item, onClose }) {
         {ings.length > recipe.length && (
           <button onClick={addLine} className="mt-2 text-xs font-bold text-saffron-700 hover:underline">＋ Add ingredient</button>
         )}
+      </div>
+
+      {/* Modifiers — the questions the till asks when this dish is punched.
+          Priced options add to the line; ₹0 options are just choices. */}
+      <div className="border border-stone-100 rounded-xl p-3 mb-3 bg-stone-50/50">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-stone-500">🧩 Choices &amp; add-ons</span>
+          <button onClick={addGroup} className="text-xs font-bold text-saffron-700 hover:underline">＋ Add a question</button>
+        </div>
+        {groups.length === 0 && (
+          <p className="text-[11px] text-stone-400">
+            Ask the guest something when this dish is punched — <b>Spice level</b> (mild / medium / extra spicy, all ₹0) or
+            <b> Add-ons</b> (extra cheese +₹40). Priced options add to the bill and print on the kitchen ticket.
+          </p>
+        )}
+        <div className="space-y-3">
+          {groups.map((g, gi) => (
+            <div key={g.id} className="border border-stone-200 rounded-lg p-2.5 bg-white">
+              <div className="flex items-center gap-1.5 mb-2">
+                <input
+                  value={g.name} onChange={(e) => setGroup(gi, { name: e.target.value })}
+                  placeholder="Question, e.g. Spice level"
+                  className={inputCls + ' !py-1.5 flex-1 font-semibold'}
+                />
+                <button onClick={() => rmGroup(gi)} className="text-stone-300 hover:text-red-500 text-sm px-1" title="Remove this question">✕</button>
+              </div>
+              <div className="flex items-center gap-3 mb-2 text-[11px] text-stone-500">
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={!!g.required} onChange={(e) => setGroup(gi, { required: e.target.checked })} className="w-3.5 h-3.5 accent-saffron-600" />
+                  Must answer
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={!!g.multi} onChange={(e) => setGroup(gi, { multi: e.target.checked })} className="w-3.5 h-3.5 accent-saffron-600" />
+                  Can pick more than one
+                </label>
+              </div>
+              <div className="space-y-1.5">
+                {(g.options || []).map((o, oi) => (
+                  <div key={o.id} className="flex items-center gap-1.5">
+                    <input
+                      value={o.name} onChange={(e) => setOpt(gi, oi, { name: e.target.value })}
+                      placeholder="Choice, e.g. Extra cheese"
+                      className={inputCls + ' !py-1.5 flex-1'}
+                    />
+                    <span className="text-[11px] text-stone-400">+₹</span>
+                    <input
+                      type="number" min="0" value={o.price}
+                      onChange={(e) => setOpt(gi, oi, { price: e.target.value })}
+                      className={inputCls + ' !py-1.5 w-16 text-right'}
+                    />
+                    <button onClick={() => rmOpt(gi, oi)} className="text-stone-300 hover:text-red-500 text-sm px-1" title="Remove">✕</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => addOpt(gi)} className="mt-1.5 text-[11px] font-bold text-saffron-700 hover:underline">＋ Add a choice</button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <button onClick={save} disabled={!f.name || !(+f.price > 0)} className={btnPrimary + ' w-full'}>Save</button>

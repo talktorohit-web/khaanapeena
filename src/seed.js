@@ -170,10 +170,28 @@ function genHistory(items, customers) {
   return { orders, billNo }
 }
 
+// Sample choices & add-ons, so a new install can see the feature working rather
+// than having to imagine it. Spice level is a free choice the kitchen must know;
+// the add-ons carry a price and land on the bill.
+const MODIFIERS = {
+  i01: [
+    { id: 'mg_spice', name: 'Spice level', required: true, multi: false, options: [
+      { id: 'mo_mild', name: 'Mild', price: 0 },
+      { id: 'mo_med', name: 'Medium', price: 0 },
+      { id: 'mo_hot', name: 'Extra spicy', price: 0 },
+    ] },
+    { id: 'mg_extra', name: 'Add-ons', required: false, multi: true, options: [
+      { id: 'mo_cheese', name: 'Extra cheese', price: 40 },
+      { id: 'mo_butter', name: 'Extra butter', price: 20 },
+    ] },
+  ],
+}
+
 export function makeSeed() {
   const items = ITEMS.map(([id, catId, name, hi, price, veg, station]) => ({
     id, catId, name, nameHi: hi, price, veg, station, available: true,
     recipe: (RECIPES[id] || []).map(([ingId, qty]) => ({ ingId, qty })),
+    ...(MODIFIERS[id] ? { modifiers: MODIFIERS[id] } : {}),
   }))
   const customers = CUSTOMERS.map(([name, phone, birthday], i) => ({
     id: 'cu' + (i + 1), name, phone, birthday, points: 0, visits: 0, totalSpend: 0, lastVisit: null, tags: [],

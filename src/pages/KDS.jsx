@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Empty, Badge } from '../components.jsx'
 import { minsSince, fmtTime, tableName } from '../utils.js'
+import { modsLabel } from '../modifiers.js'
 
 export default function KDS() {
   const { state, t, update, settleOrder } = useStore()
@@ -72,6 +73,7 @@ function Ticket({ o, tables, action, actionLabel, actionCls }) {
             <span>{li.name}</span>
             <b>× {li.qty}</b>
           </div>
+          {li.mods?.length > 0 && <div className="text-[12px] font-bold text-blue-700 leading-tight">▸ {modsLabel(li.mods)}</div>}
           {li.notes && <div className="text-[12px] font-bold text-red-600 leading-tight">↳ {li.notes}</div>}
         </div>
       ))}

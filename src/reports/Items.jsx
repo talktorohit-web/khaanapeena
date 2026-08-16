@@ -70,6 +70,30 @@ export default function Items({ state, range }) {
     return Object.values(m).filter((c) => c.items > 0).sort((a, b) => b.rev - a.rev)
   }, [rows])
 
+  // add-ons: what guests choose on top, and how often. Attach rate is measured
+  // against that dish's own plates — "40% of Paneer Tikka went out extra spicy"
+  // is actionable; "40 extra-spicy" on its own isn't.
+  const modRows = useMemo(() => {
+    const m = {}
+    paid.forEach((o) => (o.items || []).forEach((li) => {
+      ;(li.mods || []).forEach((md) => {
+        const key = li.itemId + '|' + md.oid
+        const a = (m[key] = m[key] || { key, itemId: li.itemId, name: md.name, dish: li.name, qty: 0, revenue: 0 })
+        a.qty += li.qty
+        a.revenue += (+md.price || 0) * li.qty
+      })
+    }))
+    return Object.values(m)
+      .map((r) => {
+        const dishQty = sold[r.itemId]?.qty || 0
+        return { ...r, dishQty, attach: dishQty ? (r.qty / dishQty) * 100 : null }
+      })
+      .sort((a, b) => b.revenue - a.revenue || b.qty - a.qty)
+  }, [paid, sold])
+
+  const addOnRevenue = modRows.reduce((s, r) => s + r.revenue, 0)
+  const platesWithMods = paid.reduce((s, o) => s + (o.items || []).reduce((a, li) => a + (li.mods?.length ? li.qty : 0), 0), 0)
+
   // menu engineering — only meaningful for costed dishes that actually sold
   const engineered = soldRows.filter((r) => r.hasRecipe)
   const avgQty = engineered.length ? engineered.reduce((s, r) => s + r.qty, 0) / engineered.length : 0
@@ -104,6 +128,10 @@ export default function Items({ state, range }) {
     ]))
     out.push([], ['CATEGORY-WISE'], ['Category', 'Dishes selling', 'Plates', 'Revenue ₹', 'Share %', 'Avg per plate ₹'])
     catRows.forEach((c) => out.push([c.name, `${c.sellingItems}/${c.items}`, c.qty, Math.round(c.rev), pct(c.rev, gross), c.qty ? Math.round(c.rev / c.qty) : 0]))
+    if (modRows.length) {
+      out.push([], ['CHOICES & ADD-ONS'], ['Choice', 'On dish', 'Times chosen', 'Dish plates', 'Attach rate %', 'Add-on revenue ₹'])
+      modRows.forEach((r) => out.push([r.name, r.dish, r.qty, r.dishQty, r.attach == null ? '' : r.attach.toFixed(1), Math.round(r.revenue)]))
+    }
     if (nonMoving.length) {
       out.push([], ['NOT SOLD IN THIS PERIOD'], ['Item', 'Category', 'Price ₹'])
       nonMoving.forEach((r) => out.push([r.name, r.cat, r.price]))
@@ -178,6 +206,36 @@ export default function Items({ state, range }) {
           </div>
           <p className="text-[11px] text-stone-400 mt-3">Only dishes with a recipe can be placed — {engineered.length} of {soldRows.length} sold dishes qualify. Add recipes in Menu to include the rest.</p>
         </Card>
+      )}
+
+      {/* ADD-ONS */}
+      {modRows.length > 0 && (
+        <div className="grid lg:grid-cols-3 gap-4 mb-4">
+          <Card
+            className="!mb-0 lg:col-span-2"
+            flush
+            title="Choices &amp; add-ons"
+            sub="What guests ask for on top — attach rate is against that dish's own plates"
+          >
+            <DataTable
+              scroll
+              rows={modRows}
+              keyOf={(r) => r.key}
+              cols={[
+                { h: 'Choice', cell: (r) => <div><span className="font-semibold text-ink-900">{r.name}</span><div className="text-[11px] text-stone-400">on {r.dish}</div></div>, foot: () => 'Total' },
+                { h: 'Times chosen', num: true, cell: (r) => r.qty, foot: () => modRows.reduce((s, r) => s + r.qty, 0) },
+                { h: 'Attach rate', num: true, cell: (r) => r.attach == null
+                  ? <span className="text-stone-300">—</span>
+                  : <Badge color={r.attach >= 50 ? 'green' : r.attach >= 20 ? 'amber' : 'stone'}>{r.attach.toFixed(0)}%</Badge> },
+                { h: 'Extra earned', num: true, cell: (r) => r.revenue ? <b>{inr0(r.revenue)}</b> : <span className="text-stone-300">free choice</span>, foot: () => inr0(addOnRevenue) },
+              ]}
+            />
+          </Card>
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 content-start">
+            <StatCard label="Earned from add-ons" value={inr0(addOnRevenue)} sub={`${pct(addOnRevenue, gross)}% of sales · pure margin on most`} icon="🧩" accent="green" />
+            <StatCard label="Plates with a choice" value={platesWithMods} sub={totalPlates ? `${pct(platesWithMods, totalPlates)}% of everything served` : ''} icon="✨" accent="blue" />
+          </div>
+        </div>
       )}
 
       {/* FULL ITEM REGISTER */}
