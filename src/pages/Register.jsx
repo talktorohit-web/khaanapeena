@@ -124,13 +124,18 @@ function OpenCard({ staff, onOpen }) {
       <h2 className="font-black text-lg text-ink-900">Open the register</h2>
       <p className="text-sm text-stone-500 mb-4">Count the cash in the drawer to start the shift. All sales &amp; payouts are tracked until you close it with a Z-report.</p>
       <Field label="Opening cash float (₹)"><input type="number" min="0" value={float} onChange={(e) => setFloat(e.target.value)} placeholder="2000" className={inputCls + ' text-center text-xl font-bold'} autoFocus /></Field>
-      <Field label="Cashier (optional)">
+      {/* Required, not optional: with staff PIN login switched off this name is the
+          ONLY thing attributing the day's bills, discounts and voids to a person.
+          Leave it blank and every staff report stays empty. */}
+      <Field label="Who is on the till?">
         <select value={by} onChange={(e) => setBy(e.target.value)} className={inputCls}>
           <option value="">Select cashier…</option>
           {(staff || []).map((s) => <option key={s.id} value={s.name}>{s.name} ({s.role})</option>)}
         </select>
+        <span className="text-[11px] text-stone-400">Every bill taken this shift is credited to this person. If someone else takes over, switch them in the sidebar — no PIN needed.</span>
       </Field>
-      <button onClick={() => onOpen(float, by)} disabled={float === '' || +float < 0} className={btnPrimary + ' w-full mt-2'}>Open register</button>
+      <button onClick={() => onOpen(float, by)} disabled={float === '' || +float < 0 || !by} className={btnPrimary + ' w-full mt-2'}>Open register</button>
+      {!by && float !== '' && <p className="text-[11px] text-stone-400 mt-2">Pick who's on the till to open the register.</p>}
     </div>
   )
 }

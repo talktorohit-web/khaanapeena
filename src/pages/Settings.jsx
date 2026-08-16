@@ -312,7 +312,21 @@ function RolesSection() {
 
   return (
     <Section title="🛡️ Staff roles & permissions">
-      <p className="text-xs text-stone-400 mb-3">Give each staff role access to only the screens and actions they need. Staff sign in at the till with their PIN (set in the Staff screen); you (the owner) sign in with your <b>Manager PIN</b> for full access.</p>
+      {/* Two ways to get a name onto every bill. Most small restaurants do not
+          want staff typing a PIN all day, so the lighter one is presented first
+          and is what runs by default. */}
+      <div className={`rounded-xl p-3 mb-3 border ${enabled ? 'bg-stone-50 border-stone-200' : 'bg-green-50 border-green-200'}`}>
+        <div className="text-sm font-bold text-ink-900 mb-1">
+          {enabled ? 'Currently: staff sign in with a PIN' : '✓ Currently: no PIN needed'}
+        </div>
+        <p className="text-xs text-stone-600 leading-relaxed">
+          {enabled
+            ? 'Each person unlocks the till with their own PIN and sees only their role\'s screens. Turn this off to go back to the simpler way.'
+            : <>Bills are credited to whoever opened the <b>Cash Register</b>, and you can switch who's on the till from the sidebar at any time — one tap, no PIN. That is enough to fill the Staff, waiter-wise and employee-of-the-month reports. Assign a waiter per table too and dine-in gets attributed even more precisely.</>}
+        </p>
+      </div>
+
+      <p className="text-xs text-stone-400 mb-3">Switch the toggle below only if you also want to <b>restrict what each role can see and do</b> — that's the part which needs a PIN per person. Staff sign in at the till with their PIN (set in the Staff screen); you sign in with your <b>Manager PIN</b> for full access.</p>
 
       {!hasPin && !enabled && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 mb-3">⚠️ Set a <b>Manager PIN</b> above first — it's how you (the owner) unlock full access at the till.</div>

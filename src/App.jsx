@@ -182,6 +182,27 @@ export default function App() {
           ))}
         </nav>
         <div className="p-3 border-t border-white/10">
+          {/* No-PIN handover. With staff PIN login off, this is how a mid-shift
+              change of hands still gets attributed — one tap, no code to remember.
+              Blank falls back to whoever opened the cash register. */}
+          {!rbacOn && (state.staff || []).length > 0 && (
+            <label className="block mb-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-stone-500 block mb-1 px-1">On the till</span>
+              <select
+                value={session?.staffId || ''}
+                onChange={(e) => {
+                  const st = (state.staff || []).find((x) => x.id === e.target.value)
+                  unlockSession(st ? { staffId: st.id, name: st.name, role: st.role || 'Cashier' } : null)
+                }}
+                className="w-full bg-white/5 hover:bg-white/10 text-stone-200 text-[11px] font-bold rounded-lg px-2 py-1.5 border border-white/10"
+              >
+                <option value="" className="text-stone-800">Whoever opened the register</option>
+                {(state.staff || []).filter((s) => s.present !== false).map((s) => (
+                  <option key={s.id} value={s.id} className="text-stone-800">{s.name} · {s.role}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {rbacOn && (
             <div className="flex items-center gap-2 mb-2 rounded-lg px-2 py-1.5 bg-white/5">
               <span className="w-6 h-6 rounded-full bg-saffron-600 text-white text-[11px] font-black flex items-center justify-center shrink-0">{(session.name || '?')[0]}</span>
@@ -274,6 +295,21 @@ export default function App() {
               })}
             </nav>
             <div className="p-3 border-t border-white/10">
+              {!rbacOn && (state.staff || []).length > 0 && (
+                <select
+                  value={session?.staffId || ''}
+                  onChange={(e) => {
+                    const st = (state.staff || []).find((x) => x.id === e.target.value)
+                    unlockSession(st ? { staffId: st.id, name: st.name, role: st.role || 'Cashier' } : null)
+                  }}
+                  className="w-full bg-white/10 text-stone-200 text-sm rounded-lg px-3 py-2.5 outline-none mb-2"
+                >
+                  <option value="" className="text-ink-900">On the till: whoever opened the register</option>
+                  {(state.staff || []).filter((s) => s.present !== false).map((s) => (
+                    <option key={s.id} value={s.id} className="text-ink-900">On the till: {s.name}</option>
+                  ))}
+                </select>
+              )}
               <select
                 value={state.settings.lang}
                 onChange={(e) => update((s) => { s.settings.lang = e.target.value })}
