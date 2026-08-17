@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { Bars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, spanDays, earliestOf, coversOf } from './shared.jsx'
+import { Card, DataTable, Exports, paidIn, slug, pct, amt, spanDays, earliestOf, coversOf } from './shared.jsx'
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'am' : 'pm'}`
@@ -61,7 +61,7 @@ export default function Hourly({ state, range }) {
     return { ...p, bills: os.length, rev, guests, avg: os.length ? Math.round(rev / os.length) : 0, share: pct(rev, gross) }
   }).filter((p) => p.bills > 0)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const rows = [['PEAK HOURS — ' + range.label], [],
       ['Hour', 'Bills', 'Guests', 'Revenue ₹', 'Avg bill ₹', 'Share of sales %', 'Avg bills/day', 'Avg guests/day']]
     hours.filter((h) => h.bills).forEach((h) => rows.push([
@@ -72,7 +72,7 @@ export default function Hourly({ state, range }) {
     parts.forEach((p) => rows.push([p.label, p.bills, p.guests || '', Math.round(p.rev), p.avg, p.share]))
     rows.push([], ['WEEKDAY × HOUR (revenue ₹)'], ['Day', ...gridHours.map(hourLabel)])
     grid.forEach((row, i) => rows.push([DOW[i], ...gridHours.map((h) => Math.round(row[h].rev))]))
-    download(`khaanapeena-peak-hours-${slug(range)}.csv`, rows)
+    return rows
   }
 
   if (!paid.length) {
@@ -84,7 +84,9 @@ export default function Hourly({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-peak-hours-${slug(range)}`} title="Peak hours" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Busiest hour" value={peak.bills ? hourSpan(peak.hour) : '—'} sub={`${inr0(peak.rev)} · ${pct(peak.rev, gross)}% of sales`} icon="🔥" accent="saffron" />

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { StatCard, Empty, Badge } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0, inr, billTotals } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt } from './shared.jsx'
 
 // Menu engineering: every dish lands in one of four boxes depending on whether it
 // sells above/below average and earns above/below average margin per plate. This
@@ -165,7 +165,7 @@ export default function Items({ state, range }) {
     return list.sort(by)
   }, [rows, orphans, sort, gross])
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['ITEM-WISE SALES — ' + range.label], [],
       ['Item', 'Category', 'Price ₹', 'Qty sold', 'Revenue ₹', 'Plate cost ₹', 'Margin/plate ₹', 'Margin %', 'Total margin ₹', 'Share of sales %']]
     sorted.forEach((r) => out.push([
@@ -191,7 +191,7 @@ export default function Items({ state, range }) {
       out.push([], ['NOT SOLD IN THIS PERIOD'], ['Item', 'Category', 'Price ₹'])
       nonMoving.forEach((r) => out.push([r.name, r.cat, r.price]))
     }
-    download(`khaanapeena-items-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!paid.length) {
@@ -203,7 +203,15 @@ export default function Items({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-items-${slug(range)}`}
+          title="Item-wise sales"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Plates served" value={totalPlates} sub={range.label} icon="🍽️" accent="saffron" />

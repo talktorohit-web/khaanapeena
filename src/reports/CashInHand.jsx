@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { inr0, fmtTime, paidFromLabel } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug } from './shared.jsx'
 
 /**
  * The cash leg of a settled bill.
@@ -154,7 +154,7 @@ export default function CashInHand({ state, range }) {
   const closedShifts = shifts.filter((sh) => sh.z && inRange(sh.closedAt))
   const variance = closedShifts.reduce((s, sh) => s + ((sh.z.countedCash || 0) - (sh.z.expectedCash || 0)), 0)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['CASH IN HAND — ' + range.label], [],
       ['CASH WATERFALL'], ['Movement', 'Entries', 'In ₹', 'Out ₹']]
     waterfall.forEach((w) => out.push([w.label, w.n, w.sign > 0 ? Math.round(w.v) : '', w.sign < 0 ? Math.round(w.v) : '']))
@@ -202,7 +202,7 @@ export default function CashInHand({ state, range }) {
         new Date(m.at).toLocaleString('en-IN'), m.type === 'in' ? 'IN' : 'OUT', Math.round(m.amount || 0), m.reason || '', m.by || '',
       ]))
     }
-    download(`khaanapeena-cash-in-hand-${slug(range)}.csv`, out)
+    return out
   }
 
   const nothing = !cashBills.length && !udhaarCash.length && !movements.length && !cashExpenses.length && !cashRefunds.length && !shiftsInRange.length
@@ -222,7 +222,15 @@ export default function CashInHand({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3 kp-noprint"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-cash-in-hand-${slug(range)}`}
+          title="Cash in hand"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard

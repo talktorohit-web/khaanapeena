@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0, billTotals, tableName, fmtTime, minsSince, todayISO } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, amt, coversOf, dur, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, Exports, Note, amt, coversOf, dur, channelOf, channelLabel } from './shared.jsx'
 
 const RUNNING = ['open', 'kot', 'ready', 'served']
 const STATUS = {
@@ -94,7 +94,7 @@ export default function Live({ state }) {
     return Object.values(m).sort((a, b) => b.value - a.value)
   }, [rows])
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['RUNNING NOW'], ['Snapshot taken', new Date().toLocaleString('en-IN')], [],
       ['Tables occupied', occupiedIds.size], ['Tables free', freeTables.length], ['Tables in the room', tables.length],
       ['Guests seated', seatedGuests || '—'],
@@ -126,7 +126,7 @@ export default function Live({ state }) {
     }
     out.push([], ['FREE TABLES'], ['Table', 'Section', 'Seats'])
     freeTables.forEach((t) => out.push([t.name, t.area || '—', t.seats || '—']))
-    download(`khaanapeena-running-now-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`, out)
+    return out
   }
 
   return (
@@ -136,7 +136,12 @@ export default function Live({ state }) {
           <span className="w-2 h-2 rounded-full bg-red-500 kp-pulse" />
           Live · refreshes every 15 seconds · read at {fmtTime(Date.now())}
         </div>
-        <div className="kp-noprint"><ExportBtn onClick={exportCsv} label="⬇️ Export snapshot" /></div>
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-running-now-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`}
+          title="Running now"
+          settings={state.settings}
+        />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">

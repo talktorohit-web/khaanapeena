@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Bars, HBars } from '../charts.jsx'
 import { inr0, billTotals, tableName, fmtTime, bucketize, discountReasonLabel } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt, channelOf, channelLabel } from './shared.jsx'
 
 // Discounts, freebies and voids — everything that left the kitchen but didn't turn
 // into money. On thin restaurant margins this is usually where the profit goes.
@@ -88,7 +88,7 @@ export default function Discounts({ state, range }) {
     return Object.values(m).sort((a, b) => b.value - a.value)
   }, [voids])
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['DISCOUNTS, FREEBIES & VOIDS — ' + range.label], [],
       ['Total discount given ₹', Math.round(totalDiscount)],
       ['Discounted bills', rows.length],
@@ -116,7 +116,7 @@ export default function Discounts({ state, range }) {
     ]))
     out.push([], ['VOIDED AFTER KOT'], ['Item', 'Qty', 'Value ₹', 'By', 'Table', 'When'])
     voids.forEach((v) => out.push([v.item, v.qty, Math.round(v.amount || 0), v.by, v.tableId || '', new Date(v.at).toLocaleString('en-IN')]))
-    download(`khaanapeena-discounts-voids-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!rows.length && !voids.length && !refunds.length) {
@@ -131,7 +131,15 @@ export default function Discounts({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-discounts-voids-${slug(range)}`}
+          title="Discounts, freebies & voids"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Total given away" value={inr0(totalGiveaway)} sub={`${giveawayPct}% of what you could have earned`} icon="💸" accent={giveawayPct > 10 ? 'red' : 'saffron'} />

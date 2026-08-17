@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { StatCard, Badge } from '../components.jsx'
 import { Bars } from '../charts.jsx'
-import { Card, DataTable, ExportBtn, NeedsData, Note, download, slug, mins, median, dur, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, Exports, NeedsData, Note, slug, mins, median, dur, channelOf, channelLabel } from './shared.jsx'
 
 const SLA = 15 // minutes — the same threshold the Kitchen screen turns a ticket red at
 
@@ -67,7 +67,7 @@ export default function Kitchen({ state, range }) {
   const late = tickets.filter((t) => t.prep > SLA)
   const pickups = tickets.map((t) => t.pickup).filter((p) => p != null)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['KITCHEN SPEED — ' + range.label], [],
       ['Tickets measured', tickets.length],
       ['Median prep time (min)', medPrep == null ? '' : medPrep.toFixed(1)],
@@ -84,7 +84,7 @@ export default function Kitchen({ state, range }) {
       t.prep.toFixed(1), t.o.servedAt ? new Date(t.o.servedAt).toLocaleTimeString('en-IN') : '',
       t.pickup == null ? '' : t.pickup.toFixed(1), t.o.type, t.lines.map((l) => `${l.qty}x ${l.name}`).join('; '),
     ]))
-    download(`khaanapeena-kitchen-speed-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!tickets.length) {
@@ -99,7 +99,9 @@ export default function Kitchen({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-kitchen-speed-${slug(range)}`} title="Kitchen speed" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Typical prep time" value={dur(medPrep)} sub={`${tickets.length} tickets measured`} icon="⏱️" accent={medPrep <= SLA ? 'green' : 'red'} />

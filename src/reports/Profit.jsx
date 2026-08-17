@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { StatCard, Empty, Toggle } from '../components.jsx'
 import { inr0, billTotals } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt, isAggregator, spanDays, earliestOf } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt, isAggregator, spanDays, earliestOf } from './shared.jsx'
 
 // Aggregator take-rates, same figures the Online Orders payout screen reconciles with
 const COMMISSION = { zomato: 23, swiggy: 25, whatsapp: 0 }
@@ -139,7 +139,7 @@ export default function Profit({ state, range }) {
     setEditing(false)
   }
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['PROFIT & LOSS — ' + range.label],
       ['Period', `${new Date(range.from).toLocaleDateString('en-IN')} to ${new Date(Math.min(range.to, Date.now())).toLocaleDateString('en-IN')} (${days.toFixed(0)} days)`], [],
       ['REVENUE'],
@@ -167,7 +167,7 @@ export default function Profit({ state, range }) {
       ['Udhaar earned but not collected ₹', Math.round(udhaarValue)],
       [], ['Discounts given (already excluded from revenue) ₹', Math.round(discounts)],
       ['Recipe coverage %', Math.round(cogs.coverage * 100)]]
-    download(`khaanapeena-profit-loss-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!paid.length) {
@@ -176,7 +176,9 @@ export default function Profit({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} label="⬇️ Export P&L" /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-profit-loss-${slug(range)}`} title="Profit & loss" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Net revenue" value={inr0(netRevenue)} sub="what you actually received" icon="💰" accent="saffron" />

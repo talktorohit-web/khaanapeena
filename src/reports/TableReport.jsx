@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty, Badge } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, amt, mins, median, dur, spanDays, earliestOf, coversOf } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, amt, mins, median, dur, spanDays, earliestOf, coversOf } from './shared.jsx'
 
 // Table & section performance. Turnaround is measured from when the order was
 // opened to when the bill was settled — the seat-time a table is actually blocked
@@ -63,7 +63,7 @@ export default function TableReport({ state, range }) {
   // every turnaround reads the same — say so rather than let it look like a bug
   const flatTat = allTats.length > 3 && new Set(allTats.map((t) => Math.round(t))).size === 1
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['TABLE PERFORMANCE — ' + range.label], [],
       ['Table', 'Area', 'Seats', 'Parties served', 'Guests', 'Avg party size', 'Revenue ₹', 'Avg bill ₹', '₹ per guest', 'Median seat-time (min)', '₹ per seat', 'Turns/day']]
     ;[...rows].sort((a, b) => b.rev - a.rev).forEach((r) => out.push([
@@ -73,7 +73,7 @@ export default function TableReport({ state, range }) {
     ]))
     out.push([], ['BY SECTION'], ['Area', 'Tables', 'Seats', 'Parties', 'Guests', 'Revenue ₹', '₹ per seat', 'Median seat-time (min)'])
     areas.forEach((a) => out.push([a.area, a.tables, a.seats, a.bills, a.guests || '', Math.round(a.rev), Math.round(a.perSeat), a.tat == null ? '' : a.tat.toFixed(0)]))
-    download(`khaanapeena-tables-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!dine.length) {
@@ -82,7 +82,9 @@ export default function TableReport({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-tables-${slug(range)}`} title="Table performance" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard label="Dine-in revenue" value={inr0(dineRev)} sub={`${dine.length} parties`} icon="🍽️" accent="saffron" />

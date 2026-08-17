@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge } from '../components.jsx'
 import { Bars, HBars } from '../charts.jsx'
 import { inr0, bucketize, paidFromLabel } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, spanDays, earliestOf } from './shared.jsx'
+import { Card, DataTable, Exports, paidIn, slug, pct, amt, spanDays, earliestOf } from './shared.jsx'
 
 // Everything paid out that isn't stock. Purchases (GRNs) are the other half of the
 // money going out and live on their own tab — keeping them apart is what stops the
@@ -53,7 +53,7 @@ export default function ExpensesReport({ state, range }) {
     [rows, range]
   )
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['EXPENSES — ' + range.label], [],
       ['Total ₹', Math.round(total)], ['Entries', rows.length], ['Per day ₹', Math.round(total / days)],
       ['As % of sales', pct(total, sales)],
@@ -70,7 +70,7 @@ export default function ExpensesReport({ state, range }) {
       e.date, new Date(e.at).toLocaleTimeString('en-IN'), e.reason, e.note || '', e.staffName || '',
       paidFromLabel(e.paidFrom), e.by || '', Math.round(e.amount),
     ]))
-    download(`khaanapeena-expenses-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!rows.length) {
@@ -87,7 +87,9 @@ export default function ExpensesReport({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3 kp-noprint"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-expenses-${slug(range)}`} title="Expenses" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Total spent" value={inr0(total)} sub={`${rows.length} entries · ${range.label}`} icon="💸" accent="saffron" />

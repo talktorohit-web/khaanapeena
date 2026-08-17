@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Donut, Bars } from '../charts.jsx'
 import { inr0, billTotals, todayISO, dayKey, fmtTime, tableName, paidFromLabel } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, pct, amt, channelOf, channelLabel, coversOf, isAggregator, mins, dur } from './shared.jsx'
+import { Card, DataTable, Exports, Note, pct, amt, channelOf, channelLabel, coversOf, isAggregator, mins, dur } from './shared.jsx'
 
 const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'a' : 'p'}`
 const hourSpan = (h) => `${(h % 12) || 12}${h < 12 ? 'am' : 'pm'}–${((h + 1) % 12) || 12}${(h + 1) % 24 < 12 ? 'am' : 'pm'}`
@@ -14,6 +14,7 @@ export default function DayEnd({ state }) {
 
   const from = new Date(day + 'T00:00:00').getTime()
   const to = from + 864e5
+  const dayLabel = new Date(from).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   const paid = useMemo(
     () => (state.orders || []).filter((o) => o.status === 'paid' && o.paidAt >= from && o.paidAt < to).sort((a, b) => a.paidAt - b.paidAt),
@@ -187,8 +188,8 @@ export default function DayEnd({ state }) {
   const openingCash = shifts.reduce((s, sh) => s + (sh.openingFloat || 0), 0)
   const closingCash = closedShifts.length ? closedShifts.reduce((s, sh) => s + (sh.z.countedCash || 0), 0) : null
 
-  const exportCsv = () => {
-    const out = [['DAY-END SUMMARY'], ['Date', new Date(from).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })], [],
+  const buildRows = () => {
+    const out = [['DAY-END SUMMARY'], ['Date', dayLabel], [],
       ['Total collected ₹', Math.round(gross)],
       ['Bills', paid.length],
       ['Guests served', guests || '—'],
@@ -305,7 +306,7 @@ export default function DayEnd({ state }) {
         ['Counted ₹', Math.round(sh.z.countedCash || 0)],
         ['Over / short ₹', Math.round((sh.z.countedCash || 0) - (sh.z.expectedCash || 0))])
     })
-    download(`khaanapeena-day-end-${day}.csv`, out)
+    return out
   }
 
   const shift = (d) => setDay(dayKey(new Date(day + 'T12:00:00').getTime() + d * 864e5))
@@ -320,10 +321,8 @@ export default function DayEnd({ state }) {
             <button onClick={() => shift(1)} disabled={day >= todayISO()} className="w-9 h-9 rounded-xl border border-stone-200 hover:bg-stone-50 font-bold disabled:opacity-30">→</button>
             <button onClick={() => setDay(todayISO())} className="text-xs font-bold text-saffron-700 px-2">Today</button>
           </div>
-          <div className="text-sm text-stone-500">
-            {new Date(from).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </div>
-          <ExportBtn onClick={exportCsv} label="⬇️ Export day-end" />
+          <div className="text-sm text-stone-500">{dayLabel}</div>
+          <Exports build={buildRows} name={`khaanapeena-day-end-${day}`} title="Day-end summary" period={dayLabel} settings={state.settings} />
         </div>
       </Card>
 

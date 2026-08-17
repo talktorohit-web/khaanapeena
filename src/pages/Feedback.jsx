@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { StatCard, Badge, Empty, btnPrimary, btnGhost } from '../components.jsx'
 import { Bars } from '../charts.jsx'
+import { todayISO } from '../utils.js'
+import { Exports } from '../reports/shared.jsx'
 
 const SENTIMENT = {
   positive: { color: 'green', icon: '😊', label: 'Happy' },
@@ -16,21 +18,9 @@ const Stars = ({ n }) => (
   </span>
 )
 
-// neutralize CSV formula injection: a leading = + - @ (or tab/CR) makes Excel/Sheets
-// evaluate the cell as a formula. Guest review text reaches this export, so prefix
-// a quote to force it to plain text.
-const csvCell = (c) => {
-  let v = String(c ?? '')
-  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v
-  return `"${v.replace(/"/g, '""')}"`
-}
-function download(name, rows) {
-  const csv = rows.map((r) => r.map(csvCell).join(',')).join('\n')
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
-  a.download = name
-  a.click()
-}
+// CSV/PDF export comes from src/reports/shared.jsx rather than being hand-rolled
+// here — this page used to carry its own copy of the writer and the formula-
+// injection guard, which is exactly how two exports of the same data drift apart.
 
 export default function Feedback() {
   const { state, replyFeedback, resolveFeedback, deleteFeedback, addFeedback } = useStore()
@@ -79,15 +69,19 @@ export default function Feedback() {
     return f
   }, [all, filter])
 
-  const exportCsv = () => {
-    const rows = [['Date', 'Rating', 'Sentiment', 'Source', 'Table', 'Review', 'Reply', 'Resolved']]
+  // one row set, both formats — so the CSV and the PDF can never disagree
+  const buildRows = () => {
+    const rows = [['REVIEWS'], [],
+      [`Average rating: ${stats.avg || '—'} of 5`], [`Reviews: ${stats.n}`], [`Needs a reply: ${stats.needsReply}`], [],
+      ['Date', 'Rating', 'Sentiment', 'Source', 'Table', 'Review', 'Reply', 'Resolved']]
     ;[...all].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach((f) => rows.push([
       new Date(f.date || 0).toLocaleString('en-IN'), f.rating, f.sentiment || '',
       SOURCE_LABEL[f.source] || f.source || '', tableName(f.tableId), f.text || '',
       f.reply?.text || '', f.resolved ? 'yes' : 'no',
     ]))
-    download(`khaanapeena-reviews-${new Date().toISOString().slice(0, 10)}.csv`, rows)
+    return rows
   }
+  const fileName = `khaanapeena-reviews-${todayISO()}`
 
   const saveReply = (id) => { if (replyText.trim()) replyFeedback(id, replyText.trim()); setReplyId(null); setReplyText('') }
 
@@ -107,7 +101,12 @@ export default function Feedback() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowAdd(true)} className={btnGhost}>＋ Log a review</button>
-          <button onClick={exportCsv} disabled={!stats.n} className={btnGhost}>⬇ Export CSV</button>
+          {stats.n > 0 && (
+            <Exports
+              build={buildRows} name={fileName}
+              title="Guest reviews" period={`${stats.n} reviews`} settings={state.settings}
+            />
+          )}
         </div>
       </div>
 

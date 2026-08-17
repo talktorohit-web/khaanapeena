@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, slug, spanDays } from './shared.jsx'
+import { Card, DataTable, Exports, slug, spanDays } from './shared.jsx'
 
 export default function Inventory({ state, range }) {
   // consumption over the range: from recipes of KOT'd orders in [from,to).
@@ -48,7 +48,7 @@ export default function Inventory({ state, range }) {
   const consumptionBars = rows.filter((r) => r.usedValue > 0).sort((a, b) => b.usedValue - a.usedValue).slice(0, 8)
     .map((r) => ({ label: r.name, value: Math.round(r.usedValue) }))
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['INVENTORY — ' + range.label], [],
       ['Ingredient', 'Unit', 'In stock', 'Min', 'Used', 'Consumption ₹', 'Days left', 'Stock value ₹']]
     rows.forEach((r) => out.push([
@@ -62,14 +62,21 @@ export default function Inventory({ state, range }) {
       out.push([], ['WASTAGE'], ['Date', 'Item', 'Qty', 'Reason', 'Loss ₹'])
       waste.forEach((w) => out.push([w.date, w.itemName, w.qty, w.reason, Math.round(w.lossValue || 0)]))
     }
-    download(`khaanapeena-inventory-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!(state.ingredients || []).length) return <Card><Empty icon="📦" text="No ingredients added yet." /></Card>
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <Exports
+        className="justify-end mb-3"
+        build={buildRows}
+        name={`khaanapeena-inventory-${slug(range)}`}
+        title="Inventory"
+        period={range.label}
+        settings={state.settings}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Current stock value" value={inr0(stockValue)} icon="📦" accent="saffron" />

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0, inr } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug } from './shared.jsx'
 
 export default function FoodCost({ state, range }) {
   const [sort, setSort] = useState('pct') // pct | margin | sold | name
@@ -51,7 +51,7 @@ export default function FoodCost({ state, range }) {
   })
   const leaks = costed.filter((r) => r.sold > 0).sort((a, b) => b.periodCost - a.periodCost).slice(0, 6)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['FOOD COST — ' + range.label], [],
       ['Item', 'Category', 'Price ₹', 'Plate cost ₹', 'Food cost %', 'Margin ₹', 'Sold', 'Period cost ₹', 'Period revenue ₹']]
     sorted.forEach((r) => out.push([
@@ -62,14 +62,16 @@ export default function FoodCost({ state, range }) {
       ['Ingredient cost of dishes sold ₹', Math.round(totCost)],
       ['Revenue from costed dishes ₹', Math.round(totRev)],
       ['Recipe coverage %', coveredPct])
-    download(`khaanapeena-food-cost-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!(state.items || []).length) return <Card><Empty icon="🍲" text="No menu items yet." /></Card>
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-food-cost-${slug(range)}`} title="Food cost" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { Bars, Donut, HBars } from '../charts.jsx'
 import { inr0, bucketize, billTotals, dayKey } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, pct, amt, channelOf, CHANNELS, isAggregator, coversOf } from './shared.jsx'
+import { Card, DataTable, Exports, paidIn, slug, pct, amt, channelOf, CHANNELS, isAggregator, coversOf } from './shared.jsx'
 
 const MODES = [
   { key: 'cash', label: 'Cash', icon: '💵', color: '#16a34a' },
@@ -80,7 +80,7 @@ export default function Sales({ state, range }) {
     return a
   }, { taxable: 0, cgst: 0, sgst: 0 })
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const rows = [['DAY-WISE SALES — ' + range.label], [],
       ['Date', 'Bills', 'Gross ₹', 'Discount ₹', 'Taxable ₹', 'GST ₹', 'Cash ₹', 'Digital ₹', 'Avg bill ₹']]
     ;[...dayRows].reverse().forEach((d) => rows.push([
@@ -93,7 +93,7 @@ export default function Sales({ state, range }) {
     rows.push([], ['CHANNELS'], ['Channel', 'Bills', 'Revenue ₹', 'Avg bill ₹', 'Share %'])
     channelRows.forEach((c) => rows.push([c.label, c.bills, Math.round(c.rev), c.avg, c.share]))
     rows.push([], ['TOTAL', bills, Math.round(gross)])
-    download(`khaanapeena-sales-${slug(range)}.csv`, rows)
+    return rows
   }
 
   if (!bills) {
@@ -102,7 +102,15 @@ export default function Sales({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-sales-${slug(range)}`}
+          title="Sales summary"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard label="Total earnings" value={inr0(gross)} sub={range.label} icon="💰" accent="saffron" />

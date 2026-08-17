@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Empty } from '../components.jsx'
 import { inr0 } from '../utils.js'
 import { billTotals } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, amt, isAggregator } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, amt, isAggregator } from './shared.jsx'
 
 // Restaurant service under GST is HSN/SAC 996331. Owners selling packaged goods
 // (bottled water, cigarettes, sweets by weight) can override it per item.
@@ -91,7 +91,7 @@ export default function Tax({ state, range }) {
     return Object.values(m).sort((a, b) => b.k.localeCompare(a.k))
   }, [own, settings, composition])
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['GST SUMMARY — ' + range.label],
       ['Business', settings.name || ''], ['GSTIN', settings.gstin || ''],
       ['Scheme', composition ? 'Composition' : `Regular @ ${defaultRate}%`],
@@ -120,7 +120,7 @@ export default function Tax({ state, range }) {
     rateRows.forEach((r) => out.push([r.rate, Math.round(r.taxable), Math.round(r.cgst), Math.round(r.sgst)]))
     out.push([], ['MONTH-WISE'], ['Month', 'Bills', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Gross ₹'])
     monthRows.forEach((r) => out.push([r.label, r.bills, Math.round(r.taxable), Math.round(r.cgst), Math.round(r.sgst), Math.round(r.gross)]))
-    download(`khaanapeena-gst-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!paid.length) {
@@ -129,7 +129,9 @@ export default function Tax({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} label="⬇️ Export for CA" /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-gst-${slug(range)}`} title="GST summary" period={range.label} settings={settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Your own sales" value={inr0(totals.gross)} sub={`${own.length} bills · you deposit GST`} icon="🏪" accent="saffron" />

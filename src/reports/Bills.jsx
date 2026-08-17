@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { StatCard, Badge, Empty, Modal, inputCls, btnPrimary } from '../components.jsx'
 import { inr0, billTotals, tableName, fmtTime, verifyManagerPin } from '../utils.js'
-import { Card, DataTable, ExportBtn, download, paidIn, slug, amt, channelOf, channelLabel, coversOf } from './shared.jsx'
+import { Card, DataTable, Exports, paidIn, slug, amt, channelOf, channelLabel, coversOf } from './shared.jsx'
 import { discountReasonLabel } from '../utils.js'
 
 // The bill register: every settled bill, searchable, with the full line detail one
@@ -134,7 +134,7 @@ export default function Bills({ state, range }) {
     return s + (state.settings.gstScheme === 'composition' ? 0 : bt.cgst + bt.sgst)
   }, 0)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['BILL REGISTER — ' + range.label + (q ? ` (search: ${q})` : '')], [],
       ['Bill No', 'Date', 'Time', 'KOT', 'Type', 'Table', 'Guests', 'Customer', 'Items', 'Taken by', 'Settled by', 'Paid by (remote)', 'Sub ₹', 'Discount ₹', 'Discount reason', 'Discount note', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Mode', 'Total ₹', '₹ per guest']]
     ;[...rows].reverse().forEach((o) => {
@@ -160,7 +160,7 @@ export default function Bills({ state, range }) {
       out.push([], ['CANCELLED ORDERS'], ['KOT', 'Date', 'Type', 'Table', 'Items'])
       cancelled.forEach((o) => out.push([o.kotNo || '', new Date(o.kotAt || o.createdAt).toLocaleString('en-IN'), o.type, o.tableId || '', (o.items || []).map((i) => `${i.qty}x ${i.name}`).join('; ')]))
     }
-    download(`khaanapeena-bill-register-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!paid.length) {
@@ -180,7 +180,7 @@ export default function Bills({ state, range }) {
         flush
         title="Bill register"
         sub="Tap any bill to see what was on it"
-        right={<ExportBtn onClick={exportCsv} />}
+        right={<Exports build={buildRows} name={`khaanapeena-bill-register-${slug(range)}`} title="Bill register" period={range.label} settings={state.settings} />}
       >
         <div className="px-5 pb-3 flex flex-wrap items-center gap-2">
           <input

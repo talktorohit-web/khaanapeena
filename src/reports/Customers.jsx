@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars, Donut } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt } from './shared.jsx'
 
 // birthdays are stored either as YYYY-MM-DD or MM-DD — take the month either way
 const monthOf = (b) => {
@@ -58,7 +58,7 @@ export default function Customers({ state, range }) {
     .filter((c) => c.lastVisit && Date.now() - c.lastVisit > LAPSE_DAYS * 864e5 && (c.visits || 0) >= 2)
     .sort((a, b) => (b.totalSpend || 0) - (a.totalSpend || 0))
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['CUSTOMER REPORT — ' + range.label], [],
       ['Bills with a customer attached', identified.length, 'of', paid.length],
       ['Revenue from known customers ₹', Math.round(idRevenue)],
@@ -85,7 +85,7 @@ export default function Customers({ state, range }) {
       out.push([], [`NOT SEEN IN ${LAPSE_DAYS}+ DAYS`], ['Customer', 'Phone', 'Visits', 'Total spend ₹', 'Last visit'])
       lapsed.forEach((c) => out.push([c.name, c.phone || '', c.visits, Math.round(c.totalSpend || 0), new Date(c.lastVisit).toLocaleDateString('en-IN')]))
     }
-    download(`khaanapeena-customers-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!customers.length) {
@@ -96,7 +96,9 @@ export default function Customers({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-customers-${slug(range)}`} title="Customer report" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Customers on file" value={customers.length} sub="all time" icon="👥" accent="saffron" />

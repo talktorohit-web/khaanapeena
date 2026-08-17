@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0, inr } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, slug, pct, spanDays, earliestOf } from './shared.jsx'
+import { Card, DataTable, Exports, Note, slug, pct, spanDays, earliestOf } from './shared.jsx'
 
 // Purchase register built on GRNs — goods actually RECEIVED, not merely ordered.
 // A PO is an intention; a GRN is money owed. Owners reconcile against GRNs.
@@ -69,7 +69,7 @@ export default function Purchases({ state, range }) {
   const openValue = openPOs.reduce((s, p) => s + (p.lines || []).reduce((a, l) => a + (+l.qty || 0) * (+l.rate || 0), 0), 0)
   const days = spanDays(range, earliestOf(grns, (g) => g.date))
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['PURCHASE REGISTER — ' + range.label], [],
       ['Total received ₹', Math.round(total)], ['GRNs', grns.length], ['Vendors used', byVendor.length],
       [], ['VENDOR-WISE'], ['Vendor', 'GSTIN', 'GRNs', 'Line items', 'Purchase value ₹', 'Share %']]
@@ -90,7 +90,7 @@ export default function Purchases({ state, range }) {
       out.push([], ['OPEN PURCHASE ORDERS'], ['PO No', 'Date', 'Vendor', 'Status', 'Value ₹'])
       openPOs.forEach((p) => out.push([p.poNo, new Date(p.date).toLocaleDateString('en-IN'), vendorName(p.vendorId), p.status, Math.round((p.lines || []).reduce((a, l) => a + l.qty * l.rate, 0))]))
     }
-    download(`khaanapeena-purchases-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!grns.length && !openPOs.length) {
@@ -101,7 +101,9 @@ export default function Purchases({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-purchases-${slug(range)}`} title="Purchase register" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Raw material bought" value={inr0(total)} sub={range.label} icon="🛒" accent="saffron" />

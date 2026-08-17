@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, NeedsData, Note, download, paidIn, slug, pct, amt, coversOf } from './shared.jsx'
+import { Card, DataTable, Exports, NeedsData, Note, paidIn, slug, pct, amt, coversOf } from './shared.jsx'
 
 // Employee-of-the-month scoring. Deliberately a fixed, published list rather than a
 // tuned formula: the owner has to be able to read why someone won and argue with it.
@@ -142,7 +142,7 @@ export default function Staff({ state, range }) {
   const candidates = scored.filter((p) => p.sales > 0 || p.orders > 0)
   const champion = candidates[0]
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['STAFF PERFORMANCE — ' + range.label], []]
     if (candidates.length) {
       out.push(['EMPLOYEE OF THE PERIOD — ' + (champion?.name || '')],
@@ -184,7 +184,7 @@ export default function Staff({ state, range }) {
         sh.z ? Math.round((sh.z.countedCash || 0) - (sh.z.expectedCash || 0)) : '',
       ]))
     }
-    download(`khaanapeena-staff-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!cashiers.length && !takers.length && !voidsBy.length) {
@@ -202,7 +202,9 @@ export default function Staff({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports build={buildRows} name={`khaanapeena-staff-${slug(range)}`} title="Staff performance" period={range.label} settings={state.settings} />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Staff collecting money" value={cashiers.length} sub={range.label} icon="👨‍🍳" accent="saffron" />

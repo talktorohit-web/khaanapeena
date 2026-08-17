@@ -3,7 +3,7 @@ import { useStore } from '../store.jsx'
 import { StatCard, Badge, Empty, btnPrimary } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, pct } from './shared.jsx'
+import { Card, DataTable, Exports, Note, pct } from './shared.jsx'
 
 /**
  * Theoretical vs actual stock — the report that finds the money nobody can explain.
@@ -116,7 +116,7 @@ export default function Variance() {
     setCounts({})
   }
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['STOCK VARIANCE'],
       ['Counted on', latest ? new Date(latest.at).toLocaleString('en-IN') : ''],
       ['Counted by', latest?.by || ''],
@@ -128,7 +128,7 @@ export default function Variance() {
       r.varPct == null ? '' : r.varPct.toFixed(1), Math.round(r.varValue),
       +r.received.toFixed(3), +r.used.toFixed(3), +r.wasted.toFixed(3),
     ]))
-    download(`khaanapeena-stock-variance-${new Date(latest.at).toISOString().slice(0, 10)}.csv`, out)
+    return out
   }
 
   // ---- counting sheet ----
@@ -216,7 +216,12 @@ export default function Variance() {
   return (
     <>
       <div className="flex justify-end gap-2 mb-3">
-        <ExportBtn onClick={exportCsv} />
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-stock-variance-${new Date(latest.at).toISOString().slice(0, 10)}`}
+          title="Stock variance"
+          settings={state.settings}
+        />
         <button onClick={startCount} className={btnPrimary + ' !py-1.5 !px-3 !text-xs'}>📋 New stock take</button>
       </div>
 

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Bars } from '../charts.jsx'
 import { inr0, tableName, fmtTime } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt, mins, median, dur, channelOf, channelLabel } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt, mins, median, dur, channelOf, channelLabel } from './shared.jsx'
 
 const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'a' : 'p'}`
 const hourSpan = (h) => `${(h % 12) || 12}${h < 12 ? 'am' : 'pm'}–${((h + 1) % 12) || 12}${(h + 1) % 24 < 12 ? 'am' : 'pm'}`
@@ -89,7 +89,7 @@ export default function Timing({ state, range }) {
 
   const stamp = (ts) => (ts ? fmtTime(ts) : null)
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['BILL TIMING — ' + range.label], [],
       ['Bills settled', rows.length],
       ['Bills with a print time', withPrint.length],
@@ -123,7 +123,7 @@ export default function Timing({ state, range }) {
       r.seat == null ? '—' : r.seat.toFixed(1),
       Math.round(amt(r.o)), r.o.settledBy || '',
     ]))
-    download(`khaanapeena-bill-timing-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!rows.length) {
@@ -132,7 +132,15 @@ export default function Timing({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3 kp-noprint"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-bill-timing-${slug(range)}`}
+          title="Bill timing"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Bills settled" value={rows.length} sub={range.label} icon="🧾" accent="saffron" />

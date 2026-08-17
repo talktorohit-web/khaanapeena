@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { Bars, HBars } from '../charts.jsx'
 import { inr0, tableName, fmtTime } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download, paidIn, slug, pct, amt, mins, median, dur } from './shared.jsx'
+import { Card, DataTable, Exports, Note, paidIn, slug, pct, amt, mins, median, dur } from './shared.jsx'
 
 const hourLabel = (h) => `${(h % 12) || 12}${h < 12 ? 'a' : 'p'}`
 const hourSpan = (h) => `${(h % 12) || 12}${h < 12 ? 'am' : 'pm'}–${((h + 1) % 12) || 12}${(h + 1) % 24 < 12 ? 'am' : 'pm'}`
@@ -113,7 +113,7 @@ export default function Cancellations({ state, range }) {
   const when = (ts) => (ts ? new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')
   const kindLabel = (k) => (k === 'void' ? 'Item deleted from bill' : 'Order cancelled')
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['ITEM CANCELLATIONS & DELETIONS — ' + range.label], [],
       ['Cancellation events', rows.length],
       ['Items pulled off bills', totalQty],
@@ -141,7 +141,7 @@ export default function Cancellations({ state, range }) {
     byStaff.forEach((s) => out.push([s.name, s.count, s.qty, Math.round(s.value), s.afterPrint, s.medGap == null ? '—' : s.medGap.toFixed(1)]))
     out.push([], ['BY HOUR OF DAY'], ['Hour', 'Events', 'Value ₹'])
     hours.filter((h) => h.count).forEach((h) => out.push([hourSpan(h.hour), h.count, Math.round(h.value)]))
-    download(`khaanapeena-cancellations-${slug(range)}.csv`, out)
+    return out
   }
 
   if (!rows.length) {
@@ -154,7 +154,15 @@ export default function Cancellations({ state, range }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3 kp-noprint"><ExportBtn onClick={exportCsv} /></div>
+      <div className="flex justify-end mb-3 kp-noprint">
+        <Exports
+          build={buildRows}
+          name={`khaanapeena-cancellations-${slug(range)}`}
+          title="Cancellations & deletions"
+          period={range.label}
+          settings={state.settings}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <StatCard label="Cancellations" value={rows.length} sub={`${totalQty} item${totalQty === 1 ? '' : 's'} pulled off bills`} icon="🚫" accent="saffron" />

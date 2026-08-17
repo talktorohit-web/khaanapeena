@@ -3,7 +3,7 @@ import { useStore } from '../store.jsx'
 import { StatCard, Badge, Modal, btnPrimary } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0, tableName } from '../utils.js'
-import { Card, DataTable, ExportBtn, Note, download } from './shared.jsx'
+import { Card, DataTable, Exports, Note } from './shared.jsx'
 
 // Ageing buckets an Indian shopkeeper actually thinks in
 const BUCKETS = [
@@ -69,7 +69,7 @@ export default function Udhaar() {
     value: open.filter((r) => bucketOf(r.days).key === b.key).reduce((s, r) => s + r.outstanding, 0),
   }))
 
-  const exportCsv = () => {
+  const buildRows = () => {
     const out = [['UDHAAR / CREDIT LEDGER'],
       ['Generated', new Date().toLocaleString('en-IN')],
       ['Total outstanding ₹', Math.round(totalDue)], ['Open bills', open.length],
@@ -91,7 +91,7 @@ export default function Udhaar() {
         new Date(r.o.creditPaid.at).toLocaleDateString('en-IN'), r.o.creditPaid.by, r.o.creditPaid.method,
       ]))
     }
-    download('khaanapeena-udhaar-ledger.csv', out)
+    return out
   }
 
   if (!credits.length) {
@@ -111,7 +111,13 @@ export default function Udhaar() {
 
   return (
     <>
-      <div className="flex justify-end mb-3 kp-noprint"><ExportBtn onClick={exportCsv} /></div>
+      <Exports
+        build={buildRows}
+        name="khaanapeena-udhaar-ledger"
+        title="Udhaar / credit ledger"
+        settings={state.settings}
+        className="justify-end mb-3"
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard label="Money owed to you" value={inr0(totalDue)} sub={`${open.length} unpaid bill${open.length === 1 ? '' : 's'}`} icon="📒" accent={totalDue ? 'red' : 'green'} />
