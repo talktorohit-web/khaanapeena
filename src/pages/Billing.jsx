@@ -6,6 +6,7 @@ import { usePerms } from '../perms.jsx'
 import { hasModifiers, effectivePrice, lineKey, modsLabel, modsTotal } from '../modifiers.js'
 import ModifierPicker from '../ModifierPicker.jsx'
 import SettleModal from './SettleModal.jsx'
+import PayerModal from './PayerModal.jsx'
 import { printBill, printKOT, inElectron } from '../print.js'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
 
@@ -37,6 +38,8 @@ export default function Billing() {
   // item because one voice command can name several dishes that each need asking.
   const [modQueue, setModQueue] = useState([])
   const [voidAsk, setVoidAsk] = useState(null) // { li, delta } awaiting a cancellation reason
+  const [payerForId, setPayerForId] = useState(null) // order whose bill is being sent to a remote payer
+  const [receiptForId, setReceiptForId] = useState(null) // bill whose remote payer is owed a receipt
 
   // guest count on a dine-in table — feeds spend-per-guest and staffing reports
   const changeCovers = (d) => update((s) => {
@@ -74,6 +77,15 @@ export default function Billing() {
   // aggregator/WhatsApp orders are settled from Online Orders/KDS, not the POS tab strip
   const activeOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'served'].includes(o.status) && !['zomato', 'swiggy', 'whatsapp'].includes(o.type))
   const order = state.orders.find((o) => o.id === orderId && o.status !== 'paid')
+  // Both derived from live state rather than held as snapshots, so each one can
+  // only exist while it still makes sense: the pay request disappears the moment
+  // the bill is settled, and the receipt appears only once it's actually numbered.
+  const payerOrder = payerForId
+    ? state.orders.find((o) => o.id === payerForId && o.status !== 'paid')
+    : null
+  const receiptOrder = receiptForId
+    ? state.orders.find((o) => o.id === receiptForId && o.status === 'paid' && o.billNo)
+    : null
 
   const hour = new Date().getHours()
   const hh = state.settings.happyHour
@@ -429,7 +441,13 @@ export default function Billing() {
           )}
           {order && order.items.length > 0 && (
             <button onClick={() => setBillOps(true)} className="w-full mt-2 text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg py-1.5">
-              ⑂ Split / Merge bill
+              ⑂ Split / Move / Merge
+            </button>
+          )}
+          {/* Someone not at the table is paying — send them the bill to settle */}
+          {order && order.items.length > 0 && (
+            <button onClick={() => setPayerForId(order.id)} className="w-full mt-2 text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 rounded-lg py-1.5">
+              📤 {order.payer?.requestedAt ? `Bill sent to ${order.payer.name || order.payer.phone}` : 'Someone else is paying — send them the bill'}
             </button>
           )}
         </div>
@@ -528,7 +546,12 @@ export default function Billing() {
         <SettleModal
           order={order} totals={totals} allowDiscount={can('discount')} onClose={() => setSettleOpen(false)}
           onDone={(payload) => {
-            settleOrder(orderId, payload)
+            const settledId = orderId
+            // the person who paid isn't in the room — close the loop by offering
+            // them proof once the bill actually settles (we watch for it below,
+            // because settleOrder is async and may wait on a server bill number)
+            if (order.payer?.phone) setReceiptForId(settledId)
+            settleOrder(settledId, payload)
             setSettleOpen(false)
             setOrderId(null)
             setCartOpen(false)
@@ -536,6 +559,9 @@ export default function Billing() {
           happyHourNow={happyHourNow}
         />
       )}
+      {payerOrder && <PayerModal order={payerOrder} mode="bill" onClose={() => setPayerForId(null)} />}
+      {/* waits for the bill number the settle actually issued before offering the receipt */}
+      {receiptOrder && <PayerModal order={receiptOrder} mode="receipt" onClose={() => setReceiptForId(null)} />}
       {voidAsk && (
         <VoidReasonModal
           line={voidAsk.li}
@@ -766,6 +792,7 @@ export function BillPrint({ order, onClose }) {
         <div className="border-t border-dashed border-stone-400 my-1" />
         <div>Bill No: {order.billNo || 'DRAFT'} · {order.tableId ? `Table ${order.tableId}` : order.type}{order.covers ? ` · ${order.covers} guest${order.covers > 1 ? 's' : ''}` : ''}</div>
         {order.waiterName && <div>Served by: {order.waiterName}</div>}
+        {order.payer?.phone && <div>Paid by: {order.payer.name || order.payer.phone}</div>}
         {order.party?.type === 'firm' && (
           <div className="border border-dashed border-stone-400 px-1 my-1">
             <div>Billed to: {order.party.name}</div>

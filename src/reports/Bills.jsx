@@ -136,7 +136,7 @@ export default function Bills({ state, range }) {
 
   const exportCsv = () => {
     const out = [['BILL REGISTER — ' + range.label + (q ? ` (search: ${q})` : '')], [],
-      ['Bill No', 'Date', 'Time', 'KOT', 'Type', 'Table', 'Guests', 'Customer', 'Items', 'Taken by', 'Settled by', 'Sub ₹', 'Discount ₹', 'Discount reason', 'Discount note', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Mode', 'Total ₹', '₹ per guest']]
+      ['Bill No', 'Date', 'Time', 'KOT', 'Type', 'Table', 'Guests', 'Customer', 'Items', 'Taken by', 'Settled by', 'Paid by (remote)', 'Sub ₹', 'Discount ₹', 'Discount reason', 'Discount note', 'Taxable ₹', 'CGST ₹', 'SGST ₹', 'Mode', 'Total ₹', '₹ per guest']]
     ;[...rows].reverse().forEach((o) => {
       const bt = billTotals(o, state.settings)
       const comp = state.settings.gstScheme === 'composition'
@@ -146,6 +146,7 @@ export default function Bills({ state, range }) {
         o.kotNo || '', o.type, tableName(state.tables, o.tableId) || '', g || '', custName(o.customerId),
         (o.items || []).map((i) => `${i.qty}x ${i.name}${i.notes ? ` (${i.notes})` : ''}`).join('; '),
         o.takenBy || '', o.settledBy || '',
+        o.payer ? `${o.payer.name || ''} ${o.payer.phone || ''}`.trim() : '',
         Math.round(bt.sub), bt.discount,
         bt.discount > 0 && o.payment?.discountReason ? discountReasonLabel(o.payment.discountReason) : '',
         o.payment?.discountNote || '',

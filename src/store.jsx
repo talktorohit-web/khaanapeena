@@ -446,6 +446,33 @@ export function StoreProvider({ children }) {
       to.updatedAt = Date.now()
     })
 
+    // ---- someone else is paying ----
+    // A host sends guests in and settles from wherever they are. We keep who they
+    // are on the order so the receipt can be sent after the bill closes, and so
+    // the bill register can answer "who actually paid for this table?".
+    const setOrderPayer = (orderId, payer) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o) return
+      o.payer = payer
+        ? {
+          name: String(payer.name || '').slice(0, 60),
+          phone: String(payer.phone || '').replace(/\D/g, '').slice(-10),
+          requestedAt: o.payer?.requestedAt || null,
+          receiptSentAt: o.payer?.receiptSentAt || null,
+        }
+        : undefined
+      o.updatedAt = Date.now()
+    })
+
+    // stamp that the bill (or the receipt) actually went out, so the till can show
+    // "sent 8:42pm" rather than leaving the cashier guessing whether they did it
+    const markPayerSent = (orderId, kind) => update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o || !o.payer) return
+      o.payer[kind === 'receipt' ? 'receiptSentAt' : 'requestedAt'] = Date.now()
+      o.updatedAt = Date.now()
+    })
+
     // ---- expenses: money out that isn't stock ----
     // Recorded separately from GRNs (which buy inventory) and from shift cash
     // movements (which only move the float). A cash expense is subtracted from the
@@ -874,7 +901,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, setOrderPayer, markPayerSent, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

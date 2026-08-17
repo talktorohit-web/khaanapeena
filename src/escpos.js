@@ -85,6 +85,7 @@ export function buildBill(order, settings, totals, width = 48) {
   e.line(`Bill: ${order.billNo || 'DRAFT'}   ${order.tableId ? 'Table ' + order.tableId : (order.type || '').toUpperCase()}`)
   if (order.covers) e.line(`Guests: ${order.covers}`)
   if (order.waiterName) e.line(`Served by: ${order.waiterName}`)
+  if (order.payer?.phone) e.line(`Paid by: ${order.payer.name || order.payer.phone}`)
   e.line(new Date(order.paidAt || order.createdAt || Date.now()).toLocaleString('en-IN'))
   if (order.party?.type === 'firm') {
     e.rule().line(`Billed to: ${order.party.name || ''}`).line(`GSTIN: ${order.party.gstin || ''}`)

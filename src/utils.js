@@ -202,6 +202,71 @@ export const PAY_MODES = [
 ]
 export const payModeLabel = (k) => PAY_MODES.find(([c]) => c === k)?.[1] || k
 
+/**
+ * Somebody else is paying. A host sends guests to the restaurant and settles the
+ * bill from wherever they are — so the bill has to travel to them, and the receipt
+ * has to travel back.
+ *
+ * WhatsApp carries text only, so the message has to work three ways: the plain
+ * numbers for someone reading it, the UPI id for someone typing it into their own
+ * app, and a tappable `upi://` link that opens GPay/PhonePe with the amount
+ * already filled. The QR stays on the till screen for anyone who'd rather scan.
+ */
+export function buildPayRequest(order, settings, totals, tables) {
+  const composition = settings.gstScheme === 'composition'
+  const payable = composition ? Math.round(totals.taxable + totals.svc) : totals.total
+  const where = order.tableId ? `Table ${tableName(tables, order.tableId)}` : (order.type || 'Order').toUpperCase()
+  const lines = (order.items || []).map((li) => {
+    const mods = li.mods?.length ? ` (${li.mods.map((m) => m.name).join(', ')})` : ''
+    return `${li.qty}x ${li.name}${mods} - ${inr0(li.price * li.qty)}`
+  })
+  const out = [
+    `*${settings.name}*`,
+    `Bill for ${where}${order.covers ? ` · ${order.covers} guest${order.covers > 1 ? 's' : ''}` : ''}`,
+    '',
+    ...lines,
+    '',
+    `Sub-total: ${inr0(totals.sub)}`,
+  ]
+  if (totals.discount > 0) out.push(`Discount: -${inr0(totals.discount)}`)
+  if (!composition) out.push(`GST: ${inr0(totals.cgst + totals.sgst)}`)
+  if (totals.svc > 0) out.push(`Service charge: ${inr0(totals.svc)}`)
+  out.push(
+    `*TOTAL: ${inr0(payable)}*`,
+    '',
+    `Pay by UPI to: ${settings.upiId || ''}`,
+    `Tap to pay: ${upiLink(settings, payable, `${settings.name} · ${where}`)}`,
+    '',
+    'Thank you 🙏',
+    settings.phone ? `${settings.name} · ${settings.phone}` : settings.name,
+  )
+  return out.join('\n')
+}
+
+// Sent once the money is in and the bill is closed — the sponsor's proof of payment.
+export function buildPayReceipt(order, settings, tables) {
+  const where = order.tableId ? `Table ${tableName(tables, order.tableId)}` : (order.type || 'Order').toUpperCase()
+  const mode = order.payment?.splits?.length > 1
+    ? order.payment.splits.map((s) => `${String(s.method).toUpperCase()} ${inr0(s.amount)}`).join(' + ')
+    : String(order.payment?.method || 'cash').toUpperCase()
+  const out = [
+    '✅ *Payment received — thank you!*',
+    '',
+    `*${settings.name}*`,
+    `Bill No: ${order.billNo}`,
+    `${where}${order.covers ? ` · ${order.covers} guest${order.covers > 1 ? 's' : ''}` : ''}`,
+    `Amount paid: *${inr0(order.payment?.amount || 0)}*`,
+    `Paid by: ${mode}`,
+    new Date(order.paidAt || Date.now()).toLocaleString('en-IN'),
+  ]
+  if (settings.gstin) out.push(`GSTIN: ${settings.gstin}`)
+  out.push('', 'Your guests were looked after 🙏', `${settings.name}${settings.phone ? ` · ${settings.phone}` : ''}`)
+  return out.join('\n')
+}
+
+// wa.me needs the country code and no punctuation
+export const waLink = (phone, text) => `https://wa.me/91${String(phone).replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(text)}`
+
 export function upiLink(settings, amount, note) {
   const p = new URLSearchParams({
     pa: settings.upiId || 'khaanapeena@upi',

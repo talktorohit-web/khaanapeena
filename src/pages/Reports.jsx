@@ -120,26 +120,25 @@ export default function Reports() {
         >🖨️ Save as PDF</button>
       </div>
 
-      {/* TAB BAR */}
-      <div className="bg-white rounded-2xl border border-stone-100 p-3 mb-4 overflow-x-auto kp-noprint">
-        <div className="flex gap-3 min-w-max">
-          {GROUPS.map((g, gi) => (
-            <div key={g.title} className={gi ? 'pl-3 border-l border-stone-100' : ''}>
-              <div className="text-[10px] font-black uppercase tracking-wider text-stone-400 mb-1.5 px-1">{g.title}</div>
-              <div className="flex gap-1.5">
-                {g.tabs.map(([k, label]) => (
-                  <button
-                    key={k}
-                    onClick={() => setTab(k)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                      tab === k ? 'bg-ink-900 text-white' : 'bg-stone-50 hover:bg-stone-100 text-stone-600'
-                    }`}
-                  >{label}</button>
-                ))}
-              </div>
+      {/* TAB BAR — every report visible at once. It used to scroll sideways, which
+          hid half the tabs behind a gesture nobody thinks to make on a till. */}
+      <div className="bg-white rounded-2xl border border-stone-100 p-3 mb-4 kp-noprint">
+        {GROUPS.map((g, gi) => (
+          <div key={g.title} className={`flex items-baseline gap-2 flex-wrap ${gi ? 'mt-2 pt-2 border-t border-stone-100' : ''}`}>
+            <div className="text-[10px] font-black uppercase tracking-wider text-stone-400 w-[72px] shrink-0">{g.title}</div>
+            <div className="flex gap-1.5 flex-wrap flex-1">
+              {g.tabs.map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setTab(k)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                    tab === k ? 'bg-ink-900 text-white' : 'bg-stone-50 hover:bg-stone-100 text-stone-600'
+                  }`}
+                >{label}</button>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
       {/* RANGE SELECTOR */}
