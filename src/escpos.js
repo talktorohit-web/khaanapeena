@@ -111,8 +111,17 @@ export function buildBill(order, settings, totals, width = 48) {
     if (r) e.line('  (' + discountReasonLabel(r).replace(/^\S+\s/, '') + (order.payment.discountNote ? ' - ' + order.payment.discountNote : '') + ')')
   }
   // service charge prints above the tax lines because GST is charged on it
-  if (totals.svc > 0) e.row(`Service charge ${totals.svcRate}%`, money(totals.svc))
-  else if (order.svcWaived && settings.serviceCharge > 0) e.line("Service charge waived at guest's request")
+  // "(optional)" is printed on the bill because a service charge is voluntary in
+  // India — the guest is entitled to see that on the slip, not just be told.
+  // A 58mm roll is 32 columns, so the label is shortened there rather than wrapped.
+  if (totals.svc > 0) {
+    const label = width >= 48
+      ? `Service charge ${totals.svcRate}% (optional)`
+      : `Service chg ${totals.svcRate}% (optional)`
+    e.row(label, money(totals.svc))
+  } else if (order.svcWaived && settings.serviceCharge > 0) {
+    e.line("Service charge waived at guest's request")
+  }
   if (!isComposition) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))

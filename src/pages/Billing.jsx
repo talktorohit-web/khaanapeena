@@ -520,7 +520,7 @@ export default function Billing() {
           <div className="border-t border-stone-100 p-3 space-y-1 text-sm">
             <Row l={t('subtotal')} v={inr(totals.sub)} />
             {totals.discount > 0 && <Row l={t('discount')} v={'−' + inr(totals.discount)} cls="text-green-600" />}
-            {totals.svc > 0 && <Row l={`Service charge ${totals.svcRate}%`} v={inr(totals.svc)} muted />}
+            {totals.svc > 0 && <Row l={`Service charge ${totals.svcRate}% (optional)`} v={inr(totals.svc)} muted />}
             {state.settings.gstScheme === 'regular' ? (
               <>
                 <Row l={`CGST ${totals.gstRate / 2}%`} v={inr(totals.cgst)} muted />
@@ -832,7 +832,7 @@ export function BillPrint({ order, onClose }) {
           </>
         )}
         {/* service charge sits above the tax lines because GST is charged on it */}
-        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{totals.svcRate}%</span><span>{totals.svc.toFixed(2)}</span></div>}
+        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{totals.svcRate}% (optional)</span><span>{totals.svc.toFixed(2)}</span></div>}
         {!isComposition && (
           <>
             <div className="flex justify-between"><span>CGST @{totals.gstRate / 2}%</span><span>{totals.cgst.toFixed(2)}</span></div>

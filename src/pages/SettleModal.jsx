@@ -342,8 +342,8 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
         {effTotals.discount > 0 && <Line l={`Discount${discMode === 'pct' && pctVal ? ` (${pctVal}%)` : ''}`} v={'−' + inr(effTotals.discount)} red />}
         {svcRate > 0 && (
           svcWaived
-            ? <Line l={`Service charge ${svcRate}%`} v="waived" dim />
-            : <Line l={`Service charge ${svcRate}%`} v={inr(effTotals.svc)} dim />
+            ? <Line l={`Service charge ${svcRate}% (optional)`} v="waived" dim />
+            : <Line l={`Service charge ${svcRate}% (optional)`} v={inr(effTotals.svc)} dim />
         )}
         {state.settings.gstScheme === 'regular' && <>
           <Line l={`CGST ${effTotals.gstRate / 2}%`} v={inr(effTotals.cgst)} dim />
