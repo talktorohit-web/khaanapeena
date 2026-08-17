@@ -22,7 +22,12 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const [splitOn, setSplitOn] = useState(false)
   const [splits, setSplits] = useState([{ method: 'cash', amount: '' }, { method: 'upi', amount: '' }])
   const [svcWaived, setSvcWaived] = useState(!!order.svcWaived)
-  const [discount, setDiscount] = useState(allowDiscount && happyHourNow ? Math.round((totals.sub * hh.discountPct) / 100) : 0)
+  // A discount is given two ways in real life — "₹100 off" and "10% off" — and a
+  // cashier shouldn't have to do the arithmetic on a ₹1,847 bill. Happy hour is a
+  // percentage by definition, so it opens in that mode.
+  const [discMode, setDiscMode] = useState(allowDiscount && happyHourNow ? 'pct' : 'amt')
+  const [discAmt, setDiscAmt] = useState(0)
+  const [discPct, setDiscPct] = useState(allowDiscount && happyHourNow ? hh.discountPct : '')
   const [reason, setReason] = useState(allowDiscount && happyHourNow ? 'happy-hour' : '')
   const [reasonNote, setReasonNote] = useState('')
   const [discPin, setDiscPin] = useState('')
@@ -42,6 +47,12 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const [qr, setQr] = useState(null)
 
   const cust = state.customers.find((c) => c.phone === phone)
+
+  // never let a discount exceed the bill, whichever way it was entered
+  const pctVal = Math.max(0, Math.min(100, +discPct || 0))
+  const discount = discMode === 'pct'
+    ? Math.round((totals.sub * pctVal) / 100)
+    : Math.min(totals.sub, Math.max(0, Math.round(+discAmt || 0)))
 
   // the live bill, recomputed as the cashier changes things
   const effTotals = billTotals({ ...order, svcWaived, payment: { discount: discount + redeem } }, state.settings)
@@ -96,6 +107,9 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
     onDone({
       method: splitOn ? 'split' : method,
       discount: total, customerId, redeemPoints: redeem,
+      // kept so the bill and the discount report can say "10% off" rather than
+      // leaving anyone to reverse-engineer it from the rupees
+      discountPct: discMode === 'pct' && pctVal > 0 ? pctVal : null,
       discountReason: total > 0 ? finalReason : null,
       discountNote: finalReason === 'other' ? reasonNote.trim() : null,
       splits: splitOn ? splitRows.filter((r) => r.amount > 0) : null,
@@ -145,12 +159,42 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
         </div>
       )}
 
-      {/* DISCOUNT */}
-      <Field label={`${t('discount')} (₹)`}>
-        <input type="number" value={discount} min="0" disabled={!allowDiscount} onChange={(e) => { setDiscount(Math.max(0, +e.target.value || 0)); setDiscErr('') }} className={inputCls + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')} />
+      {/* DISCOUNT — flat rupees or a percentage of the bill */}
+      <div className="mb-3">
+        <span className="text-xs font-semibold text-stone-500 block mb-1">{t('discount')}</span>
+        <div className="flex gap-2">
+          <div className="flex rounded-xl border border-stone-200 overflow-hidden shrink-0">
+            {[['amt', '₹ Amount'], ['pct', '% of bill']].map(([k, l]) => (
+              <button
+                key={k} disabled={!allowDiscount}
+                onClick={() => { setDiscMode(k); setDiscErr('') }}
+                className={`px-3 py-2 text-xs font-bold transition-colors ${discMode === k ? 'bg-ink-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'} ${allowDiscount ? '' : 'opacity-50 cursor-not-allowed'}`}
+              >{l}</button>
+            ))}
+          </div>
+          {discMode === 'amt' ? (
+            <input
+              type="number" min="0" value={discAmt || ''} disabled={!allowDiscount} placeholder="0"
+              onChange={(e) => { setDiscAmt(e.target.value); setDiscErr('') }}
+              className={inputCls + ' text-right tabular-nums' + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')}
+            />
+          ) : (
+            <input
+              type="number" min="0" max="100" value={discPct} disabled={!allowDiscount} placeholder="0"
+              onChange={(e) => { setDiscPct(e.target.value); setDiscErr('') }}
+              className={inputCls + ' text-right tabular-nums' + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')}
+            />
+          )}
+        </div>
         {!allowDiscount && <span className="text-[11px] text-stone-400">Discounts aren't allowed for your role</span>}
-        {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600">Happy hour −{hh.discountPct}% auto-applied</span>}
-      </Field>
+        {allowDiscount && discMode === 'pct' && discount > 0 && (
+          <span className="text-[11px] text-stone-500">{pctVal}% of {inr0(totals.sub)} = <b>{inr0(discount)}</b> off</span>
+        )}
+        {allowDiscount && discMode === 'amt' && discount > 0 && totals.sub > 0 && (
+          <span className="text-[11px] text-stone-500">{inr0(discount)} off — that's {((discount / totals.sub) * 100).toFixed(1)}% of the bill</span>
+        )}
+        {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600 block">Happy hour −{hh.discountPct}% auto-applied</span>}
+      </div>
 
       {discountLocked && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
@@ -295,16 +339,16 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
       {/* SUMMARY */}
       <div className="bg-stone-50 rounded-xl p-3 mb-3 text-sm">
         <Line l="Sub-total" v={inr(effTotals.sub)} />
-        {effTotals.discount > 0 && <Line l="Discount" v={'−' + inr(effTotals.discount)} red />}
-        {state.settings.gstScheme === 'regular' && <>
-          <Line l={`CGST ${effTotals.gstRate / 2}%`} v={inr(effTotals.cgst)} dim />
-          <Line l={`SGST ${effTotals.gstRate / 2}%`} v={inr(effTotals.sgst)} dim />
-        </>}
+        {effTotals.discount > 0 && <Line l={`Discount${discMode === 'pct' && pctVal ? ` (${pctVal}%)` : ''}`} v={'−' + inr(effTotals.discount)} red />}
         {svcRate > 0 && (
           svcWaived
             ? <Line l={`Service charge ${svcRate}%`} v="waived" dim />
             : <Line l={`Service charge ${svcRate}%`} v={inr(effTotals.svc)} dim />
         )}
+        {state.settings.gstScheme === 'regular' && <>
+          <Line l={`CGST ${effTotals.gstRate / 2}%`} v={inr(effTotals.cgst)} dim />
+          <Line l={`SGST ${effTotals.gstRate / 2}%`} v={inr(effTotals.sgst)} dim />
+        </>}
         <div className="flex justify-between font-black text-base text-ink-900 pt-1.5 mt-1 border-t border-stone-200">
           <span>{method === 'nc' && !splitOn ? 'Written off' : 'To collect'}</span>
           <span>{inr0(payable)}</span>

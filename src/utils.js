@@ -167,14 +167,21 @@ export function billTotals(order, settings) {
   const discount = order.payment?.discount || 0
   const taxable = Math.max(0, sub - discount)
   const gstRate = settings.gstRate ?? 5
-  const cgst = (taxable * gstRate) / 200
-  const sgst = (taxable * gstRate) / 200
+
   // Service charge is NOT a tax and is not compulsory — a guest may decline it
   // (CCPA guidelines, India). `svcWaived` on the order is that refusal.
   const svcRate = order.svcWaived ? 0 : (settings.serviceCharge || 0)
   const svc = (taxable * svcRate) / 100
-  const total = Math.round(taxable + cgst + sgst + svc)
-  return { sub, discount, taxable, cgst, sgst, svc, svcRate, gstRate, total, roundOff: total - (taxable + cgst + sgst + svc) }
+
+  // GST is charged on food PLUS service charge. A service charge is part of the
+  // value of supply, so taxing only the food under-declares the bill — the order
+  // here is deliberate and must stay: svc is computed first, then taxed.
+  const gstBase = taxable + svc
+  const cgst = (gstBase * gstRate) / 200
+  const sgst = (gstBase * gstRate) / 200
+
+  const total = Math.round(taxable + svc + cgst + sgst)
+  return { sub, discount, taxable, gstBase, cgst, sgst, svc, svcRate, gstRate, total, roundOff: total - (taxable + svc + cgst + sgst) }
 }
 
 /**

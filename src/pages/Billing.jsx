@@ -520,6 +520,7 @@ export default function Billing() {
           <div className="border-t border-stone-100 p-3 space-y-1 text-sm">
             <Row l={t('subtotal')} v={inr(totals.sub)} />
             {totals.discount > 0 && <Row l={t('discount')} v={'−' + inr(totals.discount)} cls="text-green-600" />}
+            {totals.svc > 0 && <Row l={`Service charge ${totals.svcRate}%`} v={inr(totals.svc)} muted />}
             {state.settings.gstScheme === 'regular' ? (
               <>
                 <Row l={`CGST ${totals.gstRate / 2}%`} v={inr(totals.cgst)} muted />
@@ -528,7 +529,6 @@ export default function Billing() {
             ) : (
               <Row l="Composition scheme — no GST on bill" v="" muted />
             )}
-            {totals.svc > 0 && <Row l={`Service charge ${state.settings.serviceCharge}%`} v={inr(totals.svc)} muted />}
             <div className="flex justify-between font-black text-lg text-ink-900 pt-1 border-t border-stone-100">
               <span>{t('total')}</span><span>{inr0(state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable + totals.svc))}</span>
             </div>
@@ -825,19 +825,20 @@ export function BillPrint({ order, onClose }) {
         <div className="flex justify-between"><span>Subtotal</span><span>{totals.sub.toFixed(2)}</span></div>
         {totals.discount > 0 && (
           <>
-            <div className="flex justify-between"><span>Discount</span><span>-{totals.discount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Discount{order.payment?.discountPct ? ` (${order.payment.discountPct}%)` : ''}</span><span>-{totals.discount.toFixed(2)}</span></div>
             {order.payment?.discountReason && (
               <div className="text-[10px] text-stone-600">({discountReasonLabel(order.payment.discountReason).replace(/^\S+\s/, '')}{order.payment.discountNote ? ` — ${order.payment.discountNote}` : ''})</div>
             )}
           </>
         )}
+        {/* service charge sits above the tax lines because GST is charged on it */}
+        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{totals.svcRate}%</span><span>{totals.svc.toFixed(2)}</span></div>}
         {!isComposition && (
           <>
             <div className="flex justify-between"><span>CGST @{totals.gstRate / 2}%</span><span>{totals.cgst.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>SGST @{totals.gstRate / 2}%</span><span>{totals.sgst.toFixed(2)}</span></div>
           </>
         )}
-        {totals.svc > 0 && <div className="flex justify-between"><span>Service charge @{totals.svcRate}%</span><span>{totals.svc.toFixed(2)}</span></div>}
         {order.svcWaived && s.serviceCharge > 0 && <div className="text-[10px]">Service charge waived at guest's request</div>}
         <div className="flex justify-between font-black text-sm border-t border-dashed border-stone-400 mt-1 pt-1">
           <span>TOTAL</span><span>₹{payable}</span>

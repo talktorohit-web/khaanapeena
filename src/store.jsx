@@ -28,6 +28,15 @@ function load() {
         // heal any order whose `items` was lost to a cloud round-trip (RTDB drops
         // empty arrays) so already-persisted corrupt state can't crash on next load
         ;(s.orders || []).forEach((o) => { if (o && !o.items) o.items = [] })
+        // Service charge shipped as 5% in the seed, but an install created before
+        // that keeps its old 0 and would never show the line at all. Set it once,
+        // and record that we did — so an owner who deliberately chooses 0 later is
+        // never overridden again.
+        if (s.settings && !s.settings.svcConfigured) {
+          if (!s.settings.serviceCharge) s.settings.serviceCharge = 5
+          s.settings.svcConfigured = true
+        }
+        if (s.settings && s.settings.supportPhone == null) s.settings.supportPhone = '9614300003'
         return s
       }
     }
@@ -279,7 +288,7 @@ export function StoreProvider({ children }) {
       return issued
     }
 
-    const settleOrder = async (orderId, { method, discount = 0, discountReason = null, discountNote = null, customerId = null, redeemPoints = 0, splits = null, nc = null, party = null }) => {
+    const settleOrder = async (orderId, { method, discount = 0, discountPct = null, discountReason = null, discountNote = null, customerId = null, redeemPoints = 0, splits = null, nc = null, party = null }) => {
       // GUARD: never settle an already-paid order twice. An online 'ready' order
       // exposes a settle control on BOTH KDS and Online Orders, so a double-tap
       // (or two staff) would otherwise burn a second invoice number and double the
@@ -314,6 +323,7 @@ export function StoreProvider({ children }) {
         o.payment.discountReason = discountReason
         if (discountNote) o.payment.discountNote = String(discountNote).slice(0, 60)
       }
+      if (discount > 0 && discountPct > 0) o.payment.discountPct = +discountPct
       const totals = billTotals(o, s.settings)
       // composition scheme: no GST collected, but service charge still applies
       o.payment.amount = s.settings.gstScheme === 'composition' ? Math.round(totals.taxable + totals.svc) : totals.total

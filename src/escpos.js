@@ -104,18 +104,19 @@ export function buildBill(order, settings, totals, width = 48) {
   e.rule()
   e.row('Subtotal', money(totals.sub))
   if (totals.discount > 0) {
-    e.row('Discount', '-' + money(totals.discount))
+    e.row('Discount' + (order.payment?.discountPct ? ` (${order.payment.discountPct}%)` : ''), '-' + money(totals.discount))
     // the reason belongs on the printed slip too — it's the owner's audit trail
     // for a comped or heavily-discounted bill long after the shift has gone home
     const r = order.payment?.discountReason
     if (r) e.line('  (' + discountReasonLabel(r).replace(/^\S+\s/, '') + (order.payment.discountNote ? ' - ' + order.payment.discountNote : '') + ')')
   }
+  // service charge prints above the tax lines because GST is charged on it
+  if (totals.svc > 0) e.row(`Service charge ${totals.svcRate}%`, money(totals.svc))
+  else if (order.svcWaived && settings.serviceCharge > 0) e.line("Service charge waived at guest's request")
   if (!isComposition) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))
   }
-  if (totals.svc > 0) e.row(`Service charge ${totals.svcRate}%`, money(totals.svc))
-  else if (order.svcWaived && settings.serviceCharge > 0) e.line("Service charge waived at guest's request")
   e.size(true).bold(true).row('TOTAL', money(payable)).bold(false).size(false)
   if (order.payment?.splits?.length > 1) {
     e.line('Paid: ' + order.payment.splits.map((s) => `${String(s.method).toUpperCase()} ${s.amount}`).join(' + '))
