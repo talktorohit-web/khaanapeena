@@ -1,0 +1,198 @@
+<title>KhaanaPeena — 3-Minute Demo Script</title>
+<style>
+  :root{
+    --bg:#f4f0e9; --paper:#fbf9f5; --surface-2:#efe9df;
+    --ink:#26211d; --muted:#6f665c; --faint:#9a9083;
+    --line:#e4dbce; --dash:#cdbfad;
+    --accent:#df5f0c; --accent-ink:#b34a06; --accent-soft:#fbe7d4;
+    --good:#3f8a4a; --good-soft:#e4efe1;
+    --sans:"Segoe UI","Nirmala UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    --mono:"SFMono-Regular","Cascadia Code","Segoe UI Mono",Consolas,monospace;
+    --shadow:0 1px 2px rgba(40,30,20,.05),0 8px 22px -14px rgba(40,30,20,.16);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+      --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+      --line:#332c24; --dash:#4a4034;
+      --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415;
+      --good:#6cc079; --good-soft:#1e2c1e;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+    --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+    --line:#332c24; --dash:#4a4034;
+    --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415;
+    --good:#6cc079; --good-soft:#1e2c1e;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px -16px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .doc{max-width:760px;margin:0 auto;padding:34px 24px 70px}
+
+  header{margin-bottom:6px}
+  .brand{font-weight:800;font-size:1.3rem;letter-spacing:-.02em}.brand b{color:var(--accent)}
+  .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin:16px 0 4px}
+  h1{font-size:clamp(1.7rem,4vw,2.2rem);letter-spacing:-.025em;font-weight:800;margin:4px 0 8px;text-wrap:balance}
+  .lede{color:var(--muted);margin:0;max-width:60ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.03em;padding:5px 11px;border-radius:100px;border:1px solid var(--line);background:var(--paper);color:var(--muted)}
+  hr.rule{border:0;border-top:1.5px dashed var(--dash);margin:24px 0 22px}
+
+  .setup{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:15px 18px;margin-bottom:22px;box-shadow:var(--shadow)}
+  .setup h3{margin:0 0 8px;font-size:.78rem;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-ink)}
+  .setup ul{margin:0;padding-left:1.1em}.setup li{margin:4px 0;font-size:.93rem}
+  .setup b{font-weight:650}
+
+  .beat{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line);break-inside:avoid}
+  .beat:last-of-type{border-bottom:0}
+  .num{display:flex;flex-direction:column;align-items:center;gap:5px;width:44px}
+  .num .n{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;display:grid;place-items:center;font-size:.9rem}
+  .num .t{font-family:var(--mono);font-size:.62rem;color:var(--faint);letter-spacing:.02em}
+  .beat h2{font-size:1.05rem;font-weight:750;margin:2px 0 8px}
+  .say{background:var(--accent-soft);border-radius:11px;padding:11px 14px;font-size:1rem;line-height:1.5;color:var(--ink)}
+  .say::before{content:"“ SAY  ";font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--accent-ink);vertical-align:1px}
+  .say i{font-style:normal}
+  .do{margin-top:8px;font-size:.9rem;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+  .do .lbl{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--good);flex:none;margin-top:1px}
+  .do b{color:var(--ink);font-weight:600}
+  .k{font-family:var(--mono);font-size:.72rem;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink)}
+
+  .tips{background:var(--good-soft);border-radius:12px;padding:15px 18px;margin-top:24px;break-inside:avoid}
+  .tips h3{margin:0 0 8px;font-size:.78rem;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--good)}
+  .tips ul{margin:0;padding-left:1.1em}.tips li{margin:5px 0;font-size:.92rem}
+  .tips b{font-weight:650}
+
+  .foot{margin-top:26px;text-align:center;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--faint)}
+  /* tightened so the whole script lands on 3 pages — a 4th page holding only the
+     footer is a page nobody carries to a demo */
+  @media print{
+    @page{margin:12mm}
+    body{background:#fff}
+    .setup,.tips,.beat{box-shadow:none}
+    .doc{padding:20px 0 0}
+    .beat{padding:11px 0;gap:13px}
+    .beat h2{margin:1px 0 6px;font-size:1rem}
+    .say{padding:9px 12px;font-size:.95rem}
+    .do{margin-top:6px;font-size:.86rem}
+    hr.rule{margin:16px 0 14px}
+    .setup{margin-bottom:16px;padding:12px 15px}
+    .tips{margin-top:16px;padding:12px 15px}
+    .tips li{margin:3px 0;font-size:.88rem}
+    .foot{margin-top:14px}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="doc">
+  <header>
+    <div class="brand">Khaana<b>Peena</b></div>
+    <p class="eyebrow">Sales Demo · read while you click</p>
+    <h1>The 3-minute demo script</h1>
+    <p class="lede">A tight talk-track that lands the “wow” fast: one full order end-to-end, then the four things nobody else bundles. Say the lines in <b>“ SAY</b>; do the actions in <b>DO</b>. Total ≈ 3 minutes.</p>
+    <div class="meta"><span class="chip">≈ 3 min</span><span class="chip">8 beats</span><span class="chip">Phone app or Chrome</span></div>
+  </header>
+
+  <div class="setup">
+    <h3>Before you start (30 seconds)</h3>
+    <ul>
+      <li>Open the <b>Android app</b> or the <b>web app in Chrome</b> — both do voice ordering. Sign in or use the demo data.</li>
+      <li>Have <b>your phone ready</b> to scan a table QR for the self-order moment.</li>
+      <li><b>Open the Cash Register</b> and pick a cashier — so the staff reports have something in them when you get to beat 7.</li>
+      <li>Optional: <b>Settings → Reset demo data</b> for a clean slate. Don't open Settings during the pitch.</li>
+    </ul>
+  </div>
+
+  <hr class="rule">
+
+  <div class="beat">
+    <div class="num"><div class="n">1</div><div class="t">0:15</div></div>
+    <div>
+      <h2>The hook</h2>
+      <div class="say"><i>“Everything other POS apps charge extra for — kitchen display, QR ordering, loyalty, <b>22 reports</b>, even AI — KhaanaPeena gives you in <b>one</b> app, on the device you already have. Let me run a full order in under a minute.”</i></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">2</div><div class="t">0:30</div></div>
+    <div>
+      <h2>Seat the table, take the order</h2>
+      <div class="say"><i>“Guests sit down. Your waiter taps the table, picks <b>his own name</b>, taps how many people — that's how you'll know later who sells the most. Then he taps the dishes, or just <b>speaks the order in Hindi</b>.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span><b>Tables → tap a table.</b> Pick a waiter, tap <b>👥</b> up to 3. Then tap 2–3 dishes. Hit <b>🎙️ Voice</b> and say <i>“do butter naan, ek dal makhani.”</i></span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">3</div><div class="t">0:25</div></div>
+    <div>
+      <h2>Half or full, and “kam mirchi”</h2>
+      <div class="say"><i>“Dal Makhani comes half or full — the till asks, so nobody bills the wrong size. And if the guest has children with him and wants it mild, the waiter types it right here. That instruction prints <b>bold on the kitchen ticket</b>. Extra cheese? It's a separate line on his bill, so there's never an argument.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span>Tap <b>Dal Makhani</b> → choose <b>Half</b>. Then tap <b>📝</b> on that line and type <i>kam mirchi</i>.</span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">4</div><div class="t">0:20</div></div>
+    <div>
+      <h2>Fire it — the kitchen sees everything</h2>
+      <div class="say"><i>“One tap sends it to the kitchen — no paper chits — and it <b>automatically deducts the ingredients</b> from stock. The cook sees the size, the note, and a timer that turns <b>red if it's running late</b>.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span>Press <span class="k">F4</span> <b>Send KOT</b>, open <b>Kitchen (K)</b> — point at the blue <b>▸ Half</b> and the red <b>↳ kam mirchi</b> — then tap <b>✓ Mark Ready</b>.</span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">5</div><div class="t">0:30</div></div>
+    <div>
+      <h2>Take payment — every way a real guest pays</h2>
+      <div class="say"><i>“UPI shows a <b>QR — no extra machine, zero fees</b>. Your service charge prints as <b>‘5% (optional)’</b> with the GST correctly charged on it — that one word keeps an argument from becoming a complaint — and if the guest still says no, one tap and it's gone. Wants to pay <b>half cash half UPI</b>? Fine. Company dinner needing a <b>GST bill in the firm's name</b>? Add the GSTIN. A regular who'll pay tomorrow — <b>udhaar</b>, and the app remembers who owes you. And when someone <b>sends guests but isn't here</b>, the bill goes to <i>his</i> phone with a link that opens his UPI app — and he gets the receipt the moment it's settled.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span>Tap <b>📤 Someone else is paying</b>, put in a number, show the WhatsApp message with the amount. Then <span class="k">F9</span> <b>Settle</b> → show the <b>waive service charge</b> button → tick <b>Split across modes</b>, ₹100 cash and tap <b>rest</b> → <b>✓ Collect &amp; Close Bill</b> → send the receipt.</span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">6</div><div class="t">0:20</div></div>
+    <div>
+      <h2>The part that stops money walking out</h2>
+      <div class="say"><i>“Now the bit every owner asks me about. Give a discount in <b>rupees or as a percentage</b> — it does the maths either way. But a waiter can't give one on his own: <b>it needs your PIN</b>, and your name goes on the bill. Cancel a dish after it's cooked? He has to say <b>why</b>, and the report shows you it was deleted <b>eight minutes after the bill was printed</b>. That's usually where the money goes.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span>On a new bill, tap <b>% of bill</b> and type 10 — show it working out the rupees. Then the <b>Manager PIN</b> box. Then <b>Reports → 🚫 Cancellations</b> and point at the two time columns.</span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">7</div><div class="t">0:40</div></div>
+    <div>
+      <h2>The four things nobody else bundles</h2>
+      <div class="say"><i>“<b>One</b> — what most owners never see: exactly what each dish costs and your margin on it. <b>Two</b> — count your godown once and it tells you in rupees what went missing that your recipes can't explain. <b>Three</b> — free AI: tomorrow's forecast, what to reorder, dead items. <b>Four</b> — your guests order from their own phone, straight into the kitchen.”</i></div>
+      <div class="do"><span class="lbl">Do</span><span><b>Reports → 🍲 Food cost</b> · <b>⚖️ Stock variance</b> · <b>AI Insights (A)</b> · then <b>scan a table QR on your phone</b>, order, and switch to Kitchen to show it appear.</span></div>
+    </div>
+  </div>
+
+  <div class="beat">
+    <div class="num"><div class="n">8</div><div class="t">0:20</div></div>
+    <div>
+      <h2>Close on the day-end</h2>
+      <div class="say"><i>“At night you open <b>one page</b> — sales, hourly rush, every payment mode, who sold what, GST, expenses, cash in the drawer, what's owed to you. And every one of the <b>22 reports</b> comes out as a <b>spreadsheet or a PDF on your letterhead</b>, with your GSTIN on it — hand it straight to your CA. All of that, plus <b>offline billing</b>, Hindi &amp; Punjabi, on your phone, tablet or PC — one price, about <b>half</b> what an all-add-on system costs. Shall we start your free trial today?”</i></div>
+      <div class="do"><span class="lbl">Do</span><span><b>Reports → 🌙 Day-end</b>, scroll it once, then tap <b>📄 PDF</b> and show the letterhead. Hand them the <b>pricing flyer</b>.</span></div>
+    </div>
+  </div>
+
+  <div class="tips">
+    <h3>Demo tips</h3>
+    <ul>
+      <li><b>Voice ordering</b> works in the <b>Android app</b> (allow the mic when it asks) and in the <b>web app on Chrome/Edge</b>. It's not on the PC app — use the phone or web there.</li>
+      <li>Stay on the <b>happy path</b> — don't open Settings or edit data mid-pitch.</li>
+      <li>If Wi-Fi drops, <b>keep going</b> — that's the point: “See? It still works offline.”</li>
+      <li>Let them <b>hold the phone</b> and place the QR order themselves — that moment sells itself.</li>
+      <li><b>Short on time?</b> Cut beats 3 and 6. Never cut 5 (payments) or 8 (day-end) — those close the sale.</li>
+      <li>The <b>“someone else is paying”</b> moment lands hardest with anyone who does office or party catering — mention it by name if they do.</li>
+      <li>A PDF opens the print dialog in a new tab; pick <b>Save as PDF</b>. Allow pop-ups once if nothing appears.</li>
+      <li>Owner worried about staff typing PINs all day? <b>They don't have to.</b> Picking the cashier when the register opens is enough to name every bill.</li>
+      <li>End on <b>price</b>, not features — “one bundle, ~half the cost, free trial.”</li>
+    </ul>
+  </div>
+
+  <p class="foot">— KhaanaPeena · Restaurant OS · Made for India 🇮🇳 · Support 9614300003 —</p>
+</div>

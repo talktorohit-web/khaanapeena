@@ -1,0 +1,4 @@
+# Rendered output — regenerate with `npm run docs`, never commit
+*.pdf
+*.png
+tmp/

@@ -1,0 +1,233 @@
+<title>KhaanaPeena — Pricing Flyer</title>
+<style>
+  :root{
+    --bg:#f4f0e9; --paper:#fbf9f5; --surface-2:#efe9df;
+    --ink:#26211d; --muted:#6f665c; --faint:#9a9083;
+    --line:#e4dbce; --dash:#cdbfad;
+    --accent:#df5f0c; --accent-ink:#b34a06; --accent-soft:#fbe7d4; --accent-deep:#b34a06;
+    --good:#3f8a4a; --good-soft:#e4efe1;
+    --sans:"Segoe UI","Nirmala UI","Noto Sans Devanagari",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    --deva:"Nirmala UI","Noto Sans Devanagari","Segoe UI",system-ui,sans-serif;
+    --mono:"SFMono-Regular","Cascadia Code","Segoe UI Mono",Consolas,monospace;
+    --shadow:0 1px 2px rgba(40,30,20,.06),0 10px 26px -14px rgba(40,30,20,.2);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+      --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+      --line:#332c24; --dash:#4a4034;
+      --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415; --accent-deep:#d95f18;
+      --good:#6cc079; --good-soft:#1e2c1e;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px -16px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+    --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+    --line:#332c24; --dash:#4a4034;
+    --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415; --accent-deep:#d95f18;
+    --good:#6cc079; --good-soft:#1e2c1e;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px -16px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.4;-webkit-font-smoothing:antialiased}
+  .sheet{max-width:820px;margin:0 auto;padding:0 0 30px}
+  .hi{font-family:var(--deva)}
+
+  /* ---- header band ---- */
+  .band{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-deep) 100%);color:#fff;padding:26px 30px 24px;border-radius:0 0 22px 22px}
+  @media print{.band{border-radius:0}}
+  .band .brand{font-weight:800;font-size:1.55rem;letter-spacing:-.02em}
+  .band .os{font-family:var(--mono);font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;opacity:.85;margin-top:3px}
+  .band h1{font-size:clamp(1.4rem,3.2vw,1.85rem);line-height:1.08;letter-spacing:-.02em;font-weight:800;margin:11px 0 6px;max-width:22ch;text-wrap:balance}
+  .band .tag{font-size:1rem;font-weight:600;opacity:.96}
+  .band .tag .gloss{display:block;font-size:.85rem;font-weight:500;opacity:.82;margin-top:2px}
+
+  .body{padding:18px 30px 0}
+
+  /* ---- tiers ---- */
+  .tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:2px 0 13px}
+  @media(max-width:640px){.tiers{grid-template-columns:repeat(2,1fr)}}
+  .tier{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:14px 13px;box-shadow:var(--shadow);position:relative;display:flex;flex-direction:column;break-inside:avoid}
+  .tier.hot{border:1.8px solid var(--accent)}
+  .tier .badge{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap}
+  .tier .nm{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .tier .pr{font-size:1.4rem;font-weight:800;letter-spacing:-.02em;margin:3px 0 0;line-height:1}
+  .tier .pr small{font-size:.68rem;font-weight:600;color:var(--muted);letter-spacing:0}
+  .tier .who{font-size:.75rem;color:var(--muted);margin:3px 0 8px}
+  .tier ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  .tier li{font-size:.78rem;display:flex;gap:6px;align-items:flex-start;line-height:1.25}
+  .tier li::before{content:"✓";color:var(--good);font-weight:800;flex:none;font-size:.75rem}
+  .tier li.inc{color:var(--accent-ink);font-weight:650}
+  .tier li.inc::before{content:"＋";color:var(--accent-ink)}
+
+  /* ---- included strip ---- */
+  .inclhead{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 7px;display:flex;align-items:center;gap:8px}
+  .inclhead::after{content:"";flex:1;height:1px;background:var(--line)}
+  .incl{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 11px}
+  .incl span{font-size:.78rem;background:var(--good-soft);color:var(--good);border-radius:100px;padding:3px 10px;font-weight:600}
+  .incl span::before{content:"✓ "}
+
+  /* ---- value + proof ---- */
+  .value{display:flex;gap:12px;background:var(--accent-soft);border-radius:13px;padding:11px 15px;margin:0 0 11px;break-inside:avoid}
+  .value .big{font-size:1.5rem;font-weight:800;color:var(--accent-ink);line-height:1;flex:none}
+  .value div{font-size:.88rem}
+  .value b{color:var(--ink)}
+
+  .proof{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}
+  @media(max-width:560px){.proof{grid-template-columns:1fr 1fr}}
+  .p{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:9px 11px;break-inside:avoid}
+  .p .h{font-weight:700;font-size:.85rem;display:flex;gap:7px;align-items:center}
+  .p .h .ic{font-size:1rem}
+  .p .d{font-size:.76rem;color:var(--muted);margin-top:2px}
+
+  /* ---- CTA ---- */
+  .cta{background:var(--ink);color:var(--bg);border-radius:16px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .cta .l .k{font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+  .cta .l h3{margin:3px 0 3px;font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
+  .cta .l p{margin:0;font-size:.86rem;opacity:.82;max-width:44ch}
+  .cta .r{display:flex;flex-direction:column;gap:6px;font-size:.82rem;min-width:190px}
+  .cta .r .line{border:1px dashed rgba(255,255,255,.35);border-radius:9px;padding:7px 11px;display:flex;gap:8px;align-items:center}
+  .cta .r .line b{opacity:.6;font-weight:600;font-family:var(--mono);font-size:.7rem;letter-spacing:.04em}
+  .cta .r .line .web{color:#ffd0a8}
+
+  .fine{font-size:.72rem;color:var(--faint);margin:12px 2px 0;text-align:center}
+
+  @media print{
+    @page{size:A4;margin:0}
+    body{background:#fff}
+    .sheet{max-width:none;padding:0}
+    .band{padding:7mm 12mm 5mm}
+    .band h1{font-size:1.55rem;margin:8px 0 5px}
+    .band .tag{font-size:.92rem}
+    .body{padding:4mm 12mm 0}
+    .tier,.value,.p,.cta{box-shadow:none}
+    /* one page or it isn't a flyer — everything below trims to hold that line
+       without dropping any of the selling points */
+    .tiers{gap:8px;margin-bottom:10px}
+    .tier{padding:11px 11px}
+    .tier li{font-size:.73rem;gap:5px}
+    .tier ul{gap:3px}
+    .tier .pr{font-size:1.3rem}
+    .incl{gap:5px;margin-bottom:9px}
+    .incl span{font-size:.73rem;padding:2px 9px}
+    .inclhead{margin-bottom:5px}
+    .value{padding:9px 13px;margin-bottom:9px}
+    .value div{font-size:.82rem}
+    .value .big{font-size:1.35rem}
+    .proof{gap:6px;margin-bottom:9px}
+    .p{padding:7px 9px}
+    .p .h{font-size:.8rem}
+    .p .d{font-size:.71rem}
+    .cta{padding:11px 17px}
+    .cta .l h3{font-size:1.12rem}
+    .cta .l p{font-size:.8rem}
+    .fine{margin-top:7px;font-size:.68rem}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="sheet">
+  <div class="band">
+    <div class="brand">Khaana<span style="opacity:.85">Peena</span></div>
+    <div class="os">Restaurant OS · Made for India 🇮🇳</div>
+    <h1>Everything other POS apps charge extra for — in one price.</h1>
+    <div class="tag">“Petpooja ka kaam, aadhe daam — AI ke saath.”
+      <span class="gloss">Petpooja's power, at half the price — with AI built in.</span></div>
+  </div>
+
+  <div class="body">
+
+    <div class="tiers">
+      <div class="tier">
+        <div class="nm">Free</div>
+        <div class="pr">₹0</div>
+        <div class="who">Try it — new dhaba or cloud kitchen</div>
+        <ul>
+          <li>1 outlet</li>
+          <li>50 bills / month</li>
+          <li>Billing, KDS &amp; QR ordering</li>
+          <li>No card needed</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="nm">Standard</div>
+        <div class="pr">₹6,999<small>/yr</small></div>
+        <div class="who">The everyday restaurant</div>
+        <ul>
+          <li>Unlimited billing</li>
+          <li>KDS + QR self-ordering</li>
+          <li>Inventory &amp; food cost</li>
+          <li>22 reports · CSV &amp; PDF</li>
+          <li>Udhaar, expenses &amp; P&amp;L</li>
+        </ul>
+      </div>
+      <div class="tier hot">
+        <div class="badge">Most popular</div>
+        <div class="nm">Pro</div>
+        <div class="pr">₹14,999<small>/yr</small></div>
+        <div class="who">Busy, multi-terminal restaurants</div>
+        <ul>
+          <li class="inc">Everything in Standard</li>
+          <li>AI insights &amp; forecasting</li>
+          <li>Stock variance &amp; payout recon</li>
+          <li>WhatsApp bot · multi-terminal</li>
+          <li>24×7 support</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="nm">Chain</div>
+        <div class="pr">₹34,999<small>/yr</small></div>
+        <div class="who">Small groups &amp; franchises</div>
+        <ul>
+          <li class="inc">Everything in Pro</li>
+          <li>Up to 5 outlets</li>
+          <li>Central menu</li>
+          <li>Consolidated reports</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="inclhead">Everything included — nothing is an add-on</p>
+    <div class="incl">
+      <span>Kitchen display</span><span>QR self-ordering</span><span>Loyalty CRM</span>
+      <span>22 reports</span><span>Udhaar ledger</span><span>Expenses &amp; P&amp;L</span>
+      <span>Stock variance</span><span>Half/full &amp; add-ons</span><span>Payout reconciliation</span>
+      <span>WhatsApp</span><span>AI insights</span><span>Inventory &amp; food cost</span>
+      <span>GST &amp; HSN</span><span>Refunds</span><span>Role permissions</span>
+    </div>
+
+    <div class="value">
+      <span class="big">~½</span>
+      <div><b>About half the real cost of an all-add-on system.</b> Typical rivals run ~₹10,000 base <i>plus</i> ₹16,000–28,000 per outlet each year once KDS, loyalty, reconciliation and a website are separate modules. KhaanaPeena bundles it all into one price.</div>
+    </div>
+
+    <div class="proof">
+      <div class="p"><div class="h"><span class="ic">📶</span> Works offline</div><div class="d">Billing &amp; KOTs keep going through a WiFi blip.</div></div>
+      <div class="p"><div class="h"><span class="ic">📊</span> 22 reports</div><div class="d">Any date range — spreadsheet or PDF on your letterhead.</div></div>
+      <div class="p"><div class="h"><span class="ic">⚖️</span> Find what's missing</div><div class="d">Count the godown once; it tells you the gap in rupees.</div></div>
+      <div class="p"><div class="h"><span class="ic">📒</span> Udhaar ledger</div><div class="d">Who owes what, how old — with a WhatsApp reminder.</div></div>
+      <div class="p"><div class="h"><span class="ic">🔒</span> Nothing leaks quietly</div><div class="d">Discounts need your PIN; every cancelled dish says why.</div></div>
+      <div class="p"><div class="h"><span class="ic">✨</span> Free AI insights</div><div class="d">Forecasts, reorder alerts, festival demand.</div></div>
+      <div class="p"><div class="h"><span class="ic">📱</span> QR self-ordering</div><div class="d">Guests order &amp; pay from their own phone.</div></div>
+      <div class="p"><div class="h"><span class="ic">🗣️</span> Hindi · Punjabi · Voice</div><div class="d">Staff learn it in 15 minutes.</div></div>
+      <div class="p"><div class="h"><span class="ic">🧾</span> GST-correct</div><div class="d">Regular &amp; Composition · tax charged on service charge too · FSSAI on every bill.</div></div>
+    </div>
+
+    <div class="cta">
+      <div class="l">
+        <div class="k">Start today</div>
+        <h3>Free trial — 50 bills a month, no card.</h3>
+        <p>Sign up online in about 10 minutes and run your first bill the same day.</p>
+      </div>
+      <div class="r">
+        <div class="line"><b>Call / WhatsApp</b><span>9614300003</span></div>
+        <div class="line"><b>Web</b><span class="web">khaanapeena.web.app</span></div>
+      </div>
+    </div>
+
+    <p class="fine">Launch pricing, indicative — all prices exclusive of 18% GST · annual billing shown · KhaanaPeena · Made for India 🇮🇳</p>
+  </div>
+</div>

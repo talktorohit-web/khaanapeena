@@ -1,0 +1,716 @@
+<title>KhaanaPeena — Owner Packet</title>
+<style>
+  :root{
+    --bg:#f4f0e9; --paper:#fbf9f5; --surface-2:#efe9df;
+    --ink:#26211d; --muted:#6f665c; --faint:#9a9083;
+    --line:#e4dbce; --dash:#cdbfad;
+    --accent:#df5f0c; --accent-ink:#b34a06; --accent-soft:#fbe7d4;
+    --good:#3f8a4a; --good-soft:#e4efe1;
+    --blue:#2f6dbf; --blue-soft:#e2ebf6;
+    --red:#c0492f; --red-soft:#f7e5df;
+    --amber:#9c6a08; --amber-soft:#f6ead1;
+    --hi:#8a3d0a;
+    --sans:"Segoe UI","Nirmala UI","Noto Sans Devanagari",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    --deva:"Nirmala UI","Noto Sans Devanagari","Segoe UI","Mangal",system-ui,sans-serif;
+    --mono:"SFMono-Regular","Cascadia Code","Segoe UI Mono",Consolas,monospace;
+    --shadow:0 1px 2px rgba(40,30,20,.05),0 8px 24px -14px rgba(40,30,20,.16);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+      --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+      --line:#332c24; --dash:#4a4034;
+      --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415;
+      --good:#6cc079; --good-soft:#1e2c1e;
+      --blue:#79aae8; --blue-soft:#182636;
+      --red:#e8836b; --red-soft:#33190f;
+      --amber:#e0a441; --amber-soft:#312813;
+      --hi:#f0b183;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17130f; --paper:#201b16; --surface-2:#29231d;
+    --ink:#efe7db; --muted:#a99e90; --faint:#7d7264;
+    --line:#332c24; --dash:#4a4034;
+    --accent:#ff8636; --accent-ink:#ffa15f; --accent-soft:#3a2415;
+    --good:#6cc079; --good-soft:#1e2c1e;
+    --blue:#79aae8; --blue-soft:#182636;
+    --red:#e8836b; --red-soft:#33190f;
+    --amber:#e0a441; --amber-soft:#312813;
+    --hi:#f0b183;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -16px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .doc{max-width:820px;margin:0 auto;padding:26px 24px 70px}
+  .hi{font-family:var(--deva);color:var(--hi)}
+
+  .printhint{max-width:820px;margin:14px auto 0;padding:10px 18px;font-size:.85rem;color:var(--muted);
+    background:var(--paper);border:1px dashed var(--dash);border-radius:10px;text-align:center}
+  .printhint b{color:var(--ink)}
+  @media print{.printhint{display:none}}
+
+  /* ---- cover ---- */
+  .cover{min-height:88vh;display:flex;flex-direction:column;justify-content:center;padding:20px 4px}
+  .cover .brand{font-weight:800;font-size:2rem;letter-spacing:-.02em}
+  .cover .brand b{color:var(--accent)}
+  .cover .kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin:6px 0 0}
+  .cover h1{font-size:clamp(2.2rem,6vw,3.4rem);line-height:1.02;letter-spacing:-.03em;font-weight:800;margin:22px 0 12px;max-width:14ch;text-wrap:balance}
+  .cover p.sub{font-size:1.1rem;color:var(--muted);max-width:52ch;margin:0}
+  .cover .parts{margin-top:34px;border-top:1.5px dashed var(--dash);padding-top:20px;display:flex;flex-direction:column;gap:2px}
+  .cover .parts div{display:flex;align-items:baseline;gap:14px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .cover .parts .no{font-family:var(--mono);font-size:.8rem;color:var(--accent-ink);font-weight:700;width:2.4em;flex:none}
+  .cover .parts .t{font-weight:650}
+  .cover .parts .d{margin-left:auto;color:var(--muted);font-size:.85rem;text-align:right}
+  .cover .foot{margin-top:34px;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--faint)}
+
+  /* ---- part dividers ---- */
+  .part{break-before:page}
+  .part-head{border-top:2px solid var(--accent);padding-top:14px;margin-bottom:8px}
+  .part-head .pk{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);margin:0}
+  .part-head h2{font-size:1.85rem;letter-spacing:-.025em;font-weight:800;margin:4px 0 4px;text-wrap:balance}
+  .part-head p{color:var(--muted);margin:0;max-width:64ch}
+
+  h3{font-size:1.15rem;letter-spacing:-.01em;font-weight:750;margin:26px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h3 .ic{font-size:1.25rem}
+  .key{font-family:var(--mono);font-size:.64rem;font-weight:700;padding:3px 7px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+  h4{font-size:.95rem;font-weight:700;margin:20px 0 8px;color:var(--accent-ink);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+  p{max-width:68ch}
+  .purpose{color:var(--muted);margin:2px 0 6px;max-width:66ch}
+
+  /* tables */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper);margin:12px 0;box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:520px}
+  thead th{text-align:left;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:10px 14px;border-bottom:1.5px solid var(--line);white-space:nowrap}
+  tbody td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  td.ctl{font-weight:600;width:34%}
+  td.ctl .b{display:inline-block;background:var(--accent-soft);color:var(--accent-ink);border-radius:6px;padding:1px 7px;font-size:.85rem}
+  td.cond{color:var(--muted);width:22%;font-size:.84rem}
+
+  .kpis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .kpi{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:.85rem}
+  .kpi b{display:block;font-size:.68rem;font-family:var(--mono);color:var(--accent-ink);letter-spacing:.04em;text-transform:uppercase;margin-bottom:1px}
+  .kpi span{color:var(--muted)}
+
+  .why{display:flex;gap:12px;background:var(--good-soft);border-radius:12px;padding:12px 15px;margin:14px 0 4px;break-inside:avoid}
+  .why .ic{color:var(--good);font-weight:800;flex:none}
+  .why div{font-size:.92rem}
+  .why b{color:var(--ink)}
+
+  .flow{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:14px 18px;margin:12px 0;box-shadow:var(--shadow);break-inside:avoid}
+  .flow ol{margin:0;padding-left:1.15em}.flow li{margin:6px 0}.flow li b{color:var(--accent-ink)}
+
+  /* checklist */
+  .group{margin-bottom:16px;break-inside:avoid}
+  .group-label{font-family:var(--mono);font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  ul.check{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+  label.item{display:flex;gap:12px;align-items:flex-start;padding:8px 4px;border-radius:9px}
+  label.item .box{flex:none;width:19px;height:19px;border:1.8px solid var(--dash);border-radius:5px;margin-top:2px;background:var(--paper)}
+  .item .txt b{font-weight:650}
+  .item .txt .hint{display:block;color:var(--muted);font-size:.88rem;margin-top:1px}
+
+  .cards{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:13px 16px;box-shadow:var(--shadow);break-inside:avoid}
+  .card.opt{border-left:3px solid var(--accent)}
+  .card h5{margin:0 0 3px;font-size:.96rem;font-weight:700;display:flex;align-items:center;gap:8px}
+  .card p{margin:0;color:var(--muted);font-size:.9rem}
+  .card .tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:var(--surface-2);color:var(--faint);margin-left:auto}
+  .note{display:flex;gap:11px;padding:12px 15px;border-radius:11px;background:var(--amber-soft);margin-bottom:9px;break-inside:avoid}
+  .note .ic{color:var(--amber);font-weight:800;font-family:var(--mono);flex:none}
+  .note div{font-size:.92rem}.note b{color:var(--ink)}
+
+  ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:8px}
+  ol.steps li{display:flex;gap:12px;align-items:flex-start;counter-increment:s}
+  ol.steps li::before{content:counter(s);font-family:var(--mono);font-weight:700;font-size:.75rem;flex:none;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;margin-top:1px;background:var(--accent-soft);color:var(--accent-ink)}
+  ol.steps li span .m{color:var(--muted)}
+
+  /* cheat cards grid */
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .fc{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);position:relative;overflow:hidden;break-inside:avoid}
+  .fc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+  .fc.g::before{background:var(--good)}.fc.b::before{background:var(--blue)}.fc.r::before{background:var(--red)}
+  .fc h5{margin:0 0 8px;font-size:.98rem;font-weight:700;display:flex;align-items:center;gap:8px;padding-left:3px}
+  .fc ol{margin:0;padding:0;list-style:none;counter-reset:f;display:flex;flex-direction:column;gap:6px}
+  .fc ol li{display:flex;gap:9px;align-items:flex-start;counter-increment:f;font-size:.9rem}
+  .fc ol li::before{content:counter(f);font-family:var(--mono);font-weight:700;font-size:.68rem;flex:none;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;margin-top:1px;background:var(--accent-soft);color:var(--accent-ink)}
+  .fc.g ol li::before{background:var(--good-soft);color:var(--good)}.fc.b ol li::before{background:var(--blue-soft);color:var(--blue)}.fc.r ol li::before{background:var(--red-soft);color:var(--red)}
+  kbd{font-family:var(--mono);font-size:.72rem;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--surface-2);border:1px solid var(--line);border-bottom-width:2px;color:var(--ink);white-space:nowrap}
+  .hbtn{font-size:.82rem;font-weight:700;padding:0 7px;border-radius:5px;background:var(--accent-soft);color:var(--accent-ink);display:inline-block}
+  .hbtn.g{background:var(--good-soft);color:var(--good)}.hbtn.b{background:var(--blue-soft);color:var(--blue)}.hbtn.r{background:var(--red-soft);color:var(--red)}
+
+  .band{margin-top:12px;background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:13px 16px;break-inside:avoid}
+  .band h5{margin:0 0 9px;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .keys{display:flex;flex-wrap:wrap;gap:7px 15px}
+  .keys span{font-size:.86rem;display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .keys span b{color:var(--ink);font-weight:600}
+  .fixes{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  @media(max-width:640px){.fixes{grid-template-columns:1fr}}
+  .fix{font-size:.88rem;display:flex;gap:8px}.fix .q{color:var(--red);font-weight:800;font-family:var(--mono);flex:none}.fix b{font-weight:650}.fix .m{color:var(--muted)}
+
+  /* kitchen ticket */
+  .readpanel{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin:14px 0;break-inside:avoid}
+  @media(max-width:560px){.readpanel{grid-template-columns:1fr}}
+  .ticket{width:190px;background:var(--bg);border:2px solid var(--red);border-radius:11px;padding:11px 12px;font-size:.86rem}
+  .ticket .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .ticket .kot{font-weight:800;font-size:.9rem}.ticket .timer{font-family:var(--mono);font-weight:700;color:var(--red);font-size:.82rem}
+  .ticket .row{display:flex;justify-content:space-between;padding:2px 0;border-top:1px dashed var(--dash)}.ticket .row:first-of-type{border-top:0}
+  .ticket .go{margin-top:8px;text-align:center;background:var(--good);color:#fff;font-weight:700;border-radius:7px;padding:6px;font-size:.8rem}
+  .labels{display:flex;flex-direction:column;gap:8px}
+  .lab{display:flex;gap:10px;align-items:flex-start;font-size:.9rem}
+  .lab .dot{flex:none;width:11px;height:11px;border-radius:50%;margin-top:5px;background:var(--accent)}
+  .lab.b .dot{background:var(--red)}.lab.c .dot{background:var(--good)}
+  .lab .en{font-weight:650}.lab .hi{display:block;font-size:.86rem}
+  .bi .en{font-size:.94rem;font-weight:600}.bi .hi{display:block;font-size:.9rem;margin-top:1px}
+
+  .end{margin-top:26px;padding-top:16px;border-top:1.5px dashed var(--dash);text-align:center;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--faint)}
+
+  /* pricing */
+  .tagline{font-size:1.15rem;font-weight:750;letter-spacing:-.01em;margin:6px 0 2px;color:var(--ink)}
+  .tagline .gloss{display:block;font-size:.9rem;font-weight:500;color:var(--muted);margin-top:2px}
+  .plans{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:16px 0}
+  @media(max-width:560px){.plans{grid-template-columns:1fr}}
+  .plan{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow);break-inside:avoid;position:relative;display:flex;flex-direction:column}
+  .plan.hot{border-color:var(--accent);border-width:1.6px}
+  .plan .badge{position:absolute;top:-10px;right:14px;background:var(--accent);color:#fff;font-family:var(--mono);font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:3px 9px;border-radius:100px}
+  .plan .pname{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .plan .price{font-size:1.65rem;font-weight:800;letter-spacing:-.02em;margin:3px 0 0;line-height:1}
+  .plan .price small{font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:0}
+  .plan .who{font-size:.85rem;color:var(--muted);margin:4px 0 11px}
+  .plan ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+  .plan li{font-size:.87rem;display:flex;gap:8px;align-items:flex-start}
+  .plan li::before{content:"✓";color:var(--good);font-weight:800;flex:none}
+  .plan li.inc{color:var(--accent-ink);font-weight:650}
+  .plan li.inc::before{content:"＋";color:var(--accent-ink)}
+  .valuebox{display:flex;gap:12px;background:var(--accent-soft);border-radius:12px;padding:13px 16px;margin:12px 0;break-inside:avoid}
+  .valuebox .ic{color:var(--accent-ink);font-weight:800;flex:none}
+  .valuebox div{font-size:.92rem}.valuebox b{color:var(--ink)}
+  .incl{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 4px}
+  .incl span{font-size:.82rem;background:var(--good-soft);color:var(--good);border-radius:100px;padding:4px 11px;font-weight:600}
+  .incl span::before{content:"✓ "}
+  .pfoot{font-size:.8rem;color:var(--faint);margin-top:10px}
+
+  @media print{
+    @page{size:A4;margin:12mm}
+    body{background:#fff}
+    .doc{padding:0;max-width:none}
+    .tablewrap,.card,.fc,.flow,.why,.band,.readpanel,.note,.group{box-shadow:none}
+    a{color:var(--ink);text-decoration:none}
+    /* The packet grew; without this the cheat-sheets spill a near-empty page each.
+       Tighten the repeating blocks rather than cutting content. */
+    table{font-size:.78rem}
+    table td,table th{padding:3px 6px}
+    p{margin:6px 0}
+    .purpose{margin:4px 0 6px}
+    .flow{padding:10px 12px}
+    .flow li{margin:2px 0}
+    .fc{padding:10px 12px}
+    .fc ol{margin:4px 0 0}
+    .fc li{margin:2px 0;font-size:.84rem}
+    .band{padding:10px 12px;margin-top:10px}
+    .why,.note{padding:7px 11px;margin:6px 0;font-size:.85rem}
+    .purpose{font-size:.84rem}
+    h3{margin-top:12px}
+    h4{margin-top:10px;margin-bottom:5px}
+    .flow{font-size:.85rem}
+    .flow ol{margin:4px 0 0}
+    .tablewrap{margin-bottom:8px}
+    .readpanel{padding:10px 12px;gap:12px}
+    .part-head{margin-bottom:10px}
+    .part-head h2{font-size:1.5rem;margin:2px 0 4px}
+    .part-head p{font-size:.87rem}
+    .lab{margin:3px 0}
+    .labels{gap:5px}
+    .fix{padding:5px 0}
+    .keys span{padding:3px 7px}
+    ol.steps li,ul.check li{margin:3px 0}
+    .cards{gap:8px}
+    .grid2{gap:8px}
+    /* the part footer was landing alone on its own page — pull it up tight and
+       keep it with the block above it */
+    .end{margin:10px 0 0;font-size:.66rem;break-before:avoid;page-break-before:avoid}
+    .band:last-of-type{margin-bottom:0}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="printhint">📄 This is the full owner packet. Press <b>Ctrl/Cmd&nbsp;+&nbsp;P → Save as PDF</b> to print or share. Each part starts on a new page.</div>
+
+<div class="doc">
+
+  <!-- ============ COVER ============ -->
+  <div class="cover">
+    <div class="brand">Khaana<b>Peena</b></div>
+    <p class="kicker">Restaurant OS · Made for India 🇮🇳</p>
+    <h1>The Owner Packet.</h1>
+    <p class="sub">Everything to demo, set up, and run KhaanaPeena in one restaurant — the product guide, the go-live checklist, and the counter &amp; kitchen cheat-sheets, in one printable document.</p>
+    <div class="parts">
+      <div><span class="no">I</span><span class="t">Complete Product Guide</span><span class="d">every screen &amp; button · the sales case</span></div>
+      <div><span class="no">II</span><span class="t">Trial Handover &amp; Setup</span><span class="d">go-live checklist · caveats · smoke test</span></div>
+      <div><span class="no">III</span><span class="t">Staff Cheat-Sheet</span><span class="d">counter quick reference</span></div>
+      <div><span class="no">IV</span><span class="t">Kitchen Cheat-Sheet</span><span class="d">English + हिंदी</span></div>
+      <div><span class="no">V</span><span class="t">Plans &amp; Pricing</span><span class="d">tiers · value vs the market</span></div>
+    </div>
+    <p class="foot">Pilot-ready build · works on Web, Windows &amp; Android · offline-first</p>
+  </div>
+
+  <!-- ============ PART I — PRODUCT GUIDE ============ -->
+  <div class="part">
+    <div class="part-head">
+      <p class="pk">Part I</p>
+      <h2>Complete Product Guide</h2>
+      <p>A plain-language walkthrough of every screen and button — use it to run a demo and make the case for switching.</p>
+    </div>
+
+    <h4>The pitch</h4>
+    <p>One app runs the whole restaurant: billing, kitchen, tables, menu, inventory, purchasing, expenses, customers, <b>22 reports</b>, cash register, staff, feedback and AI — on the hardware you already have, working even when the internet drops. Most competitors sell these as separate paid modules; here they're one bundle.</p>
+
+    <div class="flow">
+      <b style="color:var(--accent-ink)">A dinner service, end-to-end</b>
+      <ol>
+        <li>Guests sit at table 4 → <b>Tables → tap T4</b>, pick the <b>waiter</b> looking after them and tap <b>👥</b> for how many are seated (or let them scan the table QR and order from their own phone).</li>
+        <li>In <b>Billing</b>, tap dishes or use <b>🎙️ voice</b>. Dishes with choices ask first — <b>half or full</b>, spice level, extra cheese — and a <b>📝</b> on any line sends a cooking note to the kitchen.</li>
+        <li>Press <b>🔥 Send KOT (F4)</b>. The <b>Kitchen</b> screen shows the ticket instantly with the choices in bold; stock auto-deducts by recipe.</li>
+        <li>Cook marks <b>✓ Ready</b> then <b>✓ Served</b>; late tickets glow red.</li>
+        <li>At payment, <b>💳 Settle (F9)</b> → UPI / Cash / Card / <b>Udhaar</b>, or <b>split it</b> half cash half UPI. Waive the service charge if the guest declines, add a phone for loyalty, add a firm's GSTIN if they need one → <b>✓ Collect &amp; Close Bill</b>. A GST-correct invoice prints.</li>
+        <li><b>Reports</b>, food cost, expenses, the cash drawer and <b>AI Insights</b> all update themselves; the owner runs a <b>Z-report</b> at close and reads the <b>🌙 Day-end</b> master page.</li>
+      </ol>
+    </div>
+
+    <h3><span class="ic">🧭</span> Getting around</h3>
+    <p class="purpose">The frame around every screen. Press a letter anywhere to jump to that screen.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Sidebar nav (18 screens, each with a letter)</td><td>Jump anywhere — <span class="b">B</span> Billing, <span class="b">K</span> Kitchen, <span class="b">R</span> Reports, <span class="b">E</span> Expenses…</td></tr>
+        <tr><td class="ctl"><span class="b">On the till</span> picker</td><td>Who is serving right now. One tap, no PIN — every bill from here on is credited to that person</td></tr>
+        <tr><td class="ctl">☁️ Cloud status · Language · ⌨️ ?</td><td>Sync state, switch EN/हिंदी/ਪੰਜਾਬੀ, shortcuts help</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3><span class="ic">📊</span> Dashboard <span class="key">D</span></h3>
+    <p class="purpose">Today's health at a glance, with shortcuts into whatever needs attention.</p>
+    <div class="kpis"><div class="kpi"><b>Today's Sales</b><span>₹ + bills</span></div><div class="kpi"><b>Avg. Bill</b><span>sales ÷ bills</span></div><div class="kpi"><b>Live Tables</b><span>occupied/total</span></div><div class="kpi"><b>Low Stock</b><span>at reorder</span></div></div>
+    <p>Plus a 14-day sales chart, payment-mix donut, tap-through live orders, today's bookings, festival radar, and latest guest reviews.</p>
+
+    <h3><span class="ic">🧾</span> Billing / POS <span class="key">B</span></h3>
+    <p class="purpose">The heart of the app — build, fire, print, and take payment. Three key-presses: F2 · F4 · F9.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Menu tiles · search · 🟢 Veg · 🎙️ Voice</td><td>Add dishes fast; speak the order in Hindi/English</td><td class="cond">Phone app &amp; Chrome/Edge</td></tr>
+        <tr><td class="ctl">🧩 <span class="b">Choices &amp; add-ons</span></td><td>A dish marked 🧩 asks before it's punched — <b>half or full</b>, spice level, extra cheese. Priced add-ons appear as their own line on the bill</td><td class="cond">If the dish has choices</td></tr>
+        <tr><td class="ctl"><span class="b">📝</span> on a cart line</td><td>A cooking instruction for that dish only — “kam mirchi”, “no onion”. Prints bold on the kitchen ticket</td><td class="cond">Any line</td></tr>
+        <tr><td class="ctl">Waiter · <span class="b">👥</span> guest count</td><td>Who is serving the table and how many are seated — powers waiter-wise sales and spend-per-guest</td><td class="cond">Dine-in</td></tr>
+        <tr><td class="ctl"><span class="b">＋ New Order (F2)</span> · order tabs</td><td>Run several bills at once and switch between them</td><td class="cond">Always</td></tr>
+        <tr><td class="ctl"><span class="b">🔥 Send KOT (F4)</span></td><td>Sends items to the kitchen, deducts recipe stock, prints the ticket</td><td class="cond">If un-fired items</td></tr>
+        <tr><td class="ctl"><span class="b">🔒 Edit items already sent</span></td><td>After a Manager PIN, void/reduce a fired line. You're asked <b>why</b>; stock returns and the cancellation is logged with the time</td><td class="cond">PIN-gated</td></tr>
+        <tr><td class="ctl"><span class="b">⑂ Split / Move / Merge</span></td><td>Split for separate payment · <b>move dishes to another table</b> · merge two tables · transfer a table</td><td class="cond">Has items</td></tr>
+        <tr><td class="ctl"><span class="b">📤 Someone else is paying</span></td><td>A host who sent guests in but isn't at the table. Enter his mobile and he gets the itemised bill on WhatsApp with a link that opens his UPI app with the amount filled in — and the receipt once it's settled</td><td class="cond">Has items</td></tr>
+        <tr><td class="ctl"><span class="b">🖨️ Print Bill</span></td><td>Prints and records the time — the gap to settlement is its own report</td><td class="cond">Always</td></tr>
+        <tr><td class="ctl"><span class="b">💳 Settle (F9)</span></td><td>See the row below — this is where most of the new controls live</td><td class="cond">Role-gated</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>At the payment screen</h4>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">🙋 Individual / 🏢 <span class="b">Firm</span></td><td>A firm's name and <b>GSTIN</b> print on the invoice so they can claim input credit. The GSTIN is checked for length before the bill closes</td></tr>
+        <tr><td class="ctl"><span class="b">Service charge 5% (optional)</span> · “Guest declined — waive”</td><td>Prints on the bill as <b>“Service charge 5% (optional)”</b> — it is not a tax and never compulsory, and saying so on the slip is what keeps a complaint from becoming a dispute. One tap removes it. GST is charged on it, as the law requires. Change or switch off the 5% in <b>Settings → GST &amp; billing</b></td></tr>
+        <tr><td class="ctl">Discount — <span class="b">₹ amount or % of bill</span></td><td>Give ₹100 off, or 10% off, whichever the guest was promised. Each way shows the other underneath (“10% of ₹520 = ₹52 off”), so nobody mistypes. A percentage prints on the bill as <b>Discount (10%)</b></td></tr>
+        <tr><td class="ctl">Discount <span class="b">reason</span> + Manager PIN</td><td>A discount can't close a bill until a reason is picked and a manager approves. The approver's name prints on the bill and shows in the discount report</td></tr>
+        <tr><td class="ctl">UPI · Cash · Card · <span class="b">📒 Udhaar</span> · <span class="b">🚫 Not chargeable</span></td><td>UPI shows a pay-QR. <b>Udhaar</b> closes the bill but keeps the money owed against that customer. <b>Not chargeable</b> writes it off to ₹0 with a compulsory reference, explanation and manager PIN</td></tr>
+        <tr><td class="ctl"><span class="b">Split across modes</span></td><td>Half cash, half UPI, any combination. The bill won't close until the parts add up</td></tr>
+      </tbody>
+    </table></div>
+    <h4>How a bill adds up</h4>
+    <div class="flow">
+      <b style="color:var(--accent-ink)">The order matters — this is what prints, top to bottom</b>
+      <ol>
+        <li><b>Sub-total</b> — every dish, including any priced add-ons.</li>
+        <li><b>Less discount</b> — ₹ or %, if one was given.</li>
+        <li><b>Service charge 5% (optional)</b> — on the discounted value. It prints with the word <b>“optional”</b> on it, because a service charge is voluntary in India and the guest is entitled to see that on the slip. Removed entirely if they decline.</li>
+        <li><b>CGST + SGST</b> — charged on <b>food plus service charge</b>, because a service charge is part of the value of supply and is taxable. Taxing only the food would under-declare the bill.</li>
+        <li><b>Total</b>, rounded to the rupee.</li>
+      </ol>
+      <p style="margin:6px 0 0;font-size:.85rem">₹1,000 of food → ₹50 service charge → GST on ₹1,050 → <b>₹1,103</b>. On the Composition scheme steps 4 is skipped entirely and the bill prints as a Bill of Supply.</p>
+    </div>
+
+    <div class="why"><span class="ic">✓</span><div><b>Why it matters:</b> the whole loop is 3 key-presses, works offline, never duplicates an invoice number, and the UPI QR collects digital payments with zero extra hardware or gateway fees. Every way money can leave — a discount, a freebie, a write-off, a cancelled dish — now has to say <i>who</i> and <i>why</i> before the bill will close.</div></div>
+
+    <h3><span class="ic">🪑</span> Tables <span class="key">T</span> &nbsp;·&nbsp; <span class="ic">👨‍🍳</span> Kitchen <span class="key">K</span></h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Tables — occupied/free tiles</td><td>See amount, items, minutes; open a table, or show its self-order QR; add/edit tables</td></tr>
+        <tr><td class="ctl">Kitchen — ticket + timer</td><td>Live tickets (incl. phone orders); timer reddens after 15 min</td></tr>
+        <tr><td class="ctl"><span class="b">✓ Mark Ready</span> / <span class="b">✓ Served</span> / <span class="b">🛵 Handed to rider</span></td><td>Move tickets along; online orders also settle on handoff</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3><span class="ic">🛵</span> Online Orders <span class="key">O</span> &nbsp;·&nbsp; <span class="ic">📅</span> Reservations <span class="key">V</span></h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Online — Accept / Reject / Complete</td><td>Fire aggregator orders to the kitchen and settle them</td></tr>
+        <tr><td class="ctl">Payout Recon</td><td>Per-channel gross, commission, GST-on-commission, TDS → <b>net payout due</b></td></tr>
+        <tr><td class="ctl">WhatsApp Bot</td><td>Paste a customer message → it builds an order</td></tr>
+        <tr><td class="ctl">Reservations — New booking / Seat / WhatsApp</td><td>Take bookings and seat guests straight into a live order</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3><span class="ic">📖</span> Menu <span class="key">M</span> &nbsp;·&nbsp; <span class="ic">📦</span> Inventory <span class="key">I</span> &nbsp;·&nbsp; <span class="ic">🚚</span> Purchase <span class="key">P</span></h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Menu — 📸 AI Photo→Menu · Add/Edit · 🧪 Recipe</td><td>Build the menu (snap a photo to start); a recipe gives live plate cost + food-cost % and auto-deducts stock</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">Half / Full portions</span></td><td>Tick it, type the two prices, done. The till then asks the size when the dish is punched, and each size reports separately</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">Choices &amp; add-ons</span></td><td>Ask a question when the dish is punched: spice level (free) or add-ons that carry a price and land on the bill</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">Sub-category</span></td><td>Group inside a category — Starters → Veg Tikka / Non-veg Tikka. Keeps a long menu findable</td></tr>
+        <tr><td class="ctl">Menu — Hindi &amp; Punjabi names</td><td>Type the English name and both fill themselves. Correct them if you want — it stops guessing once you do</td></tr>
+        <tr><td class="ctl">Menu — kitchen printer · HSN code</td><td>Route a dish to a specific kitchen printer; set an HSN only if you sell it as goods, not food</td></tr>
+        <tr><td class="ctl">Inventory — stock, days-left, + Purchase</td><td>Track stock &amp; value; spot-purchase re-blends weighted-average cost</td></tr>
+        <tr><td class="ctl">Purchase — New PO / Receive (GRN) / Vendors</td><td>Raise orders to suppliers and receive goods against them</td></tr>
+        <tr><td class="ctl"><span class="b">💸 Expenses</span> <span class="key">E</span></td><td>A sheet of blank rows for the day's spending — rent, salaries, gas, the ₹200 given to the cook for vegetables. Cash expenses come off what the till expects in the drawer</td></tr>
+      </tbody>
+    </table></div>
+    <div class="why"><span class="ic">✓</span><div><b>Why it matters:</b> add a recipe once and you get automatic inventory <i>and</i> per-dish profitability forever — usually a premium module elsewhere. Book your expenses and the profit report stops being an estimate.</div></div>
+
+    <h3><span class="ic">👥</span> Customers <span class="key">C</span> &nbsp;·&nbsp; <span class="ic">💬</span> Feedback <span class="key">F</span></h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Customers — VIP / At-risk / Birthday segments · 💬 WhatsApp</td><td>Loyalty CRM with one-tap, context-aware win-back messages</td></tr>
+        <tr><td class="ctl">Feedback — rating, NPS, needs-reply queue · Reply/Resolve</td><td>Every guest review (QR + counter) in one place with trends</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3><span class="ic">📈</span> Reports <span class="key">R</span> &nbsp;·&nbsp; <span class="ic">✨</span> AI Insights <span class="key">A</span> &nbsp;·&nbsp; <span class="ic">💵</span> Register <span class="key">G</span></h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Screen</th><th>What it gives you</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl"><b>22 reports</b>, grouped in five tabs — any date range, and <b>two exports on every one</b></td><td>See the tables below</td></tr>
+        <tr><td class="ctl">AI Insights</td><td>7-day forecast, reorder alerts, rising/dead items, festival demand — free, on-device</td></tr>
+        <tr><td class="ctl">Cash Register</td><td>Open/close shifts, cash in/out, X-report peek, Z-report with over/short variance. Cash expenses and cash refunds are taken off what the drawer should hold, so it still tallies</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>Group</th><th>Reports</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Sales</td><td>Summary · <b>Peak hours</b> (a rush map by weekday × hour) · <b>Items</b> (category-wise, menu engineering, add-on attach rates) · <b>Bill register</b> · <b>🔴 Running now</b> · <b>🌙 Day-end master</b></td></tr>
+        <tr><td class="ctl">Operations</td><td><b>Tables</b> (seat-time, ₹ per guest) · <b>Kitchen speed</b> · <b>Bill timing</b> (printed → settled) · <b>Staff</b> + employee of the month · <b>Discounts &amp; refunds</b> · <b>Cancellations</b></td></tr>
+        <tr><td class="ctl">Money</td><td>Food cost · <b>Expenses</b> · <b>Cash in hand</b> · <b>📒 Udhaar ledger</b> · <b>Profit &amp; loss</b> · <b>GST &amp; HSN</b> (the sheet your CA asks for)</td></tr>
+        <tr><td class="ctl">Stock</td><td>Inventory · Purchases (vendor-wise, rate-change alerts) · <b>Stock variance</b></td></tr>
+        <tr><td class="ctl">Guests</td><td>Customers — new vs returning, loyalty owed, birthdays, lapsed regulars</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Getting a report out of the app</h4>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Button</th><th>What you get</th><th>Use it for</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl"><span class="b">⬇️ CSV</span></td><td>The raw figures, opens in Excel or Google Sheets</td><td>Your own working, or anything you want to sort and filter</td></tr>
+        <tr><td class="ctl"><span class="b">📄 PDF</span></td><td>The same figures as a clean printable table, on your letterhead with GSTIN and FSSAI. Includes every row — the bill register shows 250 at a time on screen, its PDF gives you all of them</td><td>Handing to your CA, your landlord, a bank</td></tr>
+        <tr><td class="ctl"><span class="b">🖨️ Save as PDF</span> (top of the page)</td><td>The report exactly as you see it — charts, cards and all</td><td>Sharing a picture of how the month went</td></tr>
+      </tbody>
+    </table></div>
+    <p class="purpose">Both PDFs open your print dialog — choose <b>Save as PDF</b> as the destination.</p>
+
+    <div class="why"><span class="ic">✓</span><div><b>Why it matters:</b> the food-cost report turns "am I making money on this dish?" from a guess into a number. <b>Stock variance</b> goes further — count your godown once and it tells you in rupees exactly what went missing that the recipes can't explain. And <b>Cancellations</b> shows every dish pulled off a bill with the time it was deleted <i>against</i> the time the bill was printed, which is where money quietly leaves a restaurant.</div></div>
+
+    <h3><span class="ic">🛡️</span> Who did what — without slowing anyone down</h3>
+    <p class="purpose">Every bill, discount, void and refund carries a person's name, so the staff reports and employee-of-the-month actually mean something.</p>
+    <p><b>The simple way (how it ships, no PINs).</b> Open the <b>Cash Register</b> each morning and pick who's on the till — every bill that shift is credited to them. If someone takes over, switch the <b>On the till</b> picker in the sidebar: one tap, no PIN, nothing to remember. Assign a <b>waiter</b> as each table is seated and dine-in gets attributed more precisely still. Nobody is locked out of anything.</p>
+    <p><b>The strict way (optional).</b> Only if you also want to <i>restrict</i> what each role can see — a cashier never seeing your margins, only a manager opening the drawer — turn on <b>Staff roles &amp; permissions</b> in Settings. Then each person unlocks the till with their own PIN and sees only their screens; you use the Manager PIN for full access. Sensible defaults are built in (a Waiter sees Billing/Tables/Kitchen; a Cook sees only the kitchen) and all of it is customisable. Settings checks every PIN before you switch it on and warns about clashes.</p>
+    <p>Either way, the <b>Manager PIN</b> stays the gate for the things that cost money: editing a dish already sent to the kitchen, approving a discount, writing a bill off as not chargeable, and refunding a settled bill.</p>
+  </div>
+
+  <!-- ============ PART II — HANDOVER ============ -->
+  <div class="part">
+    <div class="part-head">
+      <p class="pk">Part II</p>
+      <h2>Trial Handover &amp; Setup</h2>
+      <p>The software is done and hardened. What's left is your restaurant's data and a few one-time choices. Tick each item on paper as you go.</p>
+    </div>
+
+    <h4>Owner setup checklist</h4>
+    <div class="group"><p class="group-label">Restaurant profile &amp; tax</p><ul class="check">
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Confirm GSTIN, FSSAI, address &amp; phone</b><span class="hint">These print on every bill — FSSAI is required by law.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set your UPI ID</b><span class="hint">Generates the dynamic pay-QR on each bill. No gateway needed.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Choose GST scheme &amp; service charge — once, upfront</b><span class="hint">Regular 5% vs Composition. Service charge ships at 5% and is waivable per bill — set it to 0 if you don't charge one. Don't change either mid-trial.</span></span></label></li>
+    </ul></div>
+    <div class="group"><p class="group-label">Menu &amp; kitchen</p><ul class="check">
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Enter your real menu</b><span class="hint">Items, prices, categories, veg/non-veg. Use “AI Photo → Menu” to start fast; Hindi &amp; Punjabi names fill themselves.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set half/full prices and add-ons where they apply</b><span class="hint">Tick “comes in Half and Full”, type both prices. Add spice level or paid extras on the dishes that need them.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Add recipes where you can</b><span class="hint">Unlocks auto stock-deduction and live food-cost %.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set up your floor plan (Tables)</b><span class="hint">Real names and sections; each gets a self-order QR.</span></span></label></li>
+    </ul></div>
+    <div class="group"><p class="group-label">Inventory · Access · Hardware</p><ul class="check">
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Add ingredients — opening stock, cost, reorder level</b><span class="hint">Only if you'll use stock / food-cost.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Add your staff names</b><span class="hint">Needed for “who's on the till” and waiter-wise sales. No PINs required unless you turn on role restrictions.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set a real Manager PIN</b><span class="hint">Gates discounts, voids, write-offs and refunds. Change it from the demo 1111.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Enter your monthly running costs</b><span class="hint">Reports → Profit &amp; loss. Or just book expenses daily on the Expenses screen — real numbers beat estimates.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Configure the thermal printer</b><span class="hint">Network IP or USB — or browser print for the trial.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Sign in with the same account on every device</b><span class="hint">That's how they stay in sync.</span></span></label></li>
+    </ul></div>
+
+    <h4>Optional — needs your own accounts</h4>
+    <div class="cards">
+      <div class="card opt"><h5>Payment gateway (Razorpay) <span class="tag">optional</span></h5><p>Only for card/online settlement — UPI QR already works.</p></div>
+      <div class="card opt"><h5>Zomato / Swiggy live · WhatsApp API <span class="tag">optional</span></h5><p>Simulated today; real channels need their partner APIs.</p></div>
+      <div class="card opt"><h5>Postgres invoice backend <span class="tag">live</span></h5><p>Deployed &amp; ready — paste its URL in Settings to switch on.</p></div>
+    </div>
+
+    <h4>Good to know</h4>
+    <div class="note"><span class="ic">!</span><div><b>Lock your GST settings before the first bill.</b> Reports recompute from current settings, so changing rate/scheme mid-trial stops past bills reconciling.</div></div>
+    <div class="note"><span class="ic">!</span><div><b>Guest QR ordering has no spam limit yet.</b> Fine inside your restaurant; needs a server guard before public-scale use.</div></div>
+    <div class="note"><span class="ic">!</span><div><b>Your data lives on the device + cloud.</b> Cloud sync is the backup — don't clear storage; export a report CSV now and then.</div></div>
+
+    <h4>30-minute smoke test, then reset</h4>
+    <ol class="steps">
+      <li><span>Ring up <b>~10 bills end-to-end</b> <span class="m">— order → KOT → settle → print.</span></span></li>
+      <li><span>Do one <b>split bill</b>, one <b>table transfer</b> and one <b>move items</b> between tables.</span></li>
+      <li><span>Settle one bill <b>split half cash half UPI</b>, and one on <b>udhaar</b> <span class="m">— then collect it in Reports → Udhaar.</span></span></li>
+      <li><span>Do a <b>void with the Manager PIN</b> <span class="m">— confirm stock returns and the reason is asked.</span></span></li>
+      <li><span>Give one <b>discount as ₹</b> and one <b>as %</b> <span class="m">— confirm the total moves, and that neither closes without a reason and a manager PIN.</span></span></li>
+      <li><span>Check one bill's <b>service charge and GST</b> <span class="m">— ₹1,000 of food should read ₹50 service charge, ₹52.50 GST, ₹1,103 total, and the line must print the word <b>(optional)</b>.</span></span></li>
+      <li><span><b>Open &amp; close a cash shift</b> <span class="m">— pick who's on the till; check the Z-report tallies after booking a cash expense.</span></span></li>
+      <li><span>Place one <b>QR self-order</b> <span class="m">— confirm it reaches the kitchen with its choices and notes.</span></span></li>
+      <li><span>Send one bill to a <b>remote payer</b> <span class="m">— confirm the WhatsApp opens with the amount, then settle and send the receipt.</span></span></li>
+      <li><span>Open <b>Reports → 🌙 Day-end</b>, then export one report as <b>📄 PDF</b> <span class="m">— that's your nightly routine.</span></span></li>
+      <li><span><b>Reset demo data</b> before real service.</span></li>
+    </ol>
+
+    <h4>The daily routine, once you're live</h4>
+    <div class="tablewrap"><table>
+      <thead><tr><th>When</th><th>Do this</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Morning</td><td>Open the <b>Cash Register</b> and pick who's on the till. Count the float.</td></tr>
+        <tr><td class="ctl">Through the day</td><td>Assign a <b>waiter</b> and tap <b>👥</b> guests as each table is seated. Book spending on <b>💸 Expenses</b> as it happens.</td></tr>
+        <tr><td class="ctl">On handover</td><td>Switch <b>On the till</b> in the sidebar — one tap.</td></tr>
+        <tr><td class="ctl">At close</td><td>Close the register (Z-report), then read <b>Reports → 🌙 Day-end</b>. Save it as PDF if you want a record.</td></tr>
+        <tr><td class="ctl">Weekly / monthly</td><td>Count the godown once and enter it in <b>Stock variance</b>. Chase <b>📒 Udhaar</b>. Read <b>Profit &amp; loss</b>.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <!-- ============ PART III — STAFF CHEAT-SHEET ============ -->
+  <div class="part">
+    <div class="part-head">
+      <p class="pk">Part III</p>
+      <h2>Staff Cheat-Sheet</h2>
+      <p>Counter quick reference — print this page and tape it by the till.</p>
+    </div>
+    <div class="grid2">
+      <div class="fc"><h5>🧾 Seat &amp; take an order <kbd>F2</kbd></h5><ol>
+        <li><b>Dine-in:</b> <span class="hbtn">🪑 Tables</span> → tap the table.</li>
+        <li>Pick the <b>waiter</b>, tap <b>👥</b> for how many guests.</li>
+        <li>Tap items; change qty with − / +.</li>
+        <li>Dish marked <b>🧩</b> → choose half/full or extras.</li>
+        <li><b>📝</b> on a line = note for the cook.</li></ol></div>
+      <div class="fc"><h5>🔥 Send to kitchen <kbd>F4</kbd></h5><ol>
+        <li>Tap <span class="hbtn">🔥 Send KOT</span> <kbd>F4</kbd>.</li>
+        <li>Ticket prints &amp; stock deducts.</li>
+        <li>Add items later → press <kbd>F4</kbd> again.</li></ol></div>
+      <div class="fc g"><h5>💳 Settle &amp; pay <kbd>F9</kbd></h5><ol>
+        <li>Tap <span class="hbtn g">💳 Settle</span> <kbd>F9</kbd>.</li>
+        <li>Guest says no to service charge? → <b>waive</b> it.</li>
+        <li>Discount: pick <b>₹ Amount</b> or <b>% of bill</b>, then the reason.</li>
+        <li>UPI (QR) / Cash / Card, or tick <b>Split across modes</b>.</li>
+        <li>Optional: mobile no. for loyalty; firm's GSTIN.</li>
+        <li><span class="hbtn g">✓ Collect ₹… &amp; Close Bill</span>.</li></ol></div>
+      <div class="fc r"><h5>🗑️ Fix a sent item</h5><ol>
+        <li><span class="hbtn r">🔒 Edit items already sent</span>.</li>
+        <li>Enter the <b>Manager PIN</b>.</li>
+        <li>🗑 remove or − reduce, then <b>pick a reason</b>.</li>
+        <li>Stock returns; it's logged with the time.</li></ol></div>
+      <div class="fc b"><h5>⑂ Split / move / merge</h5><ol>
+        <li><span class="hbtn b">⑂ Split / Move / Merge</span>.</li>
+        <li><b>Split:</b> move qty to a new bill.</li>
+        <li><b>Move items:</b> send dishes to another table.</li>
+        <li><b>Merge/Transfer:</b> combine or change table.</li></ol></div>
+      <div class="fc"><h5>💵 Cash register <kbd>G</kbd></h5><ol>
+        <li>Start: <span class="hbtn">Open register</span> + who's on the till.</li>
+        <li>Handover? Switch <b>On the till</b> in the sidebar.</li>
+        <li>Petty cash: Cash In / Cash Out.</li>
+        <li>End: <span class="hbtn">Close register</span> → Z-report.</li></ol></div>
+      <div class="fc g"><h5>📤 Someone else is paying</h5><ol>
+        <li>In the bill: <span class="hbtn g">📤 Someone else is paying</span>.</li>
+        <li>Type his mobile number, tap send.</li>
+        <li>He gets the bill on WhatsApp + a UPI link.</li>
+        <li>Settle as usual when the money lands —</li>
+        <li>then send him the <b>receipt</b> when asked.</li></ol></div>
+      <div class="fc r"><h5>📒 Udhaar &amp; ↩ refunds</h5><ol>
+        <li><b>Udhaar:</b> Settle → 📒 Udhaar. <b>Mobile number required.</b></li>
+        <li>Collect later: Reports → 📒 Udhaar → ✓ Collect.</li>
+        <li><b>Refund:</b> Reports → 🧾 Bill register → ↩ Refund.</li>
+        <li>Needs a reason + Manager PIN.</li></ol></div>
+      <div class="fc"><h5>💸 Expenses <kbd>E</kbd></h5><ol>
+        <li>Pick a reason, type the amount.</li>
+        <li>Say who it was given to, and paid from cash or bank.</li>
+        <li><b>Save</b> — cash ones come off the drawer.</li></ol></div>
+    </div>
+    <div class="band"><h5>Keyboard shortcuts</h5><div class="keys">
+      <span><kbd>F2</kbd><b>New order</b></span><span><kbd>F4</kbd><b>Send KOT</b></span><span><kbd>F9</kbd><b>Settle</b></span>
+      <span><kbd>B</kbd><b>Billing</b></span><span><kbd>T</kbd><b>Tables</b></span><span><kbd>K</kbd><b>Kitchen</b></span>
+      <span><kbd>G</kbd><b>Register</b></span><span><kbd>E</kbd><b>Expenses</b></span><span><kbd>R</kbd><b>Reports</b></span><span><kbd>?</kbd><b>Help</b></span>
+    </div></div>
+    <div class="band"><h5>If something goes wrong</h5><div class="fixes">
+      <div class="fix"><span class="q">?</span><div><b>Screen stuck</b> <span class="m">— click “Reload KhaanaPeena”. Data is safe.</span></div></div>
+      <div class="fix"><span class="q">?</span><div><b>No internet</b> <span class="m">— keep billing; it syncs when back.</span></div></div>
+      <div class="fix"><span class="q">?</span><div><b>Printer down</b> <span class="m">— bill is saved; reprint later.</span></div></div>
+      <div class="fix"><span class="q">?</span><div><b>Wrong item after KOT</b> <span class="m">— Manager PIN → Edit items already sent.</span></div></div>
+      <div class="fix"><span class="q">?</span><div><b>Still stuck</b> <span class="m">— call KhaanaPeena support: <b>9614300003</b>.</span></div></div>
+    </div></div>
+  </div>
+
+  <!-- ============ PART IV — KITCHEN (BILINGUAL) ============ -->
+  <div class="part">
+    <div class="part-head">
+      <p class="pk">Part IV</p>
+      <h2>Kitchen Cheat-Sheet <span class="hi" style="font-size:1.2rem">रसोई गाइड</span></h2>
+      <p>Print this page and tape it in the kitchen · रसोई में लगाएं।</p>
+    </div>
+
+    <div class="readpanel">
+      <div class="ticket" aria-hidden="true">
+        <div class="top"><span class="kot">KOT #47 · 🪑 T4</span><span class="timer">18m</span></div>
+        <div class="row"><span>Paneer Tikka</span><b>× 2</b></div>
+        <div class="row" style="color:#1d4ed8;font-weight:700;font-size:.8rem">▸ Extra spicy · Extra cheese</div>
+        <div class="row"><span>Butter Naan</span><b>× 4</b></div>
+        <div class="row"><span>Dal Makhani</span><b>× 1</b></div>
+        <div class="row" style="color:#1d4ed8;font-weight:700;font-size:.8rem">▸ Half</div>
+        <div class="row" style="color:#b91c1c;font-weight:700;font-size:.8rem">↳ kam mirchi</div>
+        <div class="go">✓ Mark Ready</div>
+      </div>
+      <div class="labels">
+        <div class="lab"><span class="dot"></span><div><span class="en">KOT no. &amp; table</span><span class="hi">KOT नंबर और टेबल (T4 = टेबल 4)</span></div></div>
+        <div class="lab b"><span class="dot"></span><div><span class="en">Red timer = getting late, cook first</span><span class="hi">लाल समय = देरी, इसे पहले बनाएं</span></div></div>
+        <div class="lab"><span class="dot" style="background:var(--muted)"></span><div><span class="en">Items × quantity</span><span class="hi">आइटम × मात्रा</span></div></div>
+        <div class="lab"><span class="dot" style="background:#1d4ed8"></span><div><span class="en"><b>▸ blue = the guest's choice</b> — half/full, spice, extras</span><span class="hi"><b>▸ नीला = ग्राहक की पसंद</b> — हाफ/फुल, तीखा, एक्स्ट्रा</span></div></div>
+        <div class="lab"><span class="dot" style="background:#b91c1c"></span><div><span class="en"><b>↳ red = special instruction</b> — follow it exactly</span><span class="hi"><b>↳ लाल = ख़ास हिदायत</b> — बिल्कुल वैसा ही बनाएं</span></div></div>
+        <div class="lab c"><span class="dot"></span><div><span class="en">Tap the green button when cooked</span><span class="hi">बन जाने पर हरा बटन दबाएं</span></div></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="fc"><h5>🔥 New orders · नए ऑर्डर</h5><ol>
+        <li class="bi"><div><span class="en">Tickets appear on their own — counter &amp; phone/QR.</span><span class="hi">टिकट अपने आप आते हैं — काउंटर और फ़ोन/QR से।</span></div></li>
+        <li class="bi"><div><span class="en">Cook oldest / reddest first.</span><span class="hi">सबसे पुराना / लाल टिकट पहले बनाएं।</span></div></li></ol></div>
+      <div class="fc g"><h5>✓ When cooked · जब बन जाए</h5><ol>
+        <li class="bi"><div><span class="en">Tap <b>Mark Ready / तैयार</b> on the ticket.</span><span class="hi">टिकट पर “Mark Ready / तैयार” दबाएं।</span></div></li>
+        <li class="bi"><div><span class="en">It moves to the Ready column.</span><span class="hi">वह “Ready / तैयार” तरफ़ चला जाता है।</span></div></li></ol></div>
+      <div class="fc"><h5>🛎️ After pickup · परोसने के बाद</h5><ol>
+        <li class="bi"><div><span class="en">On the table → <b>Served / परोसा गया</b>.</span><span class="hi">टेबल पर जाने के बाद “Served” दबाएं।</span></div></li>
+        <li class="bi"><div><span class="en">Delivery → <b>Handed to rider</b>.</span><span class="hi">डिलीवरी → “राइडर को दिया” दबाएं।</span></div></li></ol></div>
+      <div class="fc r"><h5>📦 Good to know · ध्यान रखें</h5><ol>
+        <li class="bi"><div><span class="en">Ingredients deduct automatically.</span><span class="hi">सामान अपने आप घट जाता है।</span></div></li>
+        <li class="bi"><div><span class="en">Cancelled item → ticket updates/removes.</span><span class="hi">रद्द होने पर टिकट बदल/हट जाता है।</span></div></li></ol></div>
+    </div>
+
+    <div class="band"><h5>If something goes wrong · कोई दिक्कत हो तो</h5><div class="fixes">
+      <div class="fix"><span class="q">?</span><div class="bi"><span class="hi">स्क्रीन खाली हो — “Reload / रीलोड” दबाएं, ऑर्डर सुरक्षित हैं।</span></div></div>
+      <div class="fix"><span class="q">?</span><div class="bi"><span class="hi">इंटरनेट न हो — काम करते रहें, अपने आप सेव होगा।</span></div></div>
+      <div class="fix"><span class="q">?</span><div class="bi"><span class="hi">गलती से Ready दबा — काउंटर स्टाफ़ को बताएं।</span></div></div>
+      <div class="fix"><span class="q">?</span><div class="bi"><span class="hi">टिकट गलत लगे — काउंटर से ठीक कराएं (Manager PIN)।</span></div></div>
+    </div></div>
+
+    <p class="end">— KhaanaPeena · Restaurant OS · Made for India 🇮🇳 —</p>
+  </div>
+
+  <!-- ============ PART V — PLANS & PRICING ============ -->
+  <div class="part">
+    <div class="part-head">
+      <p class="pk">Part V</p>
+      <h2>Plans &amp; Pricing</h2>
+      <p>One transparent price with everything included — no per-module add-ons, no sales-quote games. Sign up online in minutes.</p>
+    </div>
+
+    <p class="tagline">“Petpooja ka kaam, aadhe daam — AI ke saath.”
+      <span class="gloss">Petpooja's power, at half the price — with AI built in.</span></p>
+
+    <div class="plans">
+      <div class="plan">
+        <div class="pname">Free</div>
+        <div class="price">₹0</div>
+        <div class="who">Try it — a new dhaba or cloud kitchen</div>
+        <ul>
+          <li>1 outlet</li>
+          <li>50 bills / month</li>
+          <li>Billing, Kitchen (KDS) &amp; QR ordering</li>
+          <li>No card, no commitment</li>
+        </ul>
+      </div>
+
+      <div class="plan">
+        <div class="pname">Standard</div>
+        <div class="price">₹6,999<small> / year</small></div>
+        <div class="who">The everyday restaurant</div>
+        <ul>
+          <li>Unlimited billing</li>
+          <li>Kitchen display + QR self-ordering</li>
+          <li>Inventory &amp; recipes (food cost)</li>
+          <li>Customers / loyalty CRM</li>
+          <li>Full reports + thermal printing</li>
+        </ul>
+      </div>
+
+      <div class="plan hot">
+        <div class="badge">Most popular</div>
+        <div class="pname">Pro</div>
+        <div class="price">₹14,999<small> / year</small></div>
+        <div class="who">Busy, multi-terminal restaurants</div>
+        <ul>
+          <li class="inc">Everything in Standard</li>
+          <li>AI insights &amp; forecasting</li>
+          <li>WhatsApp order bot</li>
+          <li>Aggregator payout reconciliation</li>
+          <li>Multi-terminal sync + role permissions</li>
+          <li>Priority 24×7 WhatsApp support</li>
+        </ul>
+      </div>
+
+      <div class="plan">
+        <div class="pname">Chain</div>
+        <div class="price">₹34,999<small> / year</small></div>
+        <div class="who">Small groups &amp; franchises</div>
+        <ul>
+          <li class="inc">Everything in Pro</li>
+          <li>Up to 5 outlets</li>
+          <li>Central menu management</li>
+          <li>Consolidated cross-outlet reports</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="valuebox"><span class="ic">₹</span><div><b>About half the real cost of Petpooja.</b> Petpooja typically runs ~₹10,000 base <i>plus</i> ₹16,000–28,000 per outlet each year once you add KDS, loyalty, reconciliation and a website as separate modules. KhaanaPeena bundles all of it into one price — so the true total is roughly <b>50% less</b>.</div></div>
+
+    <h4>Everything included — nothing is an add-on</h4>
+    <div class="incl">
+      <span>Kitchen display</span><span>QR self-ordering</span><span>Loyalty CRM</span>
+      <span>Payout reconciliation</span><span>WhatsApp</span><span>AI insights</span>
+      <span>Inventory &amp; food cost</span><span>Reports &amp; GST</span><span>Role permissions</span>
+    </div>
+
+    <h4>Why owners switch</h4>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Common complaint</th><th>KhaanaPeena answer</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl">Opaque, quote-only pricing &amp; renewal creep</td><td>Public pricing; sign up online in ~10 minutes</td></tr>
+        <tr><td class="ctl">Every feature is a paid add-on</td><td>One plan, everything included</td></tr>
+        <tr><td class="ctl">Slow support, no late-night help</td><td>24×7 WhatsApp support (restaurants run nights)</td></tr>
+        <tr><td class="ctl">Dated UI, long staff training</td><td>Modern UI in Hindi/Punjabi — a waiter learns it in 15 minutes</td></tr>
+        <tr><td class="ctl">Hardware bundling pressure</td><td>Runs on any phone, tablet or PC you already own</td></tr>
+      </tbody>
+    </table></div>
+
+    <p class="pfoot">Launch pricing, indicative — final plans set by the owner. All prices exclusive of 18% GST. Free tier is the hook for new outlets; annual billing shown.</p>
+    <p class="end">— KhaanaPeena · Restaurant OS · Made for India 🇮🇳 —</p>
+  </div>
+
+</div>

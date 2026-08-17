@@ -1,0 +1,103 @@
+<title>KhaanaPeena — WhatsApp Square</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1080px;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#f6f1e8;
+    font-family:"Segoe UI","Nirmala UI","Noto Sans Devanagari",system-ui,-apple-system,Roboto,Arial,sans-serif}
+  .deva{font-family:"Nirmala UI","Noto Sans Devanagari","Segoe UI",system-ui,sans-serif}
+  .mono{font-family:"SFMono-Regular","Cascadia Code","Segoe UI Mono",Consolas,monospace}
+
+  .sq{width:1080px;height:1080px;background:#f6f1e8;overflow:hidden;display:flex;flex-direction:column;color:#26211d}
+
+  /* header */
+  .hd{background:linear-gradient(135deg,#e26510 0%,#b0470a 100%);color:#fff;padding:40px 54px 32px}
+  .hd .brand{font-weight:800;font-size:44px;letter-spacing:-.02em}
+  .hd .brand span{opacity:.85}
+  .hd .os{font-size:16px;letter-spacing:.22em;text-transform:uppercase;opacity:.9;margin-top:6px}
+  .hd h1{font-size:45px;line-height:1.06;font-weight:800;letter-spacing:-.02em;margin-top:18px;max-width:22ch;text-wrap:balance}
+  .hd .tag{font-size:25px;font-weight:600;margin-top:13px;opacity:.97}
+  .hd .tag .g{display:block;font-size:19px;font-weight:500;opacity:.85;margin-top:3px}
+
+  .bd{flex:1;min-height:0;padding:22px 54px 0;display:flex;flex-direction:column}
+
+  /* price tiles 2x2 */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .t{background:#fff;border:1.5px solid #e7ddcd;border-radius:18px;padding:20px 22px;display:flex;align-items:center;gap:18px;position:relative}
+  .t.hot{border:2.5px solid #e26510;background:#fdf0e4}
+  .t .badge{position:absolute;top:-13px;left:22px;background:#e26510;color:#fff;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 12px;border-radius:100px}
+  .t .nm{font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:#7c7268;font-weight:600}
+  .t .pr{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1;margin-top:3px}
+  .t .pr small{font-size:16px;font-weight:600;color:#7c7268}
+  .t .who{font-size:16px;color:#6f665c;margin-top:5px;line-height:1.25}
+  .t .col{flex:1;min-width:0}
+
+  /* included */
+  /* 11 chips run to three rows; the sizes below keep that third row from pushing
+     the value block under the pinned footer */
+  .inc{margin-top:12px}
+  .inc .lbl{font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:#7c7268;font-weight:600;margin-bottom:9px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chips span{font-size:17px;background:#e4efe1;color:#3f8a4a;border-radius:100px;padding:5px 13px;font-weight:600}
+  .chips span::before{content:"✓ "}
+
+  /* value */
+  .val{margin-top:13px;display:flex;align-items:center;gap:16px;background:#fbe7d4;border-radius:16px;padding:13px 22px}
+  .val .big{font-size:48px;font-weight:800;color:#b0470a;line-height:1;flex:none}
+  .val div{font-size:19px;line-height:1.32}
+  .val b{font-weight:750}
+
+  /* cta */
+  .cta{margin-top:auto;background:#211c17;color:#f6f1e8;padding:26px 54px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .cta .k{font-size:15px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+  .cta h3{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:5px 0 4px}
+  .cta p{font-size:18px;opacity:.82}
+  .cta .r{text-align:right;font-size:20px;line-height:1.5;flex:none}
+  .cta .r .web{color:#ffc79c;font-weight:700}
+  .cta .r .dm{opacity:.85;font-size:17px}
+</style>
+
+<div class="sq">
+  <div class="hd">
+    <div class="brand">Khaana<span>Peena</span></div>
+    <div class="os mono">Restaurant OS · Made for India</div>
+    <h1>Everything other POS apps charge extra for — in one price.</h1>
+    <div class="tag deva">“Petpooja ka kaam, aadhe daam — AI ke saath.”
+      <span class="g">Petpooja's power, at half the price — with AI built in.</span></div>
+  </div>
+
+  <div class="bd">
+    <div class="tiles">
+      <div class="t"><div class="col"><div class="nm">Free</div><div class="pr">₹0</div><div class="who">New dhaba · 50 bills/mo</div></div></div>
+      <div class="t"><div class="col"><div class="nm">Standard</div><div class="pr">₹6,999<small>/yr</small></div><div class="who">Unlimited billing · 22 reports · udhaar</div></div></div>
+      <div class="t hot"><div class="badge">Most popular</div><div class="col"><div class="nm">Pro</div><div class="pr">₹14,999<small>/yr</small></div><div class="who">+ AI, stock variance, WhatsApp, 24×7</div></div></div>
+      <div class="t"><div class="col"><div class="nm">Chain</div><div class="pr">₹34,999<small>/yr</small></div><div class="who">Up to 5 outlets, central menu</div></div></div>
+    </div>
+
+    <div class="inc">
+      <div class="lbl">Everything included — no add-ons</div>
+      <div class="chips">
+        <span>Kitchen display</span><span>QR ordering</span><span>22 reports</span>
+        <span>Udhaar ledger</span><span>Expenses &amp; P&amp;L</span><span>Stock variance</span>
+        <span>Loyalty CRM</span><span>AI insights</span><span>Food cost</span>
+        <span>Service charge (optional)</span><span>GST &amp; HSN</span>
+      </div>
+    </div>
+
+    <div class="val">
+      <span class="big">~½</span>
+      <div><b>About half the real cost</b> of an all-add-on system · works offline · Hindi &amp; Punjabi · runs on your phone, tablet or PC.</div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <div class="l">
+      <div class="k">Start today</div>
+      <h3>Free trial — no card.</h3>
+      <p>Sign up in ~10 minutes. Run your first bill today.</p>
+    </div>
+    <div class="r">
+      <div class="web">khaanapeena.web.app</div>
+      <div class="dm">📞 9614300003 · free demo</div>
+    </div>
+  </div>
+</div>

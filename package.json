@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "assets": "node gen-assets.mjs",
+    "docs": "node docs/render.mjs",
     "electron": "electron .",
     "dist:win": "electron-builder --win portable",
     "apk": "npx cap copy android && cd android && gradlew.bat assembleDebug"
