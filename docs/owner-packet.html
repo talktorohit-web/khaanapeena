@@ -204,8 +204,8 @@
        Tighten the repeating blocks rather than cutting content. */
     table{font-size:.78rem}
     table td,table th{padding:3px 6px}
-    p{margin:6px 0}
-    .purpose{margin:4px 0 6px}
+    p{margin:5px 0}
+    .purpose{margin:3px 0 5px}
     .flow{padding:10px 12px}
     .flow li{margin:2px 0}
     .fc{padding:10px 12px}
@@ -214,8 +214,8 @@
     .band{padding:10px 12px;margin-top:10px}
     .why,.note{padding:7px 11px;margin:6px 0;font-size:.85rem}
     .purpose{font-size:.84rem}
-    h3{margin-top:12px}
-    h4{margin-top:10px;margin-bottom:5px}
+    h3{margin-top:10px}
+    h4{margin-top:8px;margin-bottom:4px}
     .flow{font-size:.85rem}
     .flow ol{margin:4px 0 0}
     .tablewrap{margin-bottom:8px}
@@ -323,9 +323,9 @@
         <tr><td class="ctl">🙋 Individual / 🏢 <span class="b">Firm</span></td><td>A firm's name and <b>GSTIN</b> print on the invoice so they can claim input credit. The GSTIN is checked for length before the bill closes</td></tr>
         <tr><td class="ctl"><span class="b">Service charge 5% (optional)</span> · “Guest declined — waive”</td><td>Prints on the bill as <b>“Service charge 5% (optional)”</b> — it is not a tax and never compulsory, and saying so on the slip is what keeps a complaint from becoming a dispute. One tap removes it. GST is charged on it, as the law requires. Change or switch off the 5% in <b>Settings → GST &amp; billing</b></td></tr>
         <tr><td class="ctl">Discount — <span class="b">₹ amount or % of bill</span></td><td>Give ₹100 off, or 10% off, whichever the guest was promised. Each way shows the other underneath (“10% of ₹520 = ₹52 off”), so nobody mistypes. A percentage prints on the bill as <b>Discount (10%)</b></td></tr>
-        <tr><td class="ctl">Discount <span class="b">reason</span> + Manager PIN</td><td>A discount can't close a bill until a reason is picked and a manager approves. The approver's name prints on the bill and shows in the discount report</td></tr>
+        <tr><td class="ctl">Discount <span class="b">locked until a manager unlocks it</span></td><td>The keypad itself is locked — a waiter can't key ₹500 off and then decide whether to fetch you. The PIN comes first, and only then can a number be typed. The box is <b>empty on every bill</b>, so nothing carries over from the last guest. A reason is still compulsory, and the approver's name prints on the bill and shows in the discount report. Happy hour is set by the clock rather than a person, so it applies on its own — but it stays locked, so nobody can quietly turn 10% into 40%</td></tr>
         <tr><td class="ctl">UPI · Cash · Card · <span class="b">📒 Udhaar</span> · <span class="b">🚫 Not chargeable</span></td><td>UPI shows a pay-QR. <b>Udhaar</b> closes the bill but keeps the money owed against that customer. <b>Not chargeable</b> writes it off to ₹0 with a compulsory reference, explanation and manager PIN</td></tr>
-        <tr><td class="ctl"><span class="b">Split across modes</span></td><td>Half cash, half UPI, any combination. The bill won't close until the parts add up</td></tr>
+        <tr><td class="ctl"><span class="b">Split across modes</span></td><td>Half cash, half UPI, any combination. Each part's mode stays on screen as a highlighted button, and the bill reads itself back before it closes — <i>“Recording Cash ₹500 + UPI ₹300 against this bill”</i> — so the cashier confirms what is being recorded rather than trusting a dropdown. The bill won't close until the parts add up</td></tr>
       </tbody>
     </table></div>
     <h4>How a bill adds up</h4>
@@ -339,6 +339,7 @@
         <li><b>Total</b>, rounded to the rupee.</li>
       </ol>
       <p style="margin:6px 0 0;font-size:.85rem">₹1,000 of food → ₹50 service charge → GST on ₹1,050 → <b>₹1,103</b>. On the Composition scheme steps 4 is skipped entirely and the bill prints as a Bill of Supply.</p>
+      <p style="margin:6px 0 0;font-size:.85rem">The slip closes with <b>your</b> name and <b>your</b> phone — “THANKS! Visit again / Powered by «your restaurant» / Contact: «your number»”. The guest never sees our name or our support line; it is your bill, not our advertisement. Set both in <b>Settings → Restaurant details</b>, and if you leave the phone blank the Contact line simply doesn't print.</p>
     </div>
 
     <div class="why"><span class="ic">✓</span><div><b>Why it matters:</b> the whole loop is 3 key-presses, works offline, never duplicates an invoice number, and the UPI QR collects digital payments with zero extra hardware or gateway fees. Every way money can leave — a discount, a freebie, a write-off, a cancelled dish — now has to say <i>who</i> and <i>why</i> before the bill will close.</div></div>
@@ -373,7 +374,7 @@
         <tr><td class="ctl">Menu — <span class="b">Choices &amp; add-ons</span></td><td>Ask a question when the dish is punched: spice level (free) or add-ons that carry a price and land on the bill</td></tr>
         <tr><td class="ctl">Menu — <span class="b">Sub-category</span></td><td>Group inside a category — Starters → Veg Tikka / Non-veg Tikka. Keeps a long menu findable</td></tr>
         <tr><td class="ctl">Menu — Hindi &amp; Punjabi names</td><td>Type the English name and both fill themselves. Correct them if you want — it stops guessing once you do</td></tr>
-        <tr><td class="ctl">Menu — kitchen printer · HSN code</td><td>Route a dish to a specific kitchen printer; set an HSN only if you sell it as goods, not food</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">“Which printer prints this?”</span> · HSN code</td><td>Name your counters once in <b>Settings → Thermal printer → Your kitchen printers</b> (kitchen, tandoor, chinese, beverage to start, plus any sweets counter or bar you add), and every dish then picks from that list instead of anyone having to remember a name. Set an HSN only if you sell it as goods, not food</td></tr>
         <tr><td class="ctl">Inventory — stock, days-left, + Purchase</td><td>Track stock &amp; value; spot-purchase re-blends weighted-average cost</td></tr>
         <tr><td class="ctl">Purchase — New PO / Receive (GRN) / Vendors</td><td>Raise orders to suppliers and receive goods against them</td></tr>
         <tr><td class="ctl"><span class="b">💸 Expenses</span> <span class="key">E</span></td><td>A sheet of blank rows for the day's spending — rent, salaries, gas, the ₹200 given to the cook for vegetables. Cash expenses come off what the till expects in the drawer</td></tr>
@@ -400,10 +401,15 @@
       </tbody>
     </table></div>
 
+    <div class="flow">
+      <b style="color:var(--accent-ink)">Reports opens on the floor as it is right now</b>
+      <p style="margin:6px 0 0;font-size:.85rem">Before any report is chosen, the top of the page answers the two questions an owner actually walks in asking: <b>what have I taken so far</b>, and <b>what is still sitting on the tables</b>. Five figures — settled today, the value on running tables, an estimate for tables seated but not yet ordered, what is still to come, and earned + expected. It is live, refreshes on its own, and ignores the date range underneath, because “right now” has no date range.</p>
+      <p style="margin:6px 0 0;font-size:.85rem">Anything carrying a guess is marked with a <b>~</b> and shows its working (“3 × ₹696, the average table bill of the last 30 days”). If there are no settled bills to average from, those tables add <b>nothing</b> rather than a made-up number — a guess presented as a total is how owners end up trusting a figure that was never real.</p>
+    </div>
     <div class="tablewrap"><table>
       <thead><tr><th>Group</th><th>Reports</th></tr></thead>
       <tbody>
-        <tr><td class="ctl">Sales</td><td>Summary · <b>Peak hours</b> (a rush map by weekday × hour) · <b>Items</b> (category-wise, menu engineering, add-on attach rates) · <b>Bill register</b> · <b>🔴 Running now</b> · <b>🌙 Day-end master</b></td></tr>
+        <tr><td class="ctl">Sales</td><td>Summary · <b>Peak hours</b> (a rush map by weekday × hour) · <b>Items</b> (category-wise, menu engineering, add-on attach rates) · <b>Bill register</b> · <b>🔴 Running now</b> (the full floor behind the summary above) · <b>🌙 Day-end master</b></td></tr>
         <tr><td class="ctl">Operations</td><td><b>Tables</b> (seat-time, ₹ per guest) · <b>Kitchen speed</b> · <b>Bill timing</b> (printed → settled) · <b>Staff</b> + employee of the month · <b>Discounts &amp; refunds</b> · <b>Cancellations</b></td></tr>
         <tr><td class="ctl">Money</td><td>Food cost · <b>Expenses</b> · <b>Cash in hand</b> · <b>📒 Udhaar ledger</b> · <b>Profit &amp; loss</b> · <b>GST &amp; HSN</b> (the sheet your CA asks for)</td></tr>
         <tr><td class="ctl">Stock</td><td>Inventory · Purchases (vendor-wise, rate-change alerts) · <b>Stock variance</b></td></tr>
@@ -453,9 +459,10 @@
     <div class="group"><p class="group-label">Inventory · Access · Hardware</p><ul class="check">
       <li><label class="item"><span class="box"></span><span class="txt"><b>Add ingredients — opening stock, cost, reorder level</b><span class="hint">Only if you'll use stock / food-cost.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Add your staff names</b><span class="hint">Needed for “who's on the till” and waiter-wise sales. No PINs required unless you turn on role restrictions.</span></span></label></li>
-      <li><label class="item"><span class="box"></span><span class="txt"><b>Set a real Manager PIN</b><span class="hint">Gates discounts, voids, write-offs and refunds. Change it from the demo 1111.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set a real Manager PIN</b><span class="hint">Gates discounts, voids, write-offs and refunds — the discount keypad stays locked until it is entered. Change it from the demo 1111.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Enter your monthly running costs</b><span class="hint">Reports → Profit &amp; loss. Or just book expenses daily on the Expenses screen — real numbers beat estimates.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Configure the thermal printer</b><span class="hint">Network IP or USB — or browser print for the trial.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Name your kitchen counters</b><span class="hint">Settings → Thermal printer → Your kitchen printers. Add a sweets counter or bar if you have one; each dish then picks its counter from that list. The app warns you if a dish still points at a counter you've removed.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Sign in with the same account on every device</b><span class="hint">That's how they stay in sync.</span></span></label></li>
     </ul></div>
 
@@ -477,7 +484,7 @@
       <li><span>Do one <b>split bill</b>, one <b>table transfer</b> and one <b>move items</b> between tables.</span></li>
       <li><span>Settle one bill <b>split half cash half UPI</b>, and one on <b>udhaar</b> <span class="m">— then collect it in Reports → Udhaar.</span></span></li>
       <li><span>Do a <b>void with the Manager PIN</b> <span class="m">— confirm stock returns and the reason is asked.</span></span></li>
-      <li><span>Give one <b>discount as ₹</b> and one <b>as %</b> <span class="m">— confirm the total moves, and that neither closes without a reason and a manager PIN.</span></span></li>
+      <li><span>Give one <b>discount as ₹</b> and one <b>as %</b> <span class="m">— confirm the box is locked and empty until the manager PIN is entered, that the total moves, and that neither closes without a reason.</span></span></li>
       <li><span>Check one bill's <b>service charge and GST</b> <span class="m">— ₹1,000 of food should read ₹50 service charge, ₹52.50 GST, ₹1,103 total, and the line must print the word <b>(optional)</b>.</span></span></li>
       <li><span><b>Open &amp; close a cash shift</b> <span class="m">— pick who's on the till; check the Z-report tallies after booking a cash expense.</span></span></li>
       <li><span>Place one <b>QR self-order</b> <span class="m">— confirm it reaches the kitchen with its choices and notes.</span></span></li>
@@ -520,7 +527,7 @@
       <div class="fc g"><h5>💳 Settle &amp; pay <kbd>F9</kbd></h5><ol>
         <li>Tap <span class="hbtn g">💳 Settle</span> <kbd>F9</kbd>.</li>
         <li>Guest says no to service charge? → <b>waive</b> it.</li>
-        <li>Discount: pick <b>₹ Amount</b> or <b>% of bill</b>, then the reason.</li>
+        <li>Discount: get the <b>manager PIN</b> first — the box stays locked until then. Then <b>₹ Amount</b> or <b>% of bill</b>, then the reason.</li>
         <li>UPI (QR) / Cash / Card, or tick <b>Split across modes</b>.</li>
         <li>Optional: mobile no. for loyalty; firm's GSTIN.</li>
         <li><span class="hbtn g">✓ Collect ₹… &amp; Close Bill</span>.</li></ol></div>
