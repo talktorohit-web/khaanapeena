@@ -857,7 +857,10 @@ export function BillPrint({ order, onClose }) {
           </div>
         )}
         {isComposition && <div className="mt-1 text-[10px]">Composition taxable person, not eligible to collect tax on supplies</div>}
-        <div className="text-center mt-2">🙏 Dhanyavaad! Visit again 🙏<br />Powered by KhaanaPeena<br />Support: {s.supportPhone || '9614300003'}</div>
+        <div className="text-center mt-2">
+          🙏 THANKS! Visit again 🙏<br />Powered by {s.name}
+          {s.phone && <><br />Contact: {s.phone}</>}
+        </div>
       </div>
     </Modal>
   )

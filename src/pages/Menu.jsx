@@ -4,7 +4,7 @@ import { Modal, VegDot, Toggle, Field, inputCls, btnPrimary, btnGhost, Badge, Em
 import { inr0, inr, uid } from '../utils.js'
 import { toHindi, toPunjabi } from '../translit.js'
 import { subCatsFor, subCatOf, groupBySubCat } from '../subcategories.js'
-import { stationsInUse, normalizeStation } from '../stations.js'
+import { normalizeStation, printersOf, printerKey } from '../stations.js'
 import { PORTION_GID, portionPrices, buildPortionGroup } from '../portions.js'
 
 export default function MenuPage() {
@@ -100,7 +100,7 @@ function ItemModal({ item, onClose }) {
   const [f, setF] = useState(() =>
     item
       ? { ...item, modifiers: (item.modifiers || []).filter((g) => g?.id !== PORTION_GID) }
-      : { name: '', nameHi: '', namePa: '', price: '', catId: state.categories[0]?.id ?? '', subCat: '', veg: true, station: 'kitchen', available: true, recipe: [] })
+      : { name: '', nameHi: '', namePa: '', price: '', catId: state.categories[0]?.id ?? '', subCat: '', veg: true, station: printerKey(printersOf(state.settings)[0]), available: true, recipe: [] })
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
 
   // ---- Half / Full portions (a required single-choice modifier group) ----
@@ -138,7 +138,13 @@ function ItemModal({ item, onClose }) {
   }))
 
   const subCats = subCatsFor(state.items, f.catId)
-  const stations = stationsInUse(state.items)
+  // the printers actually set up in Settings — plus, when this dish is already
+  // routed somewhere that isn't one of them, that route as well. Dropping it would
+  // reassign the dish to whichever printer happened to be first in the list, and
+  // food would start coming out at the wrong counter.
+  const printers = printersOf(state.settings)
+  const station = normalizeStation(f.station)
+  const installed = printers.some((p) => printerKey(p) === station)
 
   const ings = state.ingredients || []
   const recipe = f.recipe || []
@@ -241,11 +247,15 @@ function ItemModal({ item, onClose }) {
         <span className="text-[10px] text-stone-400">Groups this dish inside its category on the menu screen. Pick one you already use, or type a new one.</span>
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        {/* station = which kitchen printer gets the ticket. Free text with a
-            datalist so a sweets counter or bar can have its own route. */}
-        <Field label="Which kitchen printer prints this?">
-          <input list="kp-stations" value={f.station || ''} onChange={(e) => set('station', e.target.value)} placeholder="kitchen" className={inputCls} />
-          <datalist id="kp-stations">{stations.map((st) => <option key={st} value={st} />)}</datalist>
+        {/* station = which counter's printer gets the ticket, picked from the
+            printers installed in Settings rather than typed from memory */}
+        <Field label="Which printer prints this?">
+          <select value={station} onChange={(e) => set('station', e.target.value)} className={inputCls}>
+            {!installed && <option value={station}>{station} — not in your printer list</option>}
+            {printers.map((p) => (
+              <option key={printerKey(p)} value={printerKey(p)}>{p.name}{p.ip ? ` · ${p.ip}` : ' · no IP set'}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Type">
           <select value={f.veg ? 'veg' : 'nonveg'} onChange={(e) => set('veg', e.target.value === 'veg')} className={inputCls}>
@@ -253,7 +263,11 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
-      <p className="text-[10px] text-stone-400 -mt-1 mb-3">Each station's printer IP is set once in <b>Settings → 🖨️ Thermal printer</b>.</p>
+      <p className="text-[10px] text-stone-400 -mt-1 mb-3">
+        {installed
+          ? <>Your counters, and the device behind each one, are set up once in <b>Settings → 🖨️ Thermal printer</b>.</>
+          : <>This dish still prints at <b>“{station}”</b>, which isn't one of your printers — add it in <b>Settings → 🖨️ Thermal printer</b>, or pick another counter above.</>}
+      </p>
       {/* Optional per-item HSN — only needed when this item isn't plain restaurant
           service (bottled water, sweets by weight). Blank uses the shop-wide code. */}
       <Field label="HSN / SAC code (optional)">
@@ -308,7 +322,7 @@ function ItemModal({ item, onClose }) {
               <select value={r.ingId} onChange={(e) => setLine(idx, { ingId: e.target.value })} className={inputCls + ' !py-1.5 flex-1'}>
                 {ings.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              <input type="number" min="0" step="0.001" value={r.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} className={inputCls + ' !py-1.5 w-20'} />
+              <input type="number" min="0" step="0.001" value={r.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} className={inputCls + ' !py-1.5 !w-20'} />
               <span className="text-[11px] text-stone-400 w-8">{ingUnit(r.ingId)}</span>
               <button onClick={() => rmLine(idx)} className="text-stone-300 hover:text-red-500 text-sm px-1" title="Remove">✕</button>
             </div>
@@ -365,7 +379,7 @@ function ItemModal({ item, onClose }) {
                     <input
                       type="number" min="0" value={o.price}
                       onChange={(e) => setOpt(gi, oi, { price: e.target.value })}
-                      className={inputCls + ' !py-1.5 w-16 text-right'}
+                      className={inputCls + ' !py-1.5 !w-16 text-right'}
                     />
                     <button onClick={() => rmOpt(gi, oi)} className="text-stone-300 hover:text-red-500 text-sm px-1" title="Remove">✕</button>
                   </div>

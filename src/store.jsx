@@ -3,6 +3,7 @@ import { makeSeed } from './seed.js'
 import { makeT } from './i18n.js'
 import { uid, billTotals, sentiment, todayISO } from './utils.js'
 import { lineKey, repriceLine } from './modifiers.js'
+import { seedPrinters } from './stations.js'
 import {
   loadCloudCfg, saveCloudCfg, createCloud, fetchCloud, subscribeCloud,
   pushChanges, mergeRemote, joinRemote, nextCounterAtLeast, claimRestaurant, publishPublic,
@@ -37,6 +38,11 @@ function load() {
           s.settings.svcConfigured = true
         }
         if (s.settings && s.settings.supportPhone == null) s.settings.supportPhone = '9614300003'
+        // Kitchen printers used to be free text typed onto each dish. Seed one
+        // printer per station the menu ALREADY routes to (not just our four
+        // defaults), so no existing dish opens the editor pointing at a counter
+        // that isn't in the list.
+        if (s.settings && !s.settings.printers) s.settings.printers = seedPrinters(s.items)
         return s
       }
     }

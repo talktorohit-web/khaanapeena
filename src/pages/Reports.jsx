@@ -24,6 +24,7 @@ import Cancellations from '../reports/Cancellations.jsx'
 import Timing from '../reports/Timing.jsx'
 import CashInHand from '../reports/CashInHand.jsx'
 import Live from '../reports/Live.jsx'
+import RunningStrip from '../reports/RunningStrip.jsx'
 
 const RANGE_KEYS = [
   ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 days'],
@@ -119,6 +120,12 @@ export default function Reports() {
           className="border border-stone-200 hover:bg-stone-50 text-stone-700 font-semibold rounded-xl px-4 py-2 text-sm"
         >🖨️ Save as PDF</button>
       </div>
+
+      {/* Above the tabs AND above the range buttons on purpose: these are the
+          numbers the owner asks for first, they belong to no date range, and
+          nothing here may look like the selector governs them. Its own component
+          so its 15s heartbeat re-renders five figures, not the whole report. */}
+      <RunningStrip state={state} />
 
       {/* TAB BAR — every report visible at once. It used to scroll sideways, which
           hid half the tabs behind a gesture nobody thinks to make on a till. */}

@@ -242,14 +242,18 @@ function PoModal({ open, onClose, vendors, ings, prefill, onSave, onAddVendor })
 
       <div className="text-xs font-semibold text-stone-500 mb-1">Items</div>
       <div className="space-y-2 mb-2">
+        {/* On a phone the ingredient takes the whole first line. Sharing one row with
+            qty and rate left ~100px for a name like "Chicken boneless (kg)" — the
+            picker looked like it was losing the selection. `!w-20`/`!w-24` because a
+            bare width appended to inputCls loses to its baked-in w-full. */}
         {lines.map((l, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <select value={l.ingId} onChange={(e) => setLine(i, 'ingId', e.target.value)} className={inputCls + ' flex-1'}>
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <select value={l.ingId} onChange={(e) => setLine(i, 'ingId', e.target.value)} className={inputCls + ' basis-full sm:basis-0 sm:grow min-w-0'}>
               <option value="">— ingredient —</option>
               {ings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}
             </select>
-            <input type="number" min="0" placeholder="qty" value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} className={inputCls + ' w-20'} />
-            <input type="number" min="0" placeholder="rate" value={l.rate} onChange={(e) => setLine(i, 'rate', e.target.value)} className={inputCls + ' w-24'} />
+            <input type="number" min="0" placeholder="qty" value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} className={inputCls + ' !w-20'} />
+            <input type="number" min="0" placeholder="rate" value={l.rate} onChange={(e) => setLine(i, 'rate', e.target.value)} className={inputCls + ' !w-24'} />
             <button onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-stone-300 hover:text-red-500 text-lg px-1">✕</button>
           </div>
         ))}
@@ -288,17 +292,20 @@ function ReceiveModal({ po, onClose, gName, gUnit, received, onSave }) {
     <Modal open={!!po} onClose={onClose} title={`Receive goods — PO #${po.poNo}`} wide>
       <p className="text-xs text-stone-400 mb-3">Enter the quantity actually received for each item. Stock is added and the average cost updated automatically.</p>
       <div className="space-y-2 mb-3">
-        <div className="grid grid-cols-[1fr,auto,auto] gap-2 text-[11px] font-semibold text-stone-400 px-1">
-          <span>Item</span><span className="w-24 text-center">Receive qty</span><span className="w-24 text-center">Rate</span>
+        {/* header and rows wrap identically, so the two 96px columns still sit under
+            their captions once the item name has taken the first line to itself */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-stone-400">
+          <span className="basis-full sm:basis-0 sm:grow">Item</span>
+          <span className="w-24 text-center">Receive qty</span><span className="w-24 text-center">Rate</span>
         </div>
         {rows.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr,auto,auto] gap-2 items-center">
-            <div>
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <div className="basis-full sm:basis-0 sm:grow min-w-0">
               <div className="text-sm font-semibold text-ink-900">{gName(r.ingId)}</div>
               <div className="text-[11px] text-stone-400">ordered {r.ordered} {gUnit(r.ingId)}{r.got > 0 ? ` · already got ${r.got}` : ''}</div>
             </div>
-            <input type="number" min="0" value={r.qty} onChange={(e) => setRow(i, 'qty', e.target.value)} className={inputCls + ' w-24 text-center'} />
-            <input type="number" min="0" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} className={inputCls + ' w-24 text-center'} />
+            <input type="number" min="0" value={r.qty} onChange={(e) => setRow(i, 'qty', e.target.value)} className={inputCls + ' !w-24 text-center'} />
+            <input type="number" min="0" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} className={inputCls + ' !w-24 text-center'} />
           </div>
         ))}
       </div>

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { StatCard, Badge, Empty } from '../components.jsx'
 import { HBars } from '../charts.jsx'
-import { inr0, billTotals, tableName, fmtTime, minsSince, todayISO } from '../utils.js'
-import { Card, DataTable, Exports, Note, amt, coversOf, dur, channelOf, channelLabel } from './shared.jsx'
+import { inr0, fmtTime } from '../utils.js'
+import { Card, DataTable, Exports, Note, dur, channelOf, channelLabel } from './shared.jsx'
+import { useRunningNow, LOOKBACK_DAYS } from './running.js'
 
-const RUNNING = ['open', 'kot', 'ready', 'served']
 const STATUS = {
   open: ['stone', '📝 Ordering'],
   kot: ['amber', '🔥 In the kitchen'],
@@ -12,77 +12,25 @@ const STATUS = {
   served: ['blue', '🍽️ Eating'],
 }
 
-// how far back the "what a table normally spends" estimate looks. Long enough to
-// smooth a quiet Tuesday, short enough that last winter's prices don't set today's.
-const LOOKBACK_DAYS = 30
-
 /**
  * The running floor, right now — deliberately outside the report date range,
  * because "how much is sitting on my tables at this moment" has no date.
  *
+ * Every figure comes from running.js, which the Reports dashboard strip also reads.
  * The projection is the part to be careful with: running tables have a real bill
  * value, but a table that has been seated and hasn't ordered yet has nothing to add
  * up. That gap is filled with what a table normally spends here, and it is labelled
  * as an estimate everywhere it appears — never blended silently into a real total.
  */
 export default function Live({ state }) {
-  // same 15s heartbeat the kitchen screen runs on, so waiting times stay honest
-  const [, tick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => tick((x) => x + 1), 15000)
-    return () => clearInterval(id)
-  }, [])
-
-  const settings = state.settings
-  const tables = state.tables || []
-
-  const running = useMemo(
-    () => (state.orders || []).filter((o) => RUNNING.includes(o.status) && !o.mergedInto).sort((a, b) => a.createdAt - b.createdAt),
-    [state.orders]
-  )
-
-  const rows = useMemo(() => running.map((o) => {
-    const lines = (o.items || []).reduce((s, li) => s + li.qty, 0)
-    return {
-      o,
-      table: o.tableId ? tableName(tables, o.tableId) : null,
-      waiter: o.waiterName || o.takenBy || null,
-      guests: coversOf(o),
-      lines,
-      value: lines ? billTotals(o, settings).total : 0,
-      openedFor: minsSince(o.createdAt),
-      kotFor: o.kotAt ? minsSince(o.kotAt) : null,
-    }
-  }), [running, tables, settings])
-
-  const occupiedIds = useMemo(() => new Set(rows.filter((r) => r.o.tableId).map((r) => r.o.tableId)), [rows])
-  const freeTables = tables.filter((t) => !occupiedIds.has(t.id))
-  const seatedGuests = rows.reduce((s, r) => s + r.guests, 0)
-  const countedTables = rows.filter((r) => r.guests > 0).length
-
-  // seated but nothing punched in yet — the tables the projection has to guess for
-  const notOrdered = rows.filter((r) => !r.lines)
-  const runningValue = rows.reduce((s, r) => s + r.value, 0)
+  const {
+    rows, tables, freeTables, occupiedIds, seatedGuests, countedTables,
+    notOrdered, runningValue, recent, avgPerTable, estimate, projection,
+    settledToday, earnedToday,
+  } = useRunningNow(state)
 
   const kots = rows.filter((r) => r.o.status === 'kot').sort((a, b) => b.kotFor - a.kotFor)
   const readyWaiting = rows.filter((r) => r.o.status === 'ready')
-
-  // ---- what a table normally spends, from real settled bills ----
-  const lookbackFrom = Date.now() - LOOKBACK_DAYS * 864e5
-  const recent = useMemo(
-    () => (state.orders || []).filter((o) => o.status === 'paid' && o.paidAt >= lookbackFrom && o.tableId),
-    [state.orders, lookbackFrom]
-  )
-  const avgPerTable = recent.length ? recent.reduce((s, o) => s + amt(o), 0) / recent.length : null
-  const estimate = avgPerTable == null ? 0 : notOrdered.length * avgPerTable
-  const projection = runningValue + estimate
-
-  const todayFrom = new Date(todayISO() + 'T00:00:00').getTime()
-  const settledToday = useMemo(
-    () => (state.orders || []).filter((o) => o.status === 'paid' && o.paidAt >= todayFrom),
-    [state.orders, todayFrom]
-  )
-  const earnedToday = settledToday.reduce((s, o) => s + amt(o), 0)
 
   const byWaiter = useMemo(() => {
     const m = {}

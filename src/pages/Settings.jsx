@@ -5,6 +5,7 @@ import { LANGS } from '../i18n.js'
 import { verifyManagerPin } from '../utils.js'
 import { PAGES, ACTIONS, ROLES, resolvePerms } from '../permissions.js'
 import { printTest, inElectron } from '../print.js'
+import { normalizeStation, printersOf, printerKey } from '../stations.js'
 import { stats as outboxStats, flush as outboxFlush, retryDead as outboxRetryDead, makeHttpSink } from '../outbox.js'
 import { getIdToken } from '../auth.js'
 
@@ -100,7 +101,7 @@ export default function Settings() {
           <a href="tel:9614300003" className="text-lg font-black text-saffron-700">📞 9614300003</a>
           <a href="https://wa.me/919614300003" target="_blank" rel="noreferrer" className={btnGhost}>💬 WhatsApp us</a>
         </div>
-        <p className="text-[11px] text-stone-400 mt-2">This number is also printed at the bottom of every bill.</p>
+        <p className="text-[11px] text-stone-400 mt-2">For you, not your guests — the bill carries your own name and phone, not ours.</p>
       </Section>
 
       <Section title="🧹 Demo data">
@@ -208,7 +209,67 @@ function PrinterSection() {
           </div>
         </>
       )}
+      {/* Outside the toggle above on purpose: dishes are routed to a counter even
+          when tickets go out through the ordinary print dialog. */}
+      <KitchenPrinters />
     </Section>
+  )
+}
+
+// The counters that cook from their own ticket. A printer's name IS the station a
+// menu item is routed to, so this list is what the Menu editor offers — the owner
+// picks a printer he owns instead of retyping a word he has to remember.
+function KitchenPrinters() {
+  const { state, update } = useStore()
+  const rows = state.settings.printers || []
+  const setRows = (fn) => update((s) => { s.settings.printers = fn(s.settings.printers || []) })
+
+  // dishes routed somewhere that is no longer in the list — a rename or a deleted
+  // row orphans them. Say which, and leave them alone: a dish that quietly moves to
+  // another printer is food coming out at the wrong counter.
+  const known = new Set(printersOf(state.settings).map(printerKey))
+  const orphans = {}
+  ;(state.items || []).forEach((i) => {
+    const st = normalizeStation(i.station)
+    if (!known.has(st)) orphans[st] = (orphans[st] || 0) + 1
+  })
+
+  return (
+    <div className="border-t border-stone-100 mt-4 pt-4">
+      <div className="text-sm font-bold text-ink-900 mb-1">Your kitchen printers</div>
+      <p className="text-xs text-stone-400 mb-3">
+        Name every counter that cooks from its own ticket — kitchen, tandoor, bar, sweets. Each dish is sent to one of these
+        in <b>Menu → Which printer prints this?</b>. Add a counter's IP where it has its own device; tickets themselves still
+        go to the kitchen printer set above.
+      </p>
+      <div className="space-y-2">
+        {rows.map((p, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <input
+              value={p.name || ''} onChange={(e) => setRows((ps) => ps.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+              placeholder="e.g. Tandoor" className={inputCls + ' basis-full sm:basis-0 sm:grow min-w-0'}
+            />
+            <input
+              value={p.ip || ''} onChange={(e) => setRows((ps) => ps.map((x, j) => (j === i ? { ...x, ip: e.target.value.trim() } : x)))}
+              placeholder="IP (optional)" className={inputCls + ' !w-40 font-mono'}
+            />
+            <button onClick={() => setRows((ps) => ps.filter((_, j) => j !== i))} className="text-stone-300 hover:text-red-500 text-lg px-1" title="Remove">✕</button>
+          </div>
+        ))}
+      </div>
+      <button onClick={() => setRows((ps) => [...ps, { name: '', ip: '' }])} className="mt-2 text-xs font-bold text-saffron-700 hover:underline">＋ Add a printer</button>
+
+      {Object.keys(orphans).length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 mt-3 space-y-1">
+          {Object.entries(orphans).map(([st, n]) => (
+            <div key={st}>
+              ⚠️ <b>{n} dish{n === 1 ? '' : 'es'}</b> still print at “{st}”, which isn't a printer here. Add it above, or change
+              those dishes in Menu — nothing is rerouted for you.
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

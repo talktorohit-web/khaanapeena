@@ -139,8 +139,13 @@ export function buildBill(order, settings, totals, width = 48) {
     e.line('Approved by: ' + (order.payment.nc.by || ''))
   }
   if (isComposition) e.rule().line('Composition taxable person, not').line('eligible to collect tax on supplies')
-  e.rule().align('center').line('Dhanyavaad! Visit again')
-  e.line('Powered by KhaanaPeena').line('Support: ' + (settings.supportPhone || '9614300003')).feed(1)
+  // the guest's slip carries the RESTAURANT's identity, never ours — the emoji the
+  // screen preview shows is left off here because sanitize would drop it and leave
+  // the centred line padded with stray spaces
+  e.rule().align('center').line('THANKS! Visit again')
+  e.line('Powered by ' + settings.name)
+  if (settings.phone) e.line('Contact: ' + settings.phone)
+  e.feed(1)
   return e.cut().done()
 }
 

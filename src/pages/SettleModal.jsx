@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Field, inputCls, btnPrimary } from '../components.jsx'
-import { inr, inr0, billTotals, upiLink, verifyManagerPin, DISCOUNT_REASONS } from '../utils.js'
+import { inr, inr0, billTotals, upiLink, verifyManagerPin, payModeLabel, DISCOUNT_REASONS } from '../utils.js'
 import QRCode from 'qrcode'
 
 const PAY = [['upi', '📲 UPI'], ['cash', '💵 Cash'], ['card', '💳 Card'], ['credit', '📒 Udhaar'], ['nc', '🚫 Not chargeable']]
@@ -18,6 +18,11 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const svcRate = state.settings.serviceCharge || 0
   const needsPinForDiscount = state.settings.discountNeedsPin !== false && !!state.settings.managerPin
 
+  // Happy hour is decided by the clock, not by a person, so its percentage arrives
+  // pre-filled and pre-approved — but it still sits behind the lock below, or a
+  // cashier could quietly nudge "10% off" up to 40% with no manager in sight.
+  const autoPct = allowDiscount && happyHourNow ? hh.discountPct : ''
+
   const [method, setMethod] = useState('upi')
   const [splitOn, setSplitOn] = useState(false)
   const [splits, setSplits] = useState([{ method: 'cash', amount: '' }, { method: 'upi', amount: '' }])
@@ -25,13 +30,14 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   // A discount is given two ways in real life — "₹100 off" and "10% off" — and a
   // cashier shouldn't have to do the arithmetic on a ₹1,847 bill. Happy hour is a
   // percentage by definition, so it opens in that mode.
-  const [discMode, setDiscMode] = useState(allowDiscount && happyHourNow ? 'pct' : 'amt')
-  const [discAmt, setDiscAmt] = useState(0)
-  const [discPct, setDiscPct] = useState(allowDiscount && happyHourNow ? hh.discountPct : '')
-  const [reason, setReason] = useState(allowDiscount && happyHourNow ? 'happy-hour' : '')
+  const [discMode, setDiscMode] = useState(autoPct ? 'pct' : 'amt')
+  const [discAmt, setDiscAmt] = useState('')
+  const [discPct, setDiscPct] = useState(autoPct)
+  const [reason, setReason] = useState(autoPct ? 'happy-hour' : '')
   const [reasonNote, setReasonNote] = useState('')
   const [discPin, setDiscPin] = useState('')
-  const [discBy, setDiscBy] = useState(allowDiscount && happyHourNow ? { name: 'Happy hour (automatic)' } : null)
+  const [discUnlocked, setDiscUnlocked] = useState(false)
+  const [discBy, setDiscBy] = useState(autoPct ? { name: 'Happy hour (automatic)' } : null)
   const [discErr, setDiscErr] = useState('')
   const [partyType, setPartyType] = useState(order.party?.type || 'individual')
   const [firmName, setFirmName] = useState(order.party?.name || '')
@@ -47,6 +53,22 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const [qr, setQr] = useState(null)
 
   const cust = state.customers.find((c) => c.phone === phone)
+
+  // A discount must NEVER survive into the next guest's bill. Billing unmounts this
+  // modal today so the state would die anyway, but that is Billing's decision to
+  // change — and if it ever kept the modal mounted, a stale "₹200 off" riding onto
+  // the following table is money out of the till. So the reset is explicit here.
+  useEffect(() => {
+    setDiscMode(autoPct ? 'pct' : 'amt')
+    setDiscAmt('')
+    setDiscPct(autoPct)
+    setReason(autoPct ? 'happy-hour' : '')
+    setReasonNote('')
+    setDiscPin('')
+    setDiscErr('')
+    setDiscUnlocked(false)
+    setDiscBy(autoPct ? { name: 'Happy hour (automatic)' } : null)
+  }, [order.id])
 
   // never let a discount exceed the bill, whichever way it was entered
   const pctVal = Math.max(0, Math.min(100, +discPct || 0))
@@ -74,10 +96,15 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const rmSplit = (i) => setSplits((rows) => (rows.length > 2 ? rows.filter((_, j) => j !== i) : rows))
   // typing one side should fill the other — that's the whole point of "half and half"
   const fillRest = (i) => setSplit(i, { amount: String(Math.max(0, payable - splitRows.filter((_, j) => j !== i).reduce((s, r) => s + r.amount, 0))) })
+  // a read-back in words, because "✓ adds up" only proves the arithmetic — it doesn't
+  // tell the cashier which modes they are about to record against this bill
+  const splitSummary = splitRows.filter((r) => r.amount > 0)
+    .map((r) => `${payModeLabel(r.method).replace(/^\S+\s/, '')} ${inr0(r.amount)}`).join(' + ')
 
   const unlockDiscount = () => {
     const m = verifyManagerPin(state, discPin)
-    if (m) { setDiscBy(m); setDiscErr(''); setDiscPin('') }
+    // whoever unlocks now owns the number, even if happy hour had put one there
+    if (m) { setDiscBy(m); setDiscUnlocked(true); setDiscErr(''); setDiscPin('') }
     else { setDiscErr('Wrong manager PIN'); setDiscPin('') }
   }
   const unlockNc = () => {
@@ -86,13 +113,20 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
     else { setNcErr('Wrong manager PIN'); setNcPin('') }
   }
 
-  const discountLocked = discount > 0 && needsPinForDiscount && !discBy
+  // the PIN guards the KEYPAD, not just a number already typed — a cashier can't
+  // key ₹500 off and then decide whether to fetch a manager. A role that isn't
+  // allowed discounts at all stays shut whatever PIN is known.
+  const discLocked = needsPinForDiscount && !discUnlocked
+  const discEditable = allowDiscount && !discLocked
+  // belt and braces: nothing should reach a discount without an approver now, but
+  // this is the till, so the close button still checks before the money moves
+  const discountUnapproved = discount > 0 && needsPinForDiscount && !discBy
   const needsReason = discount > 0 && !reason
   const creditOk = !!cust || phone.length === 10
   const ncOk = method !== 'nc' || (ncRef.trim() && ncWhy.trim().length >= 5 && ncBy)
   const splitOk = !splitOn || Math.abs(splitLeft) < 1
   const gstinOk = partyType !== 'firm' || /^[0-9A-Z]{15}$/.test(gstin.toUpperCase())
-  const blocked = needsReason || discountLocked || !ncOk || !splitOk || !gstinOk || (method === 'credit' && !creditOk)
+  const blocked = needsReason || discountUnapproved || !ncOk || !splitOk || !gstinOk || (method === 'credit' && !creditOk)
 
   const finish = () => {
     let customerId = cust?.id || null
@@ -159,30 +193,48 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
         </div>
       )}
 
-      {/* DISCOUNT — flat rupees or a percentage of the bill */}
+      {/* DISCOUNT — flat rupees or a percentage of the bill, locked until approved */}
       <div className="mb-3">
         <span className="text-xs font-semibold text-stone-500 block mb-1">{t('discount')}</span>
+        {allowDiscount && discLocked && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2">
+            <div className="text-xs font-bold text-amber-800 mb-1.5">🔒 A manager has to approve {autoPct ? 'any change to this discount' : 'this discount'}</div>
+            <div className="flex gap-2">
+              {/* no autoFocus — unlike the NC panel this one is on screen the moment
+                  the modal opens, and most bills are settled without a discount */}
+              <input
+                type="password" inputMode="numeric" value={discPin}
+                onChange={(e) => { setDiscPin(e.target.value.replace(/\D/g, '').slice(0, 6)); setDiscErr('') }}
+                onKeyDown={(e) => e.key === 'Enter' && unlockDiscount()}
+                placeholder="Manager PIN" className={inputCls + ' text-center tracking-[0.3em] font-mono'}
+              />
+              <button onClick={unlockDiscount} disabled={discPin.length < 4} className="bg-ink-900 text-white text-xs font-bold rounded-xl px-4 disabled:opacity-40">Unlock</button>
+            </div>
+            {discErr && <p className="text-[11px] text-red-600 mt-1">{discErr}</p>}
+            <p className="text-[10px] text-stone-500 mt-1">Only the Manager PIN, or a staff member with a manager/admin role, can approve. The name is recorded on the bill.</p>
+          </div>
+        )}
         <div className="flex gap-2">
           <div className="flex rounded-xl border border-stone-200 overflow-hidden shrink-0">
             {[['amt', '₹ Amount'], ['pct', '% of bill']].map(([k, l]) => (
               <button
-                key={k} disabled={!allowDiscount}
+                key={k} disabled={!discEditable}
                 onClick={() => { setDiscMode(k); setDiscErr('') }}
-                className={`px-3 py-2 text-xs font-bold transition-colors ${discMode === k ? 'bg-ink-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'} ${allowDiscount ? '' : 'opacity-50 cursor-not-allowed'}`}
+                className={`px-3 py-2 text-xs font-bold transition-colors ${discMode === k ? 'bg-ink-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'} ${discEditable ? '' : 'opacity-50 cursor-not-allowed'}`}
               >{l}</button>
             ))}
           </div>
           {discMode === 'amt' ? (
             <input
-              type="number" min="0" value={discAmt || ''} disabled={!allowDiscount} placeholder="0"
+              type="number" min="0" value={discAmt} disabled={!discEditable} placeholder="0"
               onChange={(e) => { setDiscAmt(e.target.value); setDiscErr('') }}
-              className={inputCls + ' text-right tabular-nums' + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')}
+              className={inputCls + ' text-right tabular-nums' + (discEditable ? '' : ' opacity-50 cursor-not-allowed')}
             />
           ) : (
             <input
-              type="number" min="0" max="100" value={discPct} disabled={!allowDiscount} placeholder="0"
+              type="number" min="0" max="100" value={discPct} disabled={!discEditable} placeholder="0"
               onChange={(e) => { setDiscPct(e.target.value); setDiscErr('') }}
-              className={inputCls + ' text-right tabular-nums' + (allowDiscount ? '' : ' opacity-50 cursor-not-allowed')}
+              className={inputCls + ' text-right tabular-nums' + (discEditable ? '' : ' opacity-50 cursor-not-allowed')}
             />
           )}
         </div>
@@ -196,22 +248,6 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
         {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600 block">Happy hour −{hh.discountPct}% auto-applied</span>}
       </div>
 
-      {discountLocked && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
-          <div className="text-xs font-bold text-amber-800 mb-1.5">🔒 A manager has to approve this discount</div>
-          <div className="flex gap-2">
-            <input
-              type="password" inputMode="numeric" autoFocus value={discPin}
-              onChange={(e) => { setDiscPin(e.target.value.replace(/\D/g, '').slice(0, 6)); setDiscErr('') }}
-              onKeyDown={(e) => e.key === 'Enter' && unlockDiscount()}
-              placeholder="Manager PIN" className={inputCls + ' text-center tracking-[0.3em] font-mono'}
-            />
-            <button onClick={unlockDiscount} disabled={discPin.length < 4} className="bg-ink-900 text-white text-xs font-bold rounded-xl px-4 disabled:opacity-40">Approve</button>
-          </div>
-          {discErr && <p className="text-[11px] text-red-600 mt-1">{discErr}</p>}
-          <p className="text-[10px] text-stone-500 mt-1">Only the Manager PIN, or a staff member with a manager/admin role, can approve. The name is recorded on the bill.</p>
-        </div>
-      )}
       {discount > 0 && discBy && (
         <p className="text-[11px] text-leaf-600 font-semibold mb-2">✓ Discount approved by {discBy.name}</p>
       )}
@@ -272,15 +308,25 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
         ) : (
           <div className="mb-3">
             <p className="text-[11px] text-stone-500 mb-2">Enter what came in through each mode. Tap <b>rest</b> to fill the remainder.</p>
+            {/* chips, not a <select>: the same pattern as the single-mode grid above,
+                and a native dropdown on the Android WebView shows the cashier nothing
+                once it closes — the chosen mode has to stay on screen */}
             <div className="space-y-2">
               {splits.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <select value={s.method} onChange={(e) => setSplit(i, { method: e.target.value })} className={inputCls + ' !py-2 flex-1'}>
-                    {SPLITTABLE.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </select>
-                  <input type="number" min="0" value={s.amount} onChange={(e) => setSplit(i, { amount: e.target.value })} placeholder="0" className={inputCls + ' !py-2 w-28 text-right tabular-nums'} />
-                  <button onClick={() => fillRest(i)} className="text-[11px] font-bold text-saffron-700 px-1 shrink-0">rest</button>
-                  <button onClick={() => rmSplit(i)} className="text-stone-300 hover:text-red-500 px-1 shrink-0">✕</button>
+                <div key={i} className="rounded-xl border border-stone-200 p-2">
+                  <div className="grid grid-cols-3 gap-1">
+                    {SPLITTABLE.map(([k, l]) => (
+                      <button
+                        key={k} onClick={() => setSplit(i, { method: k })}
+                        className={`rounded-lg py-1.5 font-bold text-[11px] border-2 ${s.method === k ? 'border-saffron-500 bg-saffron-50 text-saffron-800' : 'border-stone-200 text-stone-500'}`}
+                      >{l}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <input type="number" min="0" value={s.amount} onChange={(e) => setSplit(i, { amount: e.target.value })} placeholder="0" className={inputCls + ' !py-2 !w-28 text-right tabular-nums'} />
+                    <button onClick={() => fillRest(i)} className="text-[11px] font-bold text-saffron-700 px-1 shrink-0">rest</button>
+                    <button onClick={() => rmSplit(i)} className="text-stone-300 hover:text-red-500 px-1 shrink-0 ml-auto">✕</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -290,6 +336,7 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
                 {Math.abs(splitLeft) < 1 ? '✓ Adds up to ' + inr0(payable) : (splitLeft > 0 ? `${inr0(splitLeft)} still to allocate` : `${inr0(-splitLeft)} over the bill`)}
               </span>
             </div>
+            {splitSummary && <p className="text-[11px] text-stone-600 mt-1">Recording <b>{splitSummary}</b> against this bill.</p>}
           </div>
         )}
 

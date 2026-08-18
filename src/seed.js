@@ -1,6 +1,7 @@
 import { uid } from './utils.js'
 import { buildPortionGroup } from './portions.js'
 import { toPunjabi } from './translit.js'
+import { seedPrinters } from './stations.js'
 
 const CATS = [
   { id: 'c_starters', name: 'Starters', hi: 'स्टार्टर', pa: 'ਸਟਾਰਟਰ' },
@@ -218,6 +219,8 @@ export function makeSeed() {
       upiId: 'sharmajidadhaba@okhdfcbank', lang: 'en',
       managerPin: '1111',
       printer: { enabled: false, mode: 'browser', ip: '', port: 9100, width: 48, kitchenIp: '' },
+      // one per counter the menu routes to — the list the Menu editor picks from
+      printers: seedPrinters(items),
       loyaltyEarnPer100: 1, loyaltyRedeemValue: 1,
       happyHour: { enabled: true, from: 15, to: 18, discountPct: 10 },
       rbac: { enabled: false, matrix: {} },
