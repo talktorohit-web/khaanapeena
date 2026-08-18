@@ -239,8 +239,10 @@ function KitchenPrinters() {
       <div className="text-sm font-bold text-ink-900 mb-1">Your kitchen printers</div>
       <p className="text-xs text-stone-400 mb-3">
         Name every counter that cooks from its own ticket — kitchen, tandoor, bar, sweets. Each dish is sent to one of these
-        in <b>Menu → Which printer prints this?</b>. Add a counter's IP where it has its own device; tickets themselves still
-        go to the kitchen printer set above.
+        in <b>Menu → Which printer prints this?</b>. Give a counter its own <b>IP</b> and its tickets print there: one order
+        becomes one slip per counter, each headed with the counter's name. Leave the IP blank and that counter's dishes print
+        on the main kitchen printer above, so nothing is ever left unprinted. Routing needs <b>Network</b> mode and the
+        desktop app — on USB or Bluetooth there is only the one attached printer, so the order stays on a single ticket.
       </p>
       <div className="space-y-2">
         {rows.map((p, i) => (

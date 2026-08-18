@@ -96,6 +96,7 @@ export async function sendToPrinter(bytes, cfg, override = {}) {
 
 // ---- high-level helpers used by the app ----
 import { buildBill, buildKOT, buildShiftReport } from './escpos.js'
+import { printerFor, stationOfLine } from './stations.js'
 
 const cfgOf = (settings) => settings.printer || DEFAULT_PRINTER
 
@@ -105,11 +106,62 @@ export async function printBill(order, settings, totals) {
   return sendToPrinter(buildBill(order, settings, totals, cfg.width || 48), cfg)
 }
 
-export async function printKOT(order, settings) {
+// Split an order across the counters that have to cook it. Lines are grouped by
+// the DEVICE they end up on rather than by station name, so two counters sharing
+// one printer still get a single slip instead of the same roll printing twice.
+function routeLines(order, settings, menuItems, fallbackIp) {
+  const byId = new Map((menuItems || []).map((m) => [m.id, m]))
+  const groups = new Map()
+  for (const li of order.items || []) {
+    const station = stationOfLine(li, byId)
+    const p = printerFor(settings, station)
+    // a counter with no device of its own still prints — on the main kitchen
+    // printer. Anything else drops the line, and a dropped line is uncooked food.
+    const ip = (p?.ip || '').trim() || fallbackIp || ''
+    const g = groups.get(ip) || { ip, stations: new Set(), items: [] }
+    g.stations.add(station)
+    g.items.push(li)
+    groups.set(ip, g)
+  }
+  return [...groups.values()]
+}
+
+export async function printKOT(order, settings, menuItems) {
   const cfg = cfgOf(settings)
   if (!cfg.enabled || cfg.mode === 'browser') return { ok: false, reason: 'browser' }
-  const override = cfg.mode === 'network' && cfg.kitchenIp ? { ip: cfg.kitchenIp } : {}
-  return sendToPrinter(buildKOT(order, cfg.width || 48), cfg, override)
+  const width = cfg.width || 48
+  const fallbackIp = cfg.kitchenIp || cfg.ip
+
+  // Only network printing can address more than one device. USB and Bluetooth are
+  // whichever single printer is attached, so splitting there would tear one order
+  // into pieces on the same roll for no benefit.
+  const groups = cfg.mode === 'network' ? routeLines(order, settings, menuItems, fallbackIp) : []
+
+  // One destination (or nothing to route) is the old single-ticket behaviour, kept
+  // deliberately: a restaurant with one printer must not start getting three slips
+  // per order just because its counters are now named.
+  if (groups.length <= 1) {
+    const ip = groups[0]?.ip || fallbackIp
+    const override = cfg.mode === 'network' && ip ? { ip } : {}
+    return sendToPrinter(buildKOT(order, width), cfg, override)
+  }
+
+  const results = []
+  for (const g of groups) {
+    const label = [...g.stations].join(' + ')
+    const res = await sendToPrinter(buildKOT({ ...order, items: g.items }, width, label), cfg, g.ip ? { ip: g.ip } : {})
+    results.push({ label, ...res })
+  }
+  const failed = results.filter((r) => !r.ok)
+  if (!failed.length) return { ok: true, tickets: results.length }
+  // Naming the counter that failed matters more here than anywhere else in the
+  // app: the rest of the order IS cooking, so a generic "print failed" reads as
+  // "nothing went through" and the tandoor quietly never starts.
+  return {
+    ok: false,
+    partial: failed.length < results.length,
+    reason: failed.map((f) => `${f.label} — ${f.reason}`).join('; '),
+  }
 }
 
 export async function printShiftReport(shift, tot, settings, isX = false) {

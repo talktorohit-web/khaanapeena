@@ -150,9 +150,25 @@ export function buildBill(order, settings, totals, width = 48) {
 }
 
 // ---- Kitchen order ticket (KOT) ----
-export function buildKOT(order, width = 48) {
+// `station` is set only when one order has been split across counters. It prints
+// big, because the cook picking this slip off his own printer has to see at a
+// glance that it is his half of the order and not the whole of it.
+export function buildKOT(order, width = 48, station = null) {
   const e = new Esc(width)
   e.align('center').size(true).bold(true).line('*** KOT ***').size(false)
+  if (station) {
+    // double-width costs half the columns, so a combined header like
+    // "KITCHEN + CHINESE + BEVERAGE" fits on no roll at that size — it steps down
+    // to normal type and wraps, rather than running off the edge of the paper
+    const label = sanitize(String(station).toUpperCase())
+    if (label.length <= Math.floor(width / 2)) {
+      e.size(true).bold(true).line(label).size(false).bold(false)
+    } else {
+      e.bold(true)
+      for (let i = 0; i < label.length; i += width) e.line(label.slice(i, i + width))
+      e.bold(false)
+    }
+  }
   e.line(`#${order.kotNo ?? ''}  ${order.tableId ? 'TABLE ' + order.tableId : (order.type || '').toUpperCase()}`)
   e.size(false).align('left').line(new Date(order.kotAt || Date.now()).toLocaleTimeString('en-IN')).rule()
   ;(order.items || []).forEach((li) => {

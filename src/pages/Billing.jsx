@@ -272,8 +272,13 @@ export default function Billing() {
     // not the local seed value — otherwise every cloud KOT prints a stale "#1"
     const kotNo = await sendKot(orderId)
     const kotOrder = { ...order, items: newItems, kotNo, kotAt: Date.now() }
-    const res = await printKOT(kotOrder, state.settings)
-    if (res.ok) flashPrint('🖨️ KOT sent to kitchen printer')
+    // the menu goes with it: an order line only carries itemId, and the counter a
+    // dish belongs to lives on the menu item
+    const res = await printKOT(kotOrder, state.settings, state.items)
+    if (res.ok) flashPrint(res.tickets > 1 ? `🖨️ ${res.tickets} KOTs sent — one to each counter` : '🖨️ KOT sent to kitchen printer')
+    // a partial failure has to read differently from a total one: the rest of the
+    // order is already cooking, and only the named counter is waiting on nothing
+    else if (res.partial) flashPrint('⚠️ Some counters did not print — ' + res.reason)
     else if (res.reason && res.reason !== 'browser') flashPrint('⚠️ KOT print failed: ' + res.reason)
   }
 

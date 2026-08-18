@@ -41,3 +41,16 @@ export const printersOf = (settings) => {
 // with: one printer per station the menu already routes to, so no existing dish is
 // left pointing at a counter that isn't in the list
 export const seedPrinters = (items) => stationsInUse(items).map((name) => ({ name, ip: '' }))
+
+// The counter a dish belongs to. The order line only carries `itemId`, so the
+// station is read from the menu — and a dish that has since been deleted from the
+// menu still resolves (to the default counter) rather than vanishing off the
+// ticket. A line nobody prints is food nobody cooks.
+export const stationOfLine = (line, menuById) => normalizeStation(menuById.get(line?.itemId)?.station)
+
+// The device a counter's ticket goes to, or null when that counter has no printer
+// of its own and should fall back to the main kitchen printer.
+export const printerFor = (settings, station) => {
+  const key = normalizeStation(station)
+  return printersOf(settings).find((p) => printerKey(p) === key) || null
+}
