@@ -27,6 +27,7 @@ export default function Live({ state }) {
     rows, tables, freeTables, occupiedIds, seatedGuests, countedTables,
     notOrdered, runningValue, recent, avgPerTable, estimate, projection,
     settledToday, earnedToday,
+    active, awaitingPayment, activeValue, awaitingValue,
   } = useRunningNow(state)
 
   const kots = rows.filter((r) => r.o.status === 'kot').sort((a, b) => b.kotFor - a.kotFor)
@@ -46,20 +47,34 @@ export default function Live({ state }) {
     const out = [['RUNNING NOW'], ['Snapshot taken', new Date().toLocaleString('en-IN')], [],
       ['Tables occupied', occupiedIds.size], ['Tables free', freeTables.length], ['Tables in the room', tables.length],
       ['Guests seated', seatedGuests || '—'],
-      ['Running orders', rows.length],
-      ['Value on running tables ₹', Math.round(runningValue)],
+      ['Still running (ordered, not billed)', active.length],
+      ['Value still running ₹', Math.round(activeValue)],
+      ['Bills printed, not paid', awaitingPayment.length],
+      ['Value awaiting payment ₹', Math.round(awaitingValue)],
+      ['Total uncollected on the floor ₹', Math.round(runningValue)],
       ['Tables seated but not yet ordered', notOrdered.length],
       ['Average bill per table (last ' + LOOKBACK_DAYS + ' days) ₹', avgPerTable == null ? '—' : Math.round(avgPerTable)],
       ['Estimate for tables not yet ordered ₹', avgPerTable == null ? '—' : Math.round(estimate)],
       ['Projected still to come ₹', Math.round(projection)],
       ['Settled today so far ₹', Math.round(earnedToday)],
       ['Earned + expected ₹', Math.round(earnedToday + projection)],
-      [], ['RUNNING TABLES'],
+      [], ['STILL RUNNING — ordered, bill not printed or settled'],
       ['Table', 'Type', 'Waiter', 'Guests', 'Items', 'Current bill ₹', 'Status', 'Open for (min)', 'KOT waiting (min)']]
-    rows.forEach((r) => out.push([
+    active.forEach((r) => out.push([
       r.table || '—', channelLabel(channelOf(r.o)), r.waiter || '—', r.guests || '—', r.lines,
       Math.round(r.value), STATUS[r.o.status]?.[1] || r.o.status, r.openedFor, r.kotFor == null ? '—' : r.kotFor,
     ]))
+    if (awaitingPayment.length) {
+      out.push([], ['BILL PRINTED, NOT PAID YET'], ['Table', 'Type', 'Waiter', 'Items', 'Bill ₹', 'Printed at', 'Waiting (min)'])
+      awaitingPayment.forEach((r) => out.push([
+        r.table || '—', channelLabel(channelOf(r.o)), r.waiter || '—', r.lines, Math.round(r.value),
+        r.o.printedAt ? fmtTime(r.o.printedAt) : '—', Math.round((Date.now() - r.o.printedAt) / 60000),
+      ]))
+    }
+    if (notOrdered.length) {
+      out.push([], ['SEATED, NOTHING ORDERED YET'], ['Table', 'Guests', 'Seated for (min)'])
+      notOrdered.forEach((r) => out.push([r.table || channelLabel(channelOf(r.o)), r.guests || '—', r.openedFor]))
+    }
     if (kots.length) {
       out.push([], ['KOTS PENDING IN THE KITCHEN'], ['KOT No', 'Table', 'Items', 'Fired at', 'Waiting (min)'])
       kots.forEach((r) => out.push([
@@ -95,7 +110,7 @@ export default function Live({ state }) {
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard label="Tables occupied" value={`${occupiedIds.size}/${tables.length}`} sub={`${freeTables.length} free`} icon="🪑" accent={occupiedIds.size ? 'saffron' : 'stone'} />
         <StatCard label="Guests seated" value={seatedGuests || '—'} sub={seatedGuests ? `across ${countedTables} table${countedTables === 1 ? '' : 's'}` : 'guest counts not entered'} icon="👥" accent={seatedGuests ? 'green' : 'stone'} />
-        <StatCard label="On the tables" value={inr0(runningValue)} sub={`${rows.length} running order${rows.length === 1 ? '' : 's'}`} icon="🧾" accent="blue" />
+        <StatCard label="On the tables" value={inr0(runningValue)} sub={awaitingValue ? `${inr0(activeValue)} still running + ${inr0(awaitingValue)} printed, unpaid` : `${active.length} order${active.length === 1 ? '' : 's'} still running`} icon="🧾" accent="blue" />
         <StatCard label="In the kitchen" value={kots.length} sub={kots.length ? `oldest waiting ${dur(kots[0].kotFor)}` : 'nothing pending'} icon="🔥" accent={kots.some((r) => r.kotFor > 15) ? 'red' : kots.length ? 'saffron' : 'green'} />
         <StatCard label="Settled today" value={inr0(earnedToday)} sub={`${settledToday.length} bill${settledToday.length === 1 ? '' : 's'} so far`} icon="💰" accent="green" />
         <StatCard label="Earned + expected" value={inr0(earnedToday + projection)} sub={`${inr0(earnedToday)} in hand + ~${inr0(projection)} still to come`} icon="📈" accent="purple" />
@@ -117,12 +132,12 @@ export default function Live({ state }) {
           <Card
             flush
             className="kp-card"
-            title="What's on the floor"
-            sub="Every order that hasn't been paid for yet, oldest table first"
+            title="Still running"
+            sub="Ordered, and the bill hasn't been printed or settled — oldest table first"
           >
             <DataTable
               scroll
-              rows={rows}
+              rows={active}
               keyOf={(r) => r.o.id}
               cols={[
                 { h: 'Table', cell: (r) => (
@@ -132,16 +147,61 @@ export default function Live({ state }) {
                   </div>
                 ), foot: () => 'Total' },
                 { h: 'Status', cell: (r) => <Badge color={STATUS[r.o.status]?.[0] || 'stone'}>{STATUS[r.o.status]?.[1] || r.o.status}</Badge> },
-                { h: 'Guests', num: true, cell: (r) => r.guests || <span className="text-stone-300">—</span>, foot: () => seatedGuests || '—' },
-                { h: 'What they ordered', cell: (r) => r.lines
-                  ? <span className="text-xs text-stone-600">{(r.o.items || []).map((li) => `${li.qty}× ${li.name}`).join(', ')}</span>
-                  : <span className="text-xs text-stone-400 italic">nothing punched in yet</span> },
-                { h: 'Items', num: true, cell: (r) => r.lines || <span className="text-stone-300">0</span>, foot: () => rows.reduce((s, r) => s + r.lines, 0) },
+                { h: 'Guests', num: true, cell: (r) => r.guests || <span className="text-stone-300">—</span>, foot: () => active.reduce((s, r) => s + r.guests, 0) || '—' },
+                // every row here has items by definition, so there is no "nothing
+                // punched in yet" case left to render
+                { h: 'What they ordered', cell: (r) => <span className="text-xs text-stone-600">{(r.o.items || []).map((li) => `${li.qty}× ${li.name}`).join(', ')}</span> },
+                { h: 'Items', num: true, cell: (r) => r.lines, foot: () => active.reduce((s, r) => s + r.lines, 0) },
                 { h: 'Open for', num: true, cell: (r) => <span className={r.openedFor > 90 ? 'text-red-600 font-semibold' : ''}>{dur(r.openedFor)}</span> },
-                { h: 'Bill so far', num: true, cell: (r) => r.value ? <b>{inr0(r.value)}</b> : <span className="text-stone-300">—</span>, foot: () => inr0(runningValue) },
+                { h: 'Bill so far', num: true, cell: (r) => r.value ? <b>{inr0(r.value)}</b> : <span className="text-stone-300">—</span>, foot: () => inr0(activeValue) },
               ]}
             />
           </Card>
+
+          {/* Printed and not paid. Deliberately its own card rather than a row in
+              the list above: it is no longer the kitchen's problem, it is the
+              cashier's, and it is the money most likely to leave without paying. */}
+          {!!awaitingPayment.length && (
+            <Card
+              flush
+              className="kp-card"
+              title="🧾 Bill printed, not paid yet"
+              sub="Waiting to settle — chase these before the guests stand up"
+            >
+              <DataTable
+                scroll
+                rows={awaitingPayment}
+                keyOf={(r) => r.o.id}
+                cols={[
+                  { h: 'Table', cell: (r) => (
+                    <div>
+                      <span className="font-black text-ink-900">{r.table ? `🪑 ${r.table}` : channelLabel(channelOf(r.o))}</span>
+                      <div className="text-[11px] text-stone-400">{r.waiter ? `👤 ${r.waiter}` : 'no waiter assigned'}</div>
+                    </div>
+                  ), foot: () => 'Total' },
+                  { h: 'Printed', cell: (r) => r.o.printedAt ? fmtTime(r.o.printedAt) : '—' },
+                  { h: 'Waiting', num: true, cell: (r) => {
+                    const m = Math.round((Date.now() - r.o.printedAt) / 60000)
+                    return <span className={m > 15 ? 'text-red-600 font-semibold' : ''}>{dur(m)}</span>
+                  } },
+                  { h: 'Items', num: true, cell: (r) => r.lines, foot: () => awaitingPayment.reduce((s, r) => s + r.lines, 0) },
+                  { h: 'Bill', num: true, cell: (r) => <b>{inr0(r.value)}</b>, foot: () => inr0(awaitingValue) },
+                ]}
+              />
+            </Card>
+          )}
+
+          {/* Seated with nothing punched in. Not "running" by the definition above,
+              but the owner still needs to see a table nobody has taken an order from. */}
+          {!!notOrdered.length && (
+            <Note tone="amber">
+              <b>{notOrdered.length} table{notOrdered.length === 1 ? '' : 's'} seated with nothing ordered yet</b>{' '}
+              — {notOrdered.map((r) => r.table || channelLabel(channelOf(r.o))).join(', ')}.{' '}
+              {notOrdered.some((r) => r.openedFor > 10)
+                ? `The longest has been waiting ${dur(Math.max(...notOrdered.map((r) => r.openedFor)))}.`
+                : 'Just sat down.'}
+            </Note>
+          )}
 
           <div className="grid lg:grid-cols-2 gap-4 mb-4">
             <Card className="!mb-0 kp-card" flush title="🔥 Pending in the kitchen" sub="KOTs fired and not yet marked ready — longest wait first">

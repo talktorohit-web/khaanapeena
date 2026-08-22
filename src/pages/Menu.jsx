@@ -137,6 +137,14 @@ function ItemModal({ item, onClose }) {
     ...(autoPa ? { namePa: toPunjabi(v) } : {}),
   }))
 
+  // Categories and counters could only be PICKED, never created — and a category
+  // could not be added anywhere in the app at all, so a new section of the menu was
+  // impossible without one already existing. Both dropdowns now carry a "＋ New"
+  // option; a non-empty name here is created on save and the dish assigned to it.
+  const [newCat, setNewCat] = useState(null)      // null = not adding
+  const [newPrinter, setNewPrinter] = useState(null)
+  const NEW = '__kp_new'
+
   const subCats = subCatsFor(state.items, f.catId)
   // the printers actually set up in Settings — plus, when this dish is already
   // routed somewhere that isn't one of them, that route as well. Dropping it would
@@ -198,12 +206,32 @@ function ItemModal({ item, onClose }) {
       recipe: cleanRecipe,
       modifiers: cleanMods,
     }
+    const catName = (newCat || '').trim()
+    const printerName = (newPrinter || '').trim()
     update((s) => {
+      // created inside the same update as the dish, so a half-saved item can never
+      // end up pointing at a category or counter that doesn't exist
+      let catId = f.catId
+      if (catName) {
+        const existing = (s.categories || []).find((c) => (c.name || '').trim().toLowerCase() === catName.toLowerCase())
+        if (existing) catId = existing.id
+        else { catId = uid('c'); s.categories = [...(s.categories || []), { id: catId, name: catName }] }
+      }
+      let stationKey = fields.station
+      if (printerName) {
+        stationKey = normalizeStation(printerName)
+        // typing a counter here INSTALLS it, which is what keeps the rule that a
+        // dish can only ever point at a printer that exists
+        if (!(s.settings.printers || []).some((p) => normalizeStation(p.name) === stationKey)) {
+          s.settings.printers = [...(s.settings.printers || []), { name: printerName, ip: '' }]
+        }
+      }
+      const final = { ...fields, catId, station: stationKey }
       if (item) {
         const x = s.items.find((y) => y.id === item.id)
-        Object.assign(x, fields)
+        Object.assign(x, final)
       } else {
-        s.items.push({ ...fields, id: uid('i') })
+        s.items.push({ ...final, id: uid('i') })
       }
     })
     onClose()
@@ -236,9 +264,20 @@ function ItemModal({ item, onClose }) {
           <input type="number" min="0" value={f.price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Category">
-          <select value={f.catId} onChange={(e) => set('catId', e.target.value)} className={inputCls}>
+          <select
+            value={newCat === null ? f.catId : NEW}
+            onChange={(e) => { if (e.target.value === NEW) setNewCat(''); else { setNewCat(null); set('catId', e.target.value) } }}
+            className={inputCls}
+          >
             {state.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value={NEW}>＋ New category…</option>
           </select>
+          {newCat !== null && (
+            <input
+              autoFocus value={newCat} onChange={(e) => setNewCat(e.target.value)}
+              placeholder="e.g. Rolls & Wraps" className={inputCls + ' mt-1.5'}
+            />
+          )}
         </Field>
       </div>
       <Field label="Sub-category (optional)">
@@ -250,12 +289,23 @@ function ItemModal({ item, onClose }) {
         {/* station = which counter's printer gets the ticket, picked from the
             printers installed in Settings rather than typed from memory */}
         <Field label="Which printer prints this?">
-          <select value={station} onChange={(e) => set('station', e.target.value)} className={inputCls}>
+          <select
+            value={newPrinter === null ? station : NEW}
+            onChange={(e) => { if (e.target.value === NEW) setNewPrinter(''); else { setNewPrinter(null); set('station', e.target.value) } }}
+            className={inputCls}
+          >
             {!installed && <option value={station}>{station} — not in your printer list</option>}
             {printers.map((p) => (
               <option key={printerKey(p)} value={printerKey(p)}>{p.name}{p.ip ? ` · ${p.ip}` : ' · no IP set'}</option>
             ))}
+            <option value={NEW}>＋ New counter…</option>
           </select>
+          {newPrinter !== null && (
+            <input
+              autoFocus value={newPrinter} onChange={(e) => setNewPrinter(e.target.value)}
+              placeholder="e.g. Sweets counter" className={inputCls + ' mt-1.5'}
+            />
+          )}
         </Field>
         <Field label="Type">
           <select value={f.veg ? 'veg' : 'nonveg'} onChange={(e) => set('veg', e.target.value === 'veg')} className={inputCls}>
@@ -391,7 +441,9 @@ function ItemModal({ item, onClose }) {
         </div>
       </div>
 
-      <button onClick={save} disabled={!f.name || !(+f.price > 0) || !portionsReady} className={btnPrimary + ' w-full'}>Save</button>
+      {/* a half-finished "＋ New" — the option picked, the name never typed — would
+          otherwise file the dish under no category at all */}
+      <button onClick={save} disabled={!f.name || !(+f.price > 0) || !portionsReady || newCat?.trim() === '' || newPrinter?.trim() === ''} className={btnPrimary + ' w-full'}>Save</button>
       {item && <button onClick={remove} className="w-full mt-2 text-xs font-bold text-red-500 hover:text-red-600 py-1.5">🗑 Remove from menu</button>}
     </Modal>
   )

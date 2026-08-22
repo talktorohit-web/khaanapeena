@@ -55,6 +55,16 @@ export function runningNow(state) {
   const notOrdered = rows.filter((r) => !r.lines)
   const runningValue = rows.reduce((s, r) => s + r.value, 0)
 
+  // What a manager means by "running": someone has ordered, and the bill has not
+  // been printed or settled. A table sitting with nothing punched in is not running
+  // yet, and once the bill prints the table has left the kitchen's hands.
+  const active = rows.filter((r) => r.lines > 0 && !r.o.printedAt)
+  // Printed and still not paid. This is the money most likely to walk out of the
+  // door, so it gets its own list instead of quietly dropping off the report.
+  const awaitingPayment = rows.filter((r) => r.o.printedAt)
+  const activeValue = active.reduce((s, r) => s + r.value, 0)
+  const awaitingValue = awaitingPayment.reduce((s, r) => s + r.value, 0)
+
   // ---- what a table normally spends, from real settled bills ----
   const lookbackFrom = Date.now() - LOOKBACK_DAYS * 864e5
   const recent = orders.filter((o) => o.status === 'paid' && o.paidAt >= lookbackFrom && o.tableId)
@@ -70,6 +80,7 @@ export function runningNow(state) {
     rows, tables, freeTables, occupiedIds, seatedGuests, countedTables,
     notOrdered, runningValue, recent, avgPerTable, estimate, projection,
     settledToday, earnedToday,
+    active, awaitingPayment, activeValue, awaitingValue,
   }
 }
 

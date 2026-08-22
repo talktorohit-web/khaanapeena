@@ -89,7 +89,7 @@ const NO_RANGE = ['dayend', 'variance', 'udhaar', 'live']
 export default function Reports() {
   const { state, t } = useStore()
   const [tab, setTab] = useState('sales')
-  const [rangeKey, setRangeKey] = useState('7d')
+  const [rangeKey, setRangeKey] = useState('today')
   const [custom, setCustom] = useState({ from: '', to: '' })
   const [showCustom, setShowCustom] = useState(false)
 
