@@ -16,6 +16,7 @@ import Register from './pages/Register.jsx'
 import ExpensesPage from './pages/Expenses.jsx'
 import AIInsights from './pages/AIInsights.jsx'
 import Waste from './pages/Waste.jsx'
+import Parties from './pages/Parties.jsx'
 import Staff from './pages/Staff.jsx'
 import Settings from './pages/Settings.jsx'
 import QRMenu from './pages/QRMenu.jsx'
@@ -41,6 +42,7 @@ const NAV = [
   { id: 'purchase', icon: '🚚', key: 'purchase' },
   { id: 'customers', icon: '👥', key: 'customers' },
   { id: 'feedback', icon: '💬', key: 'feedback' },
+  { id: 'parties', icon: '🎉', key: 'parties' },
   { id: 'reports', icon: '📈', key: 'reports' },
   { id: 'register', icon: '💵', key: 'register' },
   { id: 'expenses', icon: '💸', key: 'expenses' },
@@ -53,7 +55,7 @@ const NAV = [
 const PAGES = {
   dashboard: Dashboard, billing: Billing, tables: Tables, reservations: Reservations, kds: KDS,
   online: OnlineOrders, menu: MenuPage, inventory: Inventory, purchase: Purchase, customers: Customers, feedback: Feedback, reports: Reports,
-  register: Register, expenses: ExpensesPage, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
+  parties: Parties, register: Register, expenses: ExpensesPage, ai: AIInsights, waste: Waste, staff: Staff, settings: Settings,
 }
 
 // screens shown in the mobile bottom tab bar (the rest live in the "More" drawer)

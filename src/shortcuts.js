@@ -14,6 +14,7 @@ export const PAGE_KEYS = {
   purchase: 'P',
   customers: 'C',
   feedback: 'F',
+  parties: 'Y',
   reports: 'R',
   register: 'G',
   expenses: 'E',

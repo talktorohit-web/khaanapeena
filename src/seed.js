@@ -203,8 +203,20 @@ export function makeSeed() {
     recipe: (RECIPES[id] || []).map(([ingId, qty]) => ({ ingId, qty })),
     ...(MODIFIERS[id] ? { modifiers: MODIFIERS[id] } : {}),
   }))
+  // Two demo members so the membership feature is visible on a fresh install — one
+  // Gold and one Silver. Prefix matches what nextMemberId() derives from the demo
+  // restaurant name ("Sharma Ji Da Dhaba" -> SJD), so an owner issuing the third
+  // card gets SJD-0003 and the numbering reads as one sequence.
+  const DEMO_MEMBERS = {
+    0: { memberId: 'SJD-0001', tier: 'gold', fee: 999 },
+    2: { memberId: 'SJD-0002', tier: 'silver', fee: 499 },
+  }
+  const tNow = Date.now(), tDay = 864e5
   const customers = CUSTOMERS.map(([name, phone, birthday], i) => ({
     id: 'cu' + (i + 1), name, phone, birthday, points: 0, visits: 0, totalSpend: 0, lastVisit: null, tags: [],
+    ...(DEMO_MEMBERS[i]
+      ? { member: { ...DEMO_MEMBERS[i], since: tNow - 90 * tDay, expiresAt: tNow + 275 * tDay, cancelled: false } }
+      : {}),
   }))
   const { orders, billNo } = genHistory(items, customers)
   return {

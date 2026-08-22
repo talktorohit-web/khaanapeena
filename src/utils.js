@@ -303,7 +303,7 @@ export const DISCOUNT_REASONS = [
   ['negotiated', '🤝 Price agreed with guest'],
   ['other', '✏️ Other'],
 ]
-export const AUTO_REASONS = [['loyalty', '🎟️ Loyalty points redeemed']]
+export const AUTO_REASONS = [['loyalty', '🎟️ Loyalty points redeemed'], ['membership', '💳 Member rate (paid membership)']]
 
 // Why an item was pulled off a bill after the kitchen already had it. Without a
 // reason the cancellation report can only count events, not explain them.

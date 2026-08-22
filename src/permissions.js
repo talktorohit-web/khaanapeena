@@ -12,7 +12,7 @@ export const PAGES = [
   ['dashboard', 'Dashboard'], ['billing', 'Billing (POS)'], ['tables', 'Tables'],
   ['reservations', 'Reservations'], ['kds', 'Kitchen (KDS)'], ['online', 'Online orders'],
   ['menu', 'Menu'], ['inventory', 'Inventory'], ['purchase', 'Purchase & Receipts'],
-  ['customers', 'Customers'], ['feedback', 'Feedback'], ['reports', 'Reports'],
+  ['customers', 'Customers'], ['feedback', 'Feedback'], ['parties', 'Party packages'], ['reports', 'Reports'],
   ['register', 'Cash register'], ['expenses', 'Expenses'], ['ai', 'AI insights'], ['waste', 'Waste'],
   ['staff', 'Staff'], ['settings', 'Settings'],
 ]
@@ -31,11 +31,11 @@ export const ROLES = ['Manager', 'Cashier', 'Head Chef', 'Cook', 'Waiter', 'Deli
 // sensible starting permissions per role (owner-editable). Owner/Admin is implicit-all.
 export const DEFAULT_PERMS = {
   Manager: {
-    pages: ['dashboard', 'billing', 'tables', 'reservations', 'kds', 'online', 'menu', 'inventory', 'purchase', 'customers', 'feedback', 'reports', 'register', 'expenses', 'ai', 'waste', 'staff'],
+    pages: ['dashboard', 'billing', 'tables', 'reservations', 'kds', 'online', 'menu', 'inventory', 'purchase', 'customers', 'feedback', 'parties', 'reports', 'register', 'expenses', 'ai', 'waste', 'staff'],
     actions: ['discount', 'void', 'settle', 'openRegister'],
   },
   Cashier: {
-    pages: ['dashboard', 'billing', 'tables', 'reservations', 'kds', 'online', 'customers', 'register'],
+    pages: ['dashboard', 'billing', 'tables', 'reservations', 'kds', 'online', 'customers', 'parties', 'register'],
     actions: ['settle'],
   },
   Waiter: { pages: ['billing', 'tables', 'reservations', 'kds'], actions: [] },

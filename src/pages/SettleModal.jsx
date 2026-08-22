@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Field, inputCls, btnPrimary } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, payModeLabel, DISCOUNT_REASONS } from '../utils.js'
+import { memberTier } from '../membership.js'
 import QRCode from 'qrcode'
 
 const PAY = [['upi', '📲 UPI'], ['cash', '💵 Cash'], ['card', '💳 Card'], ['credit', '📒 Udhaar'], ['nc', '🚫 Not chargeable']]
@@ -53,6 +54,26 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
   const [qr, setQr] = useState(null)
 
   const cust = state.customers.find((c) => c.phone === phone)
+
+  // A membership rate is a CONTRACT the guest already paid for, not a favour a
+  // waiter is handing out, so it applies on its own exactly the way happy hour does
+  // — the manager PIN guards discretion, and there is none here. The card number
+  // goes on the bill as the approver, which is a better audit trail than a name.
+  const memberT = allowDiscount ? memberTier(cust) : null
+  const memberPct = memberT?.discountPct || 0
+  const hhPct = allowDiscount && happyHourNow ? (hh.discountPct || 0) : 0
+  // both can apply on the same bill; the guest gets the better one, never both. On a
+  // tie happy hour keeps it, so the member's card is not "spent" on a discount they
+  // would have got anyway — and the badge below says which one actually applied
+  // rather than claiming credit for the member rate either way.
+  const memberApplied = memberPct > hhPct
+  useEffect(() => {
+    if (!memberApplied) return
+    setDiscMode('pct')
+    setDiscPct(memberPct)
+    setReason('membership')
+    setDiscBy({ name: `Membership ${cust.member.memberId}` })
+  }, [cust?.id, memberApplied, memberPct])
 
   // A discount must NEVER survive into the next guest's bill. Billing unmounts this
   // modal today so the state would die anyway, but that is Billing's decision to
@@ -246,6 +267,13 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
           <span className="text-[11px] text-stone-500">{inr0(discount)} off — that's {((discount / totals.sub) * 100).toFixed(1)}% of the bill</span>
         )}
         {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600 block">Happy hour −{hh.discountPct}% auto-applied</span>}
+        {memberT && (
+          <span className="text-[11px] text-leaf-600 block font-semibold">
+            {memberT.icon} {memberT.name} member {cust.member.memberId} — {memberApplied
+              ? `${memberPct}% member rate applied`
+              : `${memberPct}% member rate, but happy hour −${hhPct}% is as good, so that applied instead`}
+          </span>
+        )}
       </div>
 
       {discount > 0 && discBy && (
