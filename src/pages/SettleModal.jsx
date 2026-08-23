@@ -99,7 +99,7 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
 
   // the live bill, recomputed as the cashier changes things
   const effTotals = billTotals({ ...order, svcWaived, payment: { discount: discount + redeem } }, state.settings)
-  const payable = state.settings.gstScheme === 'regular' ? effTotals.total : Math.round(effTotals.taxable + effTotals.svc)
+  const payable = state.settings.gstScheme === 'regular' ? effTotals.total : Math.round(effTotals.taxable + effTotals.svc + effTotals.vat)
 
   useEffect(() => {
     if (method === 'upi' && !splitOn) {

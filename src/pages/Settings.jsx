@@ -47,6 +47,13 @@ export default function Settings() {
               <option value="18">18% (hotel ≥₹7,500 tariff / catering)</option>
             </select>
           </Field>
+          <Field label="Liquor VAT rate % (0 = you don't serve alcohol)">
+            <input type="number" min="0" max="100" value={s.vatRate ?? 0} onChange={(e) => set('vatRate', +e.target.value || 0)} className={inputCls} />
+            <span className="text-[10px] text-stone-400">
+              Alcohol is outside GST by law and carries your state's VAT instead, so a bar bill shows both taxes.
+              Set this, then mark each drink as <b>Liquor — VAT</b> in <b>Menu → Taxed as</b>. Rates differ by state — ask your CA.
+            </span>
+          </Field>
           <Field label="HSN / SAC code (for the GST report)">
             <input value={s.hsnCode ?? '996331'} onChange={(e) => set('hsnCode', e.target.value)} placeholder="996331" className={inputCls} />
             <span className="text-[10px] text-stone-400">996331 is restaurant service. Any item you sell as packaged goods can carry its own code — set it in Menu.</span>

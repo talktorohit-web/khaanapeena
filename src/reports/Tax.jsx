@@ -33,9 +33,12 @@ export default function Tax({ state, range }) {
     const bt = billTotals(o, settings)
     a.sub += bt.sub; a.discount += bt.discount; a.taxable += bt.taxable
     a.svc += bt.svc; a.roundOff += bt.roundOff; a.gross += amt(o)
+    // liquor turnover is a separate return under state VAT, so it is kept apart
+    // from the GST-liable value rather than swelling it
+    a.vat += bt.vat || 0; a.liquorTaxable += bt.liquorTaxable || 0
     if (!composition) { a.cgst += bt.cgst; a.sgst += bt.sgst }
     return a
-  }, { sub: 0, discount: 0, taxable: 0, cgst: 0, sgst: 0, svc: 0, roundOff: 0, gross: 0 }), [own, settings, composition])
+  }, { sub: 0, discount: 0, taxable: 0, cgst: 0, sgst: 0, svc: 0, roundOff: 0, gross: 0, vat: 0, liquorTaxable: 0 }), [own, settings, composition])
 
   const ecoGross = eco.reduce((s, o) => s + amt(o), 0)
 
@@ -48,6 +51,9 @@ export default function Tax({ state, range }) {
       const bt = billTotals(o, settings)
       if (!bt.sub) return
       ;(o.items || []).forEach((li) => {
+        // a liquor line is not a GST supply at all — including it here would put
+        // alcohol turnover into the HSN table the CA files GST from
+        if (li.taxClass === 'vat') return
         const it = itemOf(li.itemId)
         const hsn = it?.hsn || defaultHsn
         const rate = it?.gstRate ?? defaultRate
@@ -105,6 +111,7 @@ export default function Tax({ state, range }) {
       ['CGST ₹', Math.round(totals.cgst)],
       ['SGST ₹', Math.round(totals.sgst)],
       ['Total GST ₹', Math.round(totals.cgst + totals.sgst)],
+      ...(totals.vat > 0 ? [['Liquor taxable value (outside GST) ₹', Math.round(totals.liquorTaxable)], ['Liquor VAT payable ₹', Math.round(totals.vat)]] : []),
       ['Service charge ₹', Math.round(totals.svc)],
       ['Round-off ₹', +totals.roundOff.toFixed(2)],
       [],
@@ -139,6 +146,14 @@ export default function Tax({ state, range }) {
         <StatCard label={composition ? 'GST charged' : 'GST payable'} value={composition ? '₹0' : inr0(totals.cgst + totals.sgst)} sub={composition ? 'composition — not collected' : `CGST ${inr0(totals.cgst)} + SGST ${inr0(totals.sgst)}`} icon="🧾" accent={composition ? 'stone' : 'red'} />
         <StatCard label="Via Zomato / Swiggy" value={inr0(ecoGross)} sub="Sec 9(5) — platform pays GST" icon="🛵" accent="purple" />
         <StatCard label="Round-off" value={(totals.roundOff > 0 ? '+' : '') + inr0(totals.roundOff)} sub="from rounding bills" icon="🔢" accent="green" />
+        {/* only shown by a bar — alcohol is outside GST and filed on a state VAT
+            return, so it must never be read as part of the GST figures above */}
+        {totals.vat > 0 && (
+          <StatCard
+            label="Liquor VAT payable" value={inr0(totals.vat)}
+            sub={`on ${inr0(totals.liquorTaxable)} — filed separately, not GST`} icon="🍺" accent="red"
+          />
+        )}
       </div>
 
       {composition && (

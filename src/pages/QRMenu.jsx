@@ -83,7 +83,7 @@ export default function QRMenu({ hash }) {
       const mods = repriceMods(it, l.mods)
       const note = (notes[l.itemId] || '').trim().slice(0, 80)
       return {
-        itemId: l.itemId, name: it.name, price: effectivePrice(it, mods), qty: l.qty,
+        itemId: l.itemId, name: it.name, price: effectivePrice(it, mods), qty: l.qty, taxClass: it.taxClass || 'gst',
         ...(mods.length ? { mods, basePrice: it.price } : {}),
         ...(note ? { notes: note } : {}),
       }

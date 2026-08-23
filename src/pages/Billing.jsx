@@ -136,7 +136,7 @@ export default function Billing() {
       const li = o.items.find((x) => !x.deducted && lineKey(x) === lineKey(draft))
       if (li) li.qty += qty
       else o.items.push({
-        itemId: item.id, name: item.name, price, qty,
+        itemId: item.id, name: item.name, price, qty, taxClass: item.taxClass || 'gst',
         ...(mods.length ? { mods, basePrice: item.price } : {}),
       })
     })
@@ -249,7 +249,7 @@ export default function Billing() {
         plain.forEach(({ item, qty }) => {
           const li = o.items.find((x) => !x.deducted && lineKey(x) === lineKey({ itemId: item.id, deducted: false, mods: [] }))
           if (li) li.qty += qty
-          else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty })
+          else o.items.push({ itemId: item.id, name: item.name, price: item.price, qty, taxClass: item.taxClass || 'gst' })
         })
       })
     }
@@ -260,7 +260,7 @@ export default function Billing() {
   const totals = order ? billTotals(order, state.settings) : null
 
   const cartCount = order ? order.items.reduce((s, i) => s + i.qty, 0) : 0
-  const cartTotal = totals ? (state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable)) : 0
+  const cartTotal = totals ? (state.settings.gstScheme === 'regular' ? totals.total : Math.round(totals.taxable + totals.svc + totals.vat)) : 0
 
   const flashPrint = (m) => { setPrintMsg(m); setTimeout(() => setPrintMsg(''), 3500) }
 
@@ -530,6 +530,8 @@ export default function Billing() {
               <>
                 <Row l={`CGST ${totals.gstRate / 2}%`} v={inr(totals.cgst)} muted />
                 <Row l={`SGST ${totals.gstRate / 2}%`} v={inr(totals.sgst)} muted />
+                {/* liquor sits outside GST and carries state VAT — both must show */}
+                {totals.vat > 0 && <Row l={`VAT ${totals.vatRate}% (liquor)`} v={inr(totals.vat)} muted />}
               </>
             ) : (
               <Row l="Composition scheme — no GST on bill" v="" muted />
@@ -842,6 +844,7 @@ export function BillPrint({ order, onClose }) {
           <>
             <div className="flex justify-between"><span>CGST @{totals.gstRate / 2}%</span><span>{totals.cgst.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>SGST @{totals.gstRate / 2}%</span><span>{totals.sgst.toFixed(2)}</span></div>
+            {totals.vat > 0 && <div className="flex justify-between"><span>VAT @{totals.vatRate}% (liquor)</span><span>{totals.vat.toFixed(2)}</span></div>}
           </>
         )}
         {order.svcWaived && s.serviceCharge > 0 && <div className="text-[10px]">Service charge waived at guest's request</div>}

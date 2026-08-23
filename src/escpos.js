@@ -72,7 +72,10 @@ const money = (n) => 'Rs ' + Math.round(Number(n || 0)).toLocaleString('en-IN')
 export function buildBill(order, settings, totals, width = 48) {
   const e = new Esc(width)
   const isComposition = settings.gstScheme === 'composition'
-  const payable = isComposition ? Math.round(totals.taxable + totals.svc) : totals.total
+  // Composition drops GST, but liquor VAT is a state tax owed either way. A
+  // composition restaurant cannot legally sell alcohol at all, so this should never
+  // fire — it is here so the bill can only ever over-collect, never under-collect.
+  const payable = isComposition ? Math.round(totals.taxable + totals.svc + totals.vat) : totals.total
 
   e.align('center').size(true).bold(true).line(settings.name).size(false)
   if (settings.tagline) e.line(settings.tagline)
@@ -126,6 +129,9 @@ export function buildBill(order, settings, totals, width = 48) {
     e.row(`CGST ${totals.gstRate / 2}%`, money(totals.cgst))
     e.row(`SGST ${totals.gstRate / 2}%`, money(totals.sgst))
   }
+  // Liquor is outside GST and carries state VAT, so a bar bill must show the two
+  // separately — one combined "tax" line would misstate both returns.
+  if (totals.vat > 0) e.row(`VAT ${totals.vatRate}% (liquor)`, money(totals.vat))
   e.size(true).bold(true).row('TOTAL', money(payable)).bold(false).size(false)
   if (order.payment?.splits?.length > 1) {
     e.line('Paid: ' + order.payment.splits.map((s) => `${String(s.method).toUpperCase()} ${s.amount}`).join(' + '))

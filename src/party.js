@@ -171,3 +171,22 @@ export const packagesOf = (settings) =>
   (settings?.partyPackages?.length ? settings.partyPackages : DEFAULT_PACKAGES)
 
 export const occasionOf = (id) => OCCASIONS.find((o) => o.id === id) || OCCASIONS[0]
+
+// ---- bookings ----
+// A booking's money is the sum of what has actually been collected against it, not
+// a running "advance" field that has to be kept in step with a payment list.
+export const bookingPaid = (b) => (b?.payments || []).reduce((s, p) => s + (+p.amount || 0), 0)
+export const bookingBalance = (b) => Math.max(0, Math.round((b?.quote?.total || 0) - bookingPaid(b)))
+
+export const BOOKING_STATUS = {
+  enquiry: ['stone', '📝 Enquiry — no money taken'],
+  confirmed: ['green', '✅ Confirmed'],
+  completed: ['blue', '🍽️ Done'],
+  cancelled: ['red', '✖️ Cancelled'],
+}
+
+// Upcoming first, because a booking list is read to answer "what is coming".
+export const sortBookings = (list) => [...(list || [])].sort((a, b) => {
+  const rank = (x) => (x.status === 'cancelled' ? 2 : x.status === 'completed' ? 1 : 0)
+  return rank(a) - rank(b) || String(a.date).localeCompare(String(b.date))
+})

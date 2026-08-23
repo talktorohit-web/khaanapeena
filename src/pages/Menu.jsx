@@ -313,6 +313,22 @@ function ItemModal({ item, onClose }) {
           </select>
         </Field>
       </div>
+      {/* Alcohol is outside GST and carries state VAT instead, so a bar bill has to
+          show both taxes. This is per dish rather than a shop-wide setting because a
+          restaurant that serves both needs both on the same bill. */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Taxed as">
+          <select value={f.taxClass || 'gst'} onChange={(e) => set('taxClass', e.target.value)} className={inputCls}>
+            <option value="gst">🍽️ Food &amp; drink — GST</option>
+            <option value="vat">🍺 Liquor — VAT</option>
+          </select>
+          <span className="text-[10px] text-stone-400">
+            {f.taxClass === 'vat'
+              ? 'Alcohol is outside GST by law. Set your state VAT rate in Settings → GST & billing.'
+              : 'Everything except alcohol. Soft drinks and mocktails are GST too.'}
+          </span>
+        </Field>
+      </div>
       <p className="text-[10px] text-stone-400 -mt-1 mb-3">
         {installed
           ? <>Your counters, and the device behind each one, are set up once in <b>Settings → 🖨️ Thermal printer</b>.</>

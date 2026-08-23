@@ -160,13 +160,33 @@ export function bucketize(points, range) {
 }
 
 // GST for restaurants (India): composition/regular non-AC default 5% (2.5 CGST + 2.5 SGST), no ITC
+// A line is taxed as liquor only if it was SOLD that way. The class is snapshotted
+// onto the order line at punch time, so reclassifying an item next month can never
+// re-tax a bill that was already issued — and a line with nothing recorded is food,
+// which is what every line written before this existed is.
+export const isVatLine = (li) => li?.taxClass === 'vat'
+
 export function billTotals(order, settings) {
   // items can be absent when a cloud order round-trips through RTDB (empty arrays
   // are dropped by Firebase) — guard so bill math never throws on a partial payload
-  const sub = (order.items || []).reduce((s, it) => s + it.price * it.qty, 0)
+  const items = order.items || []
+  const sub = items.reduce((s, it) => s + it.price * it.qty, 0)
   const discount = order.payment?.discount || 0
   const taxable = Math.max(0, sub - discount)
   const gstRate = settings.gstRate ?? 5
+
+  // Alcohol for human consumption is outside GST (Constitution, Art. 366(12A)) and
+  // carries state VAT instead, so a bar bill legally has to show BOTH taxes. This is
+  // a per-line split rather than a shop-wide switch: a restaurant that serves food
+  // and drink needs them on the same bill, not a choice between them.
+  const vatRate = settings.vatRate || 0
+  const liquorSub = items.filter(isVatLine).reduce((s, it) => s + it.price * it.qty, 0)
+  // The discount is apportioned across the two bases in the ratio they were sold in.
+  // Taking it all off one side would under-declare that tax and over-declare the
+  // other — the guest's total would still look right while both returns were wrong.
+  const liquorShare = sub > 0 ? liquorSub / sub : 0
+  const liquorTaxable = taxable * liquorShare
+  const foodTaxable = taxable - liquorTaxable
 
   // Service charge is NOT a tax and is not compulsory — a guest may decline it
   // (CCPA guidelines, India). `svcWaived` on the order is that refusal.
@@ -175,13 +195,20 @@ export function billTotals(order, settings) {
 
   // GST is charged on food PLUS service charge. A service charge is part of the
   // value of supply, so taxing only the food under-declares the bill — the order
-  // here is deliberate and must stay: svc is computed first, then taxed.
-  const gstBase = taxable + svc
+  // here is deliberate and must stay: svc is computed first, then taxed. Service is
+  // a service whoever it was served alongside, so the whole of it sits in the GST
+  // base and none of it is taxed as liquor.
+  const gstBase = foodTaxable + svc
   const cgst = (gstBase * gstRate) / 200
   const sgst = (gstBase * gstRate) / 200
+  const vat = (liquorTaxable * vatRate) / 100
 
-  const total = Math.round(taxable + svc + cgst + sgst)
-  return { sub, discount, taxable, gstBase, cgst, sgst, svc, svcRate, gstRate, total, roundOff: total - (taxable + svc + cgst + sgst) }
+  const total = Math.round(taxable + svc + cgst + sgst + vat)
+  return {
+    sub, discount, taxable, gstBase, cgst, sgst, svc, svcRate, gstRate, total,
+    foodTaxable, liquorTaxable, liquorSub, vat, vatRate,
+    roundOff: total - (taxable + svc + cgst + sgst + vat),
+  }
 }
 
 /**

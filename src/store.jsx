@@ -765,6 +765,78 @@ export function StoreProvider({ children }) {
 
     // PO number comes from the atomic server counter when cloud-connected (so two
     // devices never issue the same PO#), else the local counter. Same for GRN.
+    // ---- party / function bookings ----
+    // The quote is SNAPSHOTTED onto the booking. If the owner re-prices the Gold
+    // package next month, a party booked at 850 is still owed at 850 — a booking
+    // that silently reprices itself between the handshake and the day is a dispute,
+    // and the customer has a pamphlet in their hand saying otherwise.
+    const createBooking = (b) => {
+      let created = null
+      update((s) => {
+        s.bookings = s.bookings || []
+        s.counters = s.counters || {}
+        const no = s.counters.bkNo || 1
+        s.counters.bkNo = no + 1
+        created = {
+          id: uid('bk'),
+          code: `PB-${String(no).padStart(4, '0')}`,
+          name: (b.name || '').trim(),
+          phone: b.phone || '',
+          occasionId: b.occasionId,
+          packageId: b.packageId,
+          packageName: b.packageName,
+          perPlate: b.perPlate,
+          nonVeg: !!b.nonVeg,
+          guests: Math.max(0, Math.round(+b.guests || 0)),
+          plates: b.plates,
+          date: b.date,
+          time: b.time || '',
+          notes: (b.notes || '').trim(),
+          quote: b.quote,
+          payments: [],
+          status: 'enquiry',
+          createdAt: Date.now(),
+          createdBy: operatorName(s) || '',
+        }
+        s.bookings.push(created)
+      })
+      return created
+    }
+
+    // An advance is real money that arrived today for food served next month. It is
+    // recorded on the booking AND, when paid in cash, pushed into the open shift so
+    // the drawer still tallies at close — cash that appears in the till with no
+    // record of why reads as a cashier's mistake.
+    const addBookingPayment = (bookingId, { amount, method = 'cash', note = '' }) => update((s) => {
+      const b = (s.bookings || []).find((x) => x.id === bookingId)
+      if (!b) return
+      const amt = Math.max(0, Math.round(+amount || 0))
+      if (!amt) return
+      const by = operatorName(s) || ''
+      b.payments = b.payments || []
+      b.payments.push({ id: uid('bp'), at: Date.now(), amount: amt, method, note, by })
+      // taking money is what turns an enquiry into a booking
+      if (b.status === 'enquiry') b.status = 'confirmed'
+      if (method === 'cash') {
+        const sh = (s.shifts || []).find((x) => x.status === 'open')
+        if (sh) {
+          sh.cashMovements = sh.cashMovements || []
+          sh.cashMovements.push({
+            id: uid('cm'), at: Date.now(), type: 'in', amount: amt,
+            reason: `Party booking ${b.code} — ${b.name}`, by,
+          })
+        }
+      }
+    })
+
+    const setBookingStatus = (bookingId, status, reason = '') => update((s) => {
+      const b = (s.bookings || []).find((x) => x.id === bookingId)
+      if (!b) return
+      b.status = status
+      if (status === 'cancelled') { b.cancelledAt = Date.now(); b.cancelReason = reason }
+      if (status === 'completed') b.completedAt = Date.now()
+    })
+
     const createPO = async ({ vendorId, expectedDate, lines, notes }) => {
       const clean = (lines || []).filter((l) => l.ingId && +l.qty > 0).map((l) => ({ ingId: l.ingId, qty: +l.qty, rate: +l.rate || 0 }))
       if (!clean.length) return
@@ -917,7 +989,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, setOrderPayer, markPayerSent, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, setOrderPayer, markPayerSent, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, createBooking, addBookingPayment, setBookingStatus, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])
