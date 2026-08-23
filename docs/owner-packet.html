@@ -267,7 +267,7 @@
     </div>
 
     <h4>The pitch</h4>
-    <p>One app runs the whole restaurant: billing, kitchen, tables, menu, inventory, purchasing, expenses, customers, <b>22 reports</b>, cash register, staff, feedback and AI — on the hardware you already have, working even when the internet drops. Most competitors sell these as separate paid modules; here they're one bundle.</p>
+    <p>One app runs the whole restaurant: billing, kitchen, tables, menu, inventory, purchasing, expenses, customers, <b>party packages &amp; bookings</b>, paid <b>memberships</b>, <b>22 reports</b>, cash register, staff, feedback and AI — on the hardware you already have, working even when the internet drops. Most competitors sell these as separate paid modules; here they're one bundle.</p>
 
     <div class="flow">
       <b style="color:var(--accent-ink)">A dinner service, end-to-end</b>
@@ -336,9 +336,23 @@
         <li><b>Less discount</b> — ₹ or %, if one was given.</li>
         <li><b>Service charge 5% (optional)</b> — on the discounted value. It prints with the word <b>“optional”</b> on it, because a service charge is voluntary in India and the guest is entitled to see that on the slip. Removed entirely if they decline.</li>
         <li><b>CGST + SGST</b> — charged on <b>food plus service charge</b>, because a service charge is part of the value of supply and is taxable. Taxing only the food would under-declare the bill.</li>
+        <li><b>VAT on liquor</b>, if you serve it — see below. It sits on its own line, never mixed into the GST.</li>
         <li><b>Total</b>, rounded to the rupee.</li>
       </ol>
       <p style="margin:6px 0 0;font-size:.85rem">₹1,000 of food → ₹50 service charge → GST on ₹1,050 → <b>₹1,103</b>. On the Composition scheme steps 4 is skipped entirely and the bill prints as a Bill of Supply.</p>
+    </div>
+    <h4>If you serve alcohol</h4>
+    <div class="flow">
+      <b style="color:var(--accent-ink)">GST and VAT on the same bill — not a choice between them</b>
+      <p style="margin:6px 0 0;font-size:.85rem">VAT on restaurant <i>food</i> ended in July 2017 and was replaced by GST. But <b>alcohol is outside GST altogether</b> — it stays under your state's VAT. A bar bill therefore has to carry <b>both</b> taxes, separately. That is why this is set per dish rather than as one shop-wide switch: a restaurant that sells a thali and a beer needs GST on one and VAT on the other, on the same slip.</p>
+      <ol>
+        <li>Put your state's liquor VAT rate in <b>Settings → GST &amp; billing</b>. Leave it at <b>0</b> if you don't serve alcohol and nothing anywhere changes.</li>
+        <li>Mark each drink <b>Liquor — VAT</b> in <b>Menu → Taxed as</b>. Everything else, including soft drinks and mocktails, stays on GST.</li>
+      </ol>
+      <p style="margin:6px 0 0;font-size:.85rem">The bill then prints CGST, SGST and a separate <b>VAT (liquor)</b> line. Liquor is kept out of the GST figures <i>and</i> out of the HSN sheet your CA files GST from, and the GST report shows liquor turnover on its own — because it belongs on a different return. A discount on a mixed bill is split across food and liquor in the proportion they were sold, so neither tax is under-declared while the guest's total still looks right.</p>
+      <p style="margin:6px 0 0;font-size:.85rem">Rates differ by state and change often — take the number from your CA, not from us.</p>
+    </div>
+    <div class="flow">
       <p style="margin:6px 0 0;font-size:.85rem">The slip closes with <b>your</b> name and <b>your</b> phone — “THANKS! Visit again / Powered by «your restaurant» / Contact: «your number»”. The guest never sees our name or our support line; it is your bill, not our advertisement. Set both in <b>Settings → Restaurant details</b>, and if you leave the phone blank the Contact line simply doesn't print.</p>
     </div>
 
@@ -373,6 +387,8 @@
         <tr><td class="ctl">Menu — <span class="b">Half / Full portions</span></td><td>Tick it, type the two prices, done. The till then asks the size when the dish is punched, and each size reports separately</td></tr>
         <tr><td class="ctl">Menu — <span class="b">Choices &amp; add-ons</span></td><td>Ask a question when the dish is punched: spice level (free) or add-ons that carry a price and land on the bill</td></tr>
         <tr><td class="ctl">Menu — <span class="b">Sub-category</span></td><td>Group inside a category — Starters → Veg Tikka / Non-veg Tikka. Keeps a long menu findable</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">＋ New category</span> · <span class="b">＋ New counter</span></td><td>Both dropdowns can create as well as choose, so a whole new section of the menu — or a new kitchen counter — is added without leaving the dish you're typing</td></tr>
+        <tr><td class="ctl">Menu — <span class="b">Taxed as</span></td><td>Food &amp; drink (GST) or Liquor (VAT). Only matters if you serve alcohol — see “If you serve alcohol” above</td></tr>
         <tr><td class="ctl">Menu — Hindi &amp; Punjabi names</td><td>Type the English name and both fill themselves. Correct them if you want — it stops guessing once you do</td></tr>
         <tr><td class="ctl">Menu — <span class="b">“Which printer prints this?”</span> · HSN code</td><td>Name your counters once in <b>Settings → Thermal printer → Your kitchen printers</b> (kitchen, tandoor, chinese, beverage to start, plus any sweets counter or bar you add), and every dish then picks from that list instead of anyone having to remember a name. Give a counter its own IP and <b>its tickets print at that counter</b> — one order becomes one slip per counter, each headed with the counter's name, so the tandoor gets the naan and the bar gets the drinks. Set an HSN only if you sell it as goods, not food</td></tr>
         <tr><td class="ctl">Inventory — stock, days-left, + Purchase</td><td>Track stock &amp; value; spot-purchase re-blends weighted-average cost</td></tr>
@@ -387,9 +403,27 @@
       <thead><tr><th>Control</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td class="ctl">Customers — VIP / At-risk / Birthday segments · 💬 WhatsApp</td><td>Loyalty CRM with one-tap, context-aware win-back messages</td></tr>
+        <tr><td class="ctl">Customers — <span class="b">＋ Make member</span></td><td>Sell a paid membership card: <b>Silver ₹499</b>, <b>Gold ₹999</b>, <b>Platinum ₹1,999</b> a year, for 5 / 10 / 15% off every bill plus multiplied points, birthday treats and party discounts. Each member gets a real card number taken from your own name — <b>SJD-0001</b>, not a random string — and the screen works out from that guest's own spending whether the card is worth it, <b>including telling you when it isn't</b></td></tr>
         <tr><td class="ctl">Feedback — rating, NPS, needs-reply queue · Reply/Resolve</td><td>Every guest review (QR + counter) in one place with trends</td></tr>
       </tbody>
     </table></div>
+    <div class="why"><span class="ic">✓</span><div><b>Why membership pays:</b> the card is collected up front, and the discount only ever costs you when they come back and spend — which is the point. The member's rate comes off automatically at the till, with the <b>card number</b> printed on the bill as the approver, so it never needs a manager and it's never mistaken for a waiter giving money away. An expired card discounts <b>nothing</b> until it's renewed.</div></div>
+
+    <h3><span class="ic">🎉</span> Party packages &amp; bookings <span class="key">Y</span></h3>
+    <p class="purpose">Kitty parties, birthdays and conferences are the highest-margin business a restaurant does, and most places quote them off a scrap of paper. Here the rate list, the pamphlet, the quote and the diary are one thing.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="ctl"><span class="b">Five rate lists</span> — Silver ₹600 · Gold ₹850 · Platinum ₹1,100 · Royal ₹1,500 · Maharaja ₹2,100</td><td>Per plate, basic to luxury. Every line of every package is editable — rewrite them in the words you use with a customer</td></tr>
+        <tr><td class="ctl">Occasion — 🎀 Kitty · 🎂 Birthday · 💼 Conference</td><td>Each carries its own inclusions on top of the food: tambola table, cake table and decoration, or projector and two tea breaks. Each has its own minimum guest count</td></tr>
+        <tr><td class="ctl">Quote — guests · non-veg (+₹150/plate)</td><td>Per plate, plates, food total, GST and payable — worked out live. Books under the minimum are billed at the minimum, and the screen <b>says so at quoting time</b> rather than on the day</td></tr>
+        <tr><td class="ctl"><span class="b">🖨️ Print pamphlet</span> · 💬 Send on WhatsApp</td><td>A proper leaflet on your own letterhead, or the same offer as a WhatsApp message. Both read the same rate list as the screen, so the paper in a customer's hand can never quote a different price</td></tr>
+        <tr><td class="ctl"><span class="b">📅 Take this booking</span></td><td>Turns the quote into a diary entry with the price <b>locked onto it</b></td></tr>
+        <tr><td class="ctl">💰 Take payment — advance, then balance</td><td>Money against a booking. Cash goes into the open register so the drawer still tallies at close; if no register is open the app tells you rather than pretending</td></tr>
+        <tr><td class="ctl">Booking list — quoted · paid · balance</td><td>Every row adds up, and the header shows what's still to collect across all of them. An enquiry becomes <b>confirmed</b> the moment money is taken, so the diary always tells you which is which</td></tr>
+      </tbody>
+    </table></div>
+    <div class="why"><span class="ic">✓</span><div><b>Why the locked price matters:</b> a party booked in March at ₹850 stays at ₹850 even if you re-price the Gold package in June. The customer is holding a pamphlet that says ₹850 — a system that quietly repriced them would hand you an argument on the day of the function, in front of their guests.</div></div>
 
     <h3><span class="ic">📈</span> Reports <span class="key">R</span> &nbsp;·&nbsp; <span class="ic">✨</span> AI Insights <span class="key">A</span> &nbsp;·&nbsp; <span class="ic">💵</span> Register <span class="key">G</span></h3>
     <div class="tablewrap"><table>
@@ -403,13 +437,13 @@
 
     <div class="flow">
       <b style="color:var(--accent-ink)">Reports opens on the floor as it is right now</b>
-      <p style="margin:6px 0 0;font-size:.85rem">Before any report is chosen, the top of the page answers the two questions an owner actually walks in asking: <b>what have I taken so far</b>, and <b>what is still sitting on the tables</b>. Five figures — settled today, the value on running tables, an estimate for tables seated but not yet ordered, what is still to come, and earned + expected. It is live, refreshes on its own, and ignores the date range underneath, because “right now” has no date range.</p>
+      <p style="margin:6px 0 0;font-size:.85rem">Reports opens on <b>today</b>. Before any report is chosen, the top of the page answers the two questions an owner actually walks in asking: <b>what have I taken so far</b>, and <b>what is still sitting on the tables</b>. Five figures — settled today, the value on running tables, an estimate for tables seated but not yet ordered, what is still to come, and earned + expected. It is live, refreshes on its own, and ignores the date range underneath, because “right now” has no date range.</p>
       <p style="margin:6px 0 0;font-size:.85rem">Anything carrying a guess is marked with a <b>~</b> and shows its working (“3 × ₹696, the average table bill of the last 30 days”). If there are no settled bills to average from, those tables add <b>nothing</b> rather than a made-up number — a guess presented as a total is how owners end up trusting a figure that was never real.</p>
     </div>
     <div class="tablewrap"><table>
       <thead><tr><th>Group</th><th>Reports</th></tr></thead>
       <tbody>
-        <tr><td class="ctl">Sales</td><td>Summary · <b>Peak hours</b> (a rush map by weekday × hour) · <b>Items</b> (category-wise, menu engineering, add-on attach rates) · <b>Bill register</b> · <b>🔴 Running now</b> (the full floor behind the summary above) · <b>🌙 Day-end master</b></td></tr>
+        <tr><td class="ctl">Sales</td><td>Summary · <b>Peak hours</b> (a rush map by weekday × hour) · <b>Items</b> (category-wise, menu engineering, add-on attach rates) · <b>Bill register</b> · <b>🔴 Running now</b> — tables and online orders that have <b>ordered but not been billed</b>, with printed-and-unpaid bills listed separately (that is the money most likely to walk out) and a note naming any table sitting with nothing ordered yet · <b>🌙 Day-end master</b></td></tr>
         <tr><td class="ctl">Operations</td><td><b>Tables</b> (seat-time, ₹ per guest) · <b>Kitchen speed</b> · <b>Bill timing</b> (printed → settled) · <b>Staff</b> + employee of the month · <b>Discounts &amp; refunds</b> · <b>Cancellations</b></td></tr>
         <tr><td class="ctl">Money</td><td>Food cost · <b>Expenses</b> · <b>Cash in hand</b> · <b>📒 Udhaar ledger</b> · <b>Profit &amp; loss</b> · <b>GST &amp; HSN</b> (the sheet your CA asks for)</td></tr>
         <tr><td class="ctl">Stock</td><td>Inventory · Purchases (vendor-wise, rate-change alerts) · <b>Stock variance</b></td></tr>
@@ -462,6 +496,8 @@
       <li><label class="item"><span class="box"></span><span class="txt"><b>Set a real Manager PIN</b><span class="hint">Gates discounts, voids, write-offs and refunds — the discount keypad stays locked until it is entered. Change it from the demo 1111.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Enter your monthly running costs</b><span class="hint">Reports → Profit &amp; loss. Or just book expenses daily on the Expenses screen — real numbers beat estimates.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Configure the thermal printer</b><span class="hint">Network IP or USB — or browser print for the trial.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Set your liquor VAT rate — only if you serve alcohol</b><span class="hint">Settings → GST &amp; billing, then mark each drink “Liquor — VAT” in Menu. Leave it at 0 and nothing changes. Get the rate from your CA.</span></span></label></li>
+      <li><label class="item"><span class="box"></span><span class="txt"><b>Price your party packages</b><span class="hint">Parties screen. Five rate lists ship ready to sell — edit the inclusions into your own words and your own prices, then print the pamphlet.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Name your kitchen counters</b><span class="hint">Settings → Thermal printer → Your kitchen printers. Add a sweets counter or bar if you have one; each dish then picks its counter from that list. Give a counter its own IP and its tickets print there — leave it blank and they print on the main kitchen printer, so nothing is ever lost. Needs Network mode on the desktop app. The app warns you if a dish still points at a counter you've removed.</span></span></label></li>
       <li><label class="item"><span class="box"></span><span class="txt"><b>Sign in with the same account on every device</b><span class="hint">That's how they stay in sync.</span></span></label></li>
     </ul></div>
@@ -484,6 +520,8 @@
       <li><span>Do one <b>split bill</b>, one <b>table transfer</b> and one <b>move items</b> between tables.</span></li>
       <li><span>Settle one bill <b>split half cash half UPI</b>, and one on <b>udhaar</b> <span class="m">— then collect it in Reports → Udhaar.</span></span></li>
       <li><span>Do a <b>void with the Manager PIN</b> <span class="m">— confirm stock returns and the reason is asked.</span></span></li>
+      <li><span>Quote a <b>party package</b>, take the booking, and record the advance <span class="m">— check the booking shows quoted, paid and balance adding up, and that cash lands in the open register.</span></span></li>
+      <li><span>Make one guest a <b>member</b> and settle a bill for them <span class="m">— their rate should come off on its own, with the card number on the bill as the approver.</span></span></li>
       <li><span>Give one <b>discount as ₹</b> and one <b>as %</b> <span class="m">— confirm the box is locked and empty until the manager PIN is entered, that the total moves, and that neither closes without a reason.</span></span></li>
       <li><span>Check one bill's <b>service charge and GST</b> <span class="m">— ₹1,000 of food should read ₹50 service charge, ₹52.50 GST, ₹1,103 total, and the line must print the word <b>(optional)</b>.</span></span></li>
       <li><span><b>Open &amp; close a cash shift</b> <span class="m">— pick who's on the till; check the Z-report tallies after booking a cash expense.</span></span></li>
