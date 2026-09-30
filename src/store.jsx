@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { makeSeed } from './seed.js'
 import { makeT } from './i18n.js'
 import { uid, billTotals, sentiment, todayISO } from './utils.js'
+import { isSurplusLine } from './surplus.js'
 import { lineKey, repriceLine } from './modifiers.js'
 import { seedPrinters } from './stations.js'
 import {
@@ -43,6 +44,12 @@ function load() {
         // defaults), so no existing dish opens the editor pointing at a counter
         // that isn't in the list.
         if (s.settings && !s.settings.printers) s.settings.printers = seedPrinters(s.items)
+        // Slices added after this install was first seeded. Without these, every
+        // reader has to guard, and the first one that forgets throws on a `.filter`
+        // of undefined — the exact trap CLAUDE.md documents for seed defaults.
+        if (!s.bookings) s.bookings = []
+        if (!s.surplus) s.surplus = []
+        if (!s.plateWaste) s.plateWaste = []
         return s
       }
     }
@@ -650,7 +657,10 @@ export function StoreProvider({ children }) {
       const newQty = delta === 'remove' ? 0 : Math.max(0, oldQty + delta)
       const removed = oldQty - newQty
       if (removed <= 0) return
-      if (li.deducted) {
+      // `deducted` is true on a surplus line although nothing was deducted — it is
+      // set to KEEP the till from deducting. Crediting it back on a void would add
+      // ingredients that never left, so surplus is excluded explicitly.
+      if (li.deducted && !isSurplusLine(li)) {
         const item = s.items.find((i) => i.id === li.itemId)
         item?.recipe?.forEach(({ ingId, qty }) => {
           const ing = s.ingredients.find((g) => g.id === ingId)
@@ -765,6 +775,88 @@ export function StoreProvider({ children }) {
 
     // PO number comes from the atomic server counter when cloud-connected (so two
     // devices never issue the same PO#), else the local counter. Same for GRN.
+    // ---- leftovers: surplus to sell, plate waste to give away ----
+    // Two separate stores on purpose. See src/surplus.js for why there is no path
+    // from a plate-waste record to a sellable listing.
+    const listSurplus = (l) => {
+      let created = null
+      update((s) => {
+        s.surplus = s.surplus || []
+        created = {
+          id: uid('sp'),
+          kind: l.kind || 'item',
+          itemId: l.itemId || null,
+          name: (l.name || '').trim(),
+          fullPrice: Math.max(0, Math.round(+l.fullPrice || 0)),
+          price: Math.max(0, Math.round(+l.price || 0)),
+          qty: Math.max(1, Math.round(+l.qty || 1)),
+          soldQty: 0,
+          taxClass: l.taxClass || 'gst',
+          note: (l.note || '').trim(),
+          madeAt: l.madeAt || Date.now(),
+          until: l.until || null,
+          createdAt: Date.now(),
+          by: operatorName(s) || '',
+        }
+        s.surplus.push(created)
+      })
+      return created
+    }
+
+    // Selling is counted on the listing, not inferred from orders: a surplus tray is
+    // a physical thing with a count, and two tills must not be able to sell the same
+    // last portion twice.
+    const takeSurplus = (surplusId, n = 1) => update((s) => {
+      const l = (s.surplus || []).find((x) => x.id === surplusId)
+      if (!l) return
+      const left = Math.max(0, (+l.qty || 0) - (+l.soldQty || 0))
+      const take = Math.max(0, Math.min(left, Math.round(+n || 0)))
+      if (!take) return
+      l.soldQty = (+l.soldQty || 0) + take
+      // Each portion's sale is stamped. Without this, money could only be dated by
+      // when the TRAY was listed, so a 10pm listing sold out after midnight would
+      // report its takings against yesterday.
+      l.sales = l.sales || []
+      l.sales.push({ at: Date.now(), qty: take, price: +l.price || 0 })
+    })
+    // a voided surplus line has to put the portion back on the tray
+    const returnSurplus = (surplusId, n = 1) => update((s) => {
+      const l = (s.surplus || []).find((x) => x.id === surplusId)
+      if (!l) return
+      const back = Math.max(0, Math.min(+l.soldQty || 0, Math.round(+n || 0)))
+      if (!back) return
+      l.soldQty = Math.max(0, (+l.soldQty || 0) - back)
+      // reversed as a negative entry rather than by editing history — the ledger
+      // stays append-only, so a voided punch is auditable instead of invisible
+      l.sales = l.sales || []
+      l.sales.push({ at: Date.now(), qty: -back, price: +l.price || 0 })
+    })
+    const pullSurplus = (surplusId) => update((s) => {
+      const l = (s.surplus || []).find((x) => x.id === surplusId)
+      if (l) l.cancelled = true
+    })
+
+    // Plate waste. Recorded in kilos because that is how it is weighed at the back
+    // door, and with a collector because food leaving the premises as feed is a
+    // record an inspector asks for.
+    const logPlateWaste = (w) => update((s) => {
+      s.plateWaste = s.plateWaste || []
+      s.plateWaste.push({
+        id: uid('pw'),
+        at: Date.now(),
+        date: todayISO(),
+        kg: Math.max(0, +w.kg || 0),
+        destination: w.destination || 'bin',
+        collector: w.collector?.name ? { name: w.collector.name.trim(), phone: w.collector.phone || '' } : null,
+        dishes: (w.dishes || '').trim(),
+        note: (w.note || '').trim(),
+        by: operatorName(s) || '',
+      })
+    })
+    const deletePlateWaste = (id) => update((s) => {
+      s.plateWaste = (s.plateWaste || []).filter((x) => x.id !== id)
+    })
+
     // ---- party / function bookings ----
     // The quote is SNAPSHOTTED onto the booking. If the owner re-prices the Gold
     // package next month, a party booked at 850 is still owed at 850 — a booking
@@ -989,7 +1081,7 @@ export function StoreProvider({ children }) {
       setAuthUser(null)
     }
 
-    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, setOrderPayer, markPayerSent, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, createBooking, addBookingPayment, setBookingStatus, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
+    return { update, newOrder, sendKot, settleOrder, resetDemo, recordStockTake, addExpenses, deleteExpense, refundBill, collectDue, assignTableWaiter, setOrderWaiter, markPrinted, moveItems, setOrderPayer, markPayerSent, rectifyLine, mergeOrders, splitOrder, addFeedback, replyFeedback, resolveFeedback, deleteFeedback, unlockSession, lockSession, addReservation, updateReservation, seatReservation, openShift, addCashMovement, closeShift, addVendor, updateVendor, deleteVendor, createPO, cancelPO, receiveGRN, createBooking, addBookingPayment, setBookingStatus, listSurplus, takeSurplus, returnSurplus, pullSurplus, logPlateWaste, deletePlateWaste, cloudCreate, reconnectCloud, cloudJoin, cloudLeave, signUpFlow, signInFlow, authLogout }
   }, [])
 
   const t = useMemo(() => makeT(state.settings.lang), [state.settings.lang])

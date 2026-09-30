@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { Modal, Badge, VegDot, Empty, Field, inputCls, btnPrimary, btnGhost } from '../components.jsx'
-import { inr, inr0, billTotals, verifyManagerPin, tableName, discountReasonLabel, payModeLabel, VOID_REASONS } from '../utils.js'
+import { inr, inr0, fmtTime, billTotals, verifyManagerPin, tableName, discountReasonLabel, payModeLabel, VOID_REASONS } from '../utils.js'
 import { usePerms } from '../perms.jsx'
 import { hasModifiers, effectivePrice, lineKey, modsLabel, modsTotal } from '../modifiers.js'
+import { liveSurplus, isSellable, remaining, surplusStatus, discountPct, surplusLine, isSurplusLine } from '../surplus.js'
 import ModifierPicker from '../ModifierPicker.jsx'
 import SettleModal from './SettleModal.jsx'
 import PayerModal from './PayerModal.jsx'
@@ -23,8 +24,12 @@ import { useNav } from '../nav.jsx'
 
 const NUM_WORDS = { ek: 1, one: 1, do: 2, two: 2, teen: 3, three: 3, char: 4, four: 4, chaar: 4, paanch: 5, panch: 5, five: 5, che: 6, six: 6, saat: 7, seven: 7, aath: 8, eight: 8 }
 
+// the surplus counter sits in the category strip as if it were a category, but it
+// isn't one — menu category ids are 'cNN', so this can never collide with one
+const SURPLUS_CAT = 'surplus'
+
 export default function Billing() {
-  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder, moveItems, setOrderWaiter, markPrinted } = useStore()
+  const { state, t, update, newOrder, sendKot, settleOrder, rectifyLine, mergeOrders, splitOrder, moveItems, setOrderWaiter, markPrinted, takeSurplus, returnSurplus } = useStore()
   const { focusOrderId, clearFocus } = useNav()
   const { can } = usePerms()
   const [orderId, setOrderId] = useState(null)
@@ -72,7 +77,20 @@ export default function Billing() {
   const [printMsg, setPrintMsg] = useState('')
   const [listening, setListening] = useState(false)
   const [voiceMsg, setVoiceMsg] = useState('')
+  const [surplusMsg, setSurplusMsg] = useState('')
   const recRef = useRef(null)
+
+  // A listing goes off sale at a wall-clock time and live/sold-out/expired is DERIVED,
+  // never stored (src/surplus.js). So the strip has to re-derive itself even when
+  // nobody touches the till: at 22:31 a 22:30 sell-by must already be gone from the
+  // screen, not just refused on tap.
+  const [, setClockTick] = useState(0)
+  const hasAnySurplus = (state.surplus || []).length > 0
+  useEffect(() => {
+    if (!hasAnySurplus) return
+    const id = setInterval(() => setClockTick((n) => n + 1), 30000)
+    return () => clearInterval(id)
+  }, [hasAnySurplus])
 
   // aggregator/WhatsApp orders are settled from Online Orders/KDS, not the POS tab strip
   const activeOrders = state.orders.filter((o) => ['open', 'kot', 'ready', 'served'].includes(o.status) && !['zomato', 'swiggy', 'whatsapp'].includes(o.type))
@@ -142,7 +160,10 @@ export default function Billing() {
     })
   }
 
-  const changeQty = (li, d) =>
+  const changeQty = (li, d) => {
+    // a surplus line is a physical portion off a tray, not a dish to be cooked —
+    // it has its own path so the portion goes back on sale instead of vanishing
+    if (isSurplusLine(li)) return changeSurplusQty(li, d)
     update((s) => {
       const o = s.orders.find((x) => x.id === orderId)
       // match on the full line identity (dish + kitchen state + chosen options),
@@ -152,6 +173,93 @@ export default function Billing() {
       line.qty += d
       if (line.qty <= 0) o.items = o.items.filter((x) => x !== line)
     })
+  }
+
+  // ---- the surplus counter: fresh food cooked today, going out at a markdown ----
+  // Every figure here is derived from src/surplus.js on each render. Nothing about
+  // a listing's saleability is cached, and none of this is a discount: the price on
+  // the line IS the price, because the alternative to this sale was zero.
+  const liveList = liveSurplus(state)
+  const portionsLeft = liveList.reduce((s, l) => s + remaining(l), 0)
+  const flashSurplus = (m) => { setSurplusMsg(m); setTimeout(() => setSurplusMsg(''), 4000) }
+
+  // is this listing still addable *right now* — used to disable the ＋ on a cart line
+  const surplusAddable = (id) => {
+    const l = (state.surplus || []).find((x) => x.id === id)
+    return !!l && isSellable(l)
+  }
+
+  const refusalText = (l) => {
+    const st = surplusStatus(l)
+    if (st === 'sold-out') return '♻️ All gone — that was the last portion.'
+    if (st === 'expired') return '♻️ Past its sell-by — this one can no longer be sold.'
+    if (st === 'cancelled') return '♻️ That listing was pulled off the counter.'
+    return '♻️ That listing is no longer on sale.'
+  }
+
+  /**
+   * Sell one portion of a listing.
+   *
+   * Two guards, on purpose. The one off the render snapshot only exists to tell the
+   * cashier WHY nothing happened. The one inside the update is the real guarantee:
+   * two tills (or two fast taps on one till) can race for the last portion, and
+   * because `update` producers run in the order they were queued, that check sees
+   * every takeSurplus queued ahead of it. takeSurplus itself clamps to what is left,
+   * so the line and the tray count can never drift apart.
+   */
+  const addSurplus = (id) => {
+    const shown = (state.surplus || []).find((x) => x.id === id)
+    if (!shown) return
+    if (!isSellable(shown)) { flashSurplus(refusalText(shown)); return }
+    let oid = orderId
+    if (!order) {
+      oid = newOrder({ type: 'takeaway' })
+      setOrderId(oid)
+    }
+    update((s) => {
+      const o = s.orders.find((x) => x.id === oid)
+      const l = (s.surplus || []).find((x) => x.id === id)
+      if (!o || !l || !isSellable(l)) return
+      // Merge on surplusId, never lineKey: a surprise bag carries itemId null, so
+      // two different bags would share one lineKey and fold into each other.
+      const li = o.items.find((x) => x.surplusId === id)
+      if (li) li.qty += 1
+      else o.items.push(surplusLine(l))
+    })
+    takeSurplus(id, 1)
+  }
+
+  /**
+   * Reduce or remove a surplus line — a mis-punch, or a guest changing their mind.
+   *
+   * The portion is still sitting on the tray, so it goes straight back on sale. This
+   * deliberately does NOT go through rectifyLine: that path credits a KOT'd line's
+   * recipe back into stock, and a surplus line's ingredients never came out of stock
+   * at the till (they left hours ago, when the food was cooked — which is exactly why
+   * surplusLine() ships already `deducted`). Crediting them here would inflate stock
+   * by the amount of food we rescued, the very drift the flag exists to prevent.
+   */
+  const changeSurplusQty = (li, d) => {
+    // `returned` is decided inside the update, against the authoritative order — the
+    // same "capture it from the producer" shape listSurplus() uses in store.jsx. If it
+    // somehow never lands, the portion simply isn't put back: erring towards one
+    // portion fewer on the tray is the only safe direction, because the opposite is
+    // selling food that isn't there.
+    let returned = 0
+    update((s) => {
+      const o = s.orders.find((x) => x.id === orderId)
+      if (!o) return
+      const line = o.items.find((x) => x.surplusId === li.surplusId)
+      if (!line) return
+      const newQty = d === 'remove' ? 0 : Math.max(0, line.qty + d)
+      returned = line.qty - newQty
+      if (returned <= 0) return
+      if (newQty <= 0) o.items = o.items.filter((x) => x !== line)
+      else { line.qty = newQty; line.updatedAt = Date.now() }
+      o.updatedAt = Date.now()
+    })
+    if (returned > 0) returnSurplus(li.surplusId, returned)
+  }
 
   // ---- Voice ordering (Hindi/English) — native recognizer in the app, Web Speech on web ----
   // Android app: use the phone's built-in recognizer via the Capacitor plugin.
@@ -310,32 +418,97 @@ export default function Billing() {
         {voiceMsg && <div className="text-xs text-stone-500 mb-2 bg-stone-100 rounded-lg px-3 py-1.5">{voiceMsg}</div>}
         <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
           <CatChip active={cat === 'all'} onClick={() => setCat('all')}>All</CatChip>
+          {/* The surplus counter, alongside the categories. It stays visible while it
+              is selected even after the last portion goes, so the cashier sees why
+              the panel emptied instead of the chip disappearing under their finger. */}
+          {(liveList.length > 0 || cat === SURPLUS_CAT) && (
+            <CatChip active={cat === SURPLUS_CAT} onClick={() => setCat(SURPLUS_CAT)}>♻️ Surplus{portionsLeft ? ` (${portionsLeft})` : ''}</CatChip>
+          )}
           {state.categories.map((c) => (
             <CatChip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>
               {state.settings.lang === 'hi' ? c.nameHi : state.settings.lang === 'pa' ? c.namePa : c.name}
             </CatChip>
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto content-start flex-1 pb-24 md:pb-2">
-          {items.map((i) => (
-            <button
-              key={i.id}
-              onClick={() => addItem(i)}
-              className="bg-white rounded-xl border border-stone-100 shadow-sm p-3 text-left hover:border-saffron-400 hover:shadow transition-all active:scale-95"
-            >
-              <div className="flex items-start justify-between gap-1">
-                <VegDot veg={i.veg} />
-                <span className="text-[10px] text-stone-400 uppercase">{i.station}</span>
+
+        {/* One compact line, always there while anything is on the counter. Listing
+            surplus is pointless if nobody at the till remembers to offer it. */}
+        {cat !== SURPLUS_CAT && liveList.length > 0 && (
+          <button
+            onClick={() => setCat(SURPLUS_CAT)}
+            title="Show the surplus counter"
+            className="w-full flex items-center gap-2 mb-3 bg-green-50 border border-green-200 text-green-800 rounded-xl px-3 py-2 text-[12px] text-left hover:bg-green-100 transition-colors"
+          >
+            <span className="shrink-0">♻️</span>
+            <span className="truncate">
+              <b>{portionsLeft} portion{portionsLeft === 1 ? '' : 's'}</b> on the surplus counter — {liveList.slice(0, 2).map((l) => `${l.name} ${inr0(l.price)}`).join(' · ')}
+              {liveList.length > 2 ? ` · +${liveList.length - 2} more` : ''} — offer it before it goes in the bin
+            </span>
+            <span className="ml-auto shrink-0 font-black">→</span>
+          </button>
+        )}
+        {surplusMsg && <div className="text-xs text-amber-800 mb-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">{surplusMsg}</div>}
+
+        {cat === SURPLUS_CAT ? (
+          <div className="overflow-y-auto flex-1 pb-24 md:pb-2">
+            <p className="text-[11px] text-stone-400 mb-2">
+              Fresh food cooked today, marked down so it isn't thrown away. One tap = one portion off the tray.
+              The marked price <b>is</b> the price — don't put a discount on top of it.
+            </p>
+            {liveList.length === 0 ? (
+              <Empty icon="♻️" text="Nothing on the surplus counter right now — list a tray in Leftovers & waste." />
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+                {liveList.map((l) => {
+                  const left = remaining(l)
+                  const off = discountPct(l)
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => addSurplus(l.id)}
+                      className="bg-white rounded-xl border border-leaf-500 shadow-sm p-3 text-left hover:shadow transition-all active:scale-95"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-leaf-600">
+                          ♻️ {l.kind === 'bag' ? 'Surprise bag' : 'Surplus'}
+                        </span>
+                        <span className="text-[10px] font-bold text-stone-500 shrink-0">{left} left</span>
+                      </div>
+                      <div className="font-semibold text-[13px] text-ink-900 mt-1 leading-tight">{l.name}</div>
+                      <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
+                        <span className="text-leaf-600 font-black text-sm">{inr0(l.price)}</span>
+                        {l.fullPrice > l.price && <span className="text-[11px] text-stone-400 line-through">{inr0(l.fullPrice)}</span>}
+                        {off > 0 && <span className="text-[10px] font-bold text-leaf-600">−{off}%</span>}
+                      </div>
+                      {l.until && <div className="text-[10px] text-stone-400 mt-0.5">sell by {fmtTime(l.until)}</div>}
+                    </button>
+                  )
+                })}
               </div>
-              <div className="font-semibold text-[13px] text-ink-900 mt-1 leading-tight">{i.name}</div>
-              {state.settings.lang !== 'en' && <div className="text-[11px] text-stone-400">{i.nameHi}</div>}
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-saffron-700 font-bold text-sm">{inr0(i.price)}</span>
-                {hasModifiers(i) && <span className="text-[10px] font-bold text-blue-600">🧩 choices</span>}
-              </div>
-            </button>
-          ))}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto content-start flex-1 pb-24 md:pb-2">
+            {items.map((i) => (
+              <button
+                key={i.id}
+                onClick={() => addItem(i)}
+                className="bg-white rounded-xl border border-stone-100 shadow-sm p-3 text-left hover:border-saffron-400 hover:shadow transition-all active:scale-95"
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <VegDot veg={i.veg} />
+                  <span className="text-[10px] text-stone-400 uppercase">{i.station}</span>
+                </div>
+                <div className="font-semibold text-[13px] text-ink-900 mt-1 leading-tight">{i.name}</div>
+                {state.settings.lang !== 'en' && <div className="text-[11px] text-stone-400">{i.nameHi}</div>}
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-saffron-700 font-bold text-sm">{inr0(i.price)}</span>
+                  {hasModifiers(i) && <span className="text-[10px] font-bold text-blue-600">🧩 choices</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* MOBILE: floating "view order" bar (above the app tab bar) */}
@@ -433,7 +606,10 @@ export default function Billing() {
               <Badge color={order.status === 'kot' ? 'amber' : order.status === 'ready' ? 'green' : 'blue'}>{order.status.toUpperCase()}</Badge>
             </div>
           )}
-          {order && (order.items || []).some((i) => i.deducted) && (
+          {/* A surplus line is `deducted` without ever having been sent anywhere, so it
+              must not be what makes the manager-unlock prompt appear — there is no
+              kitchen ticket behind it to need authorising. */}
+          {order && (order.items || []).some((i) => i.deducted && !isSurplusLine(i)) && (
             editUnlock ? (
               <button onClick={() => { setEditUnlock(false); setAuthManager(null) }} className="w-full mt-2 text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 rounded-lg py-1.5">
                 🔓 Manager mode{authManager ? ` · ${authManager.name}` : ''} — tap to lock
@@ -465,22 +641,59 @@ export default function Billing() {
               <div key={idx} className="py-2 border-b border-stone-50">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-ink-900 truncate">{li.name} {li.deducted && <span className="text-[9px] text-amber-600 font-bold">KOT✓</span>}</div>
+                    {/* A surplus line is `deducted` so it stays off the kitchen ticket
+                        and can't deduct the same dal twice — but "KOT✓" would be a lie
+                        on it: nothing was ever sent to be cooked. */}
+                    {/* The badge is a flex sibling of a truncating name, not a word
+                        inside it. Sitting inside `truncate` it was clipped to zero
+                        width by any long dish name — present in the DOM, never on
+                        screen. If space runs short the NAME gives way now, because
+                        the badge is the part that explains why nothing printed. */}
+                    <div className="text-[13px] font-semibold text-ink-900 flex items-baseline gap-1 min-w-0">
+                      <span className="truncate">{li.name}</span>
+                      {isSurplusLine(li)
+                        ? <span className="text-[9px] text-leaf-600 font-bold shrink-0">RESCUED · no kitchen ticket</span>
+                        : li.deducted && <span className="text-[9px] text-amber-600 font-bold shrink-0">KOT✓</span>}
+                    </div>
                     {li.mods?.length > 0 && (
                       <div className="text-[11px] text-blue-600 leading-tight break-words">
                         {modsLabel(li.mods)}{modsTotal(li.mods) > 0 ? <span className="text-stone-400"> · +{inr0(modsTotal(li.mods))}</span> : null}
                       </div>
                     )}
-                    <div className="text-[11px] text-stone-400">{inr0(li.price)} × {li.qty}</div>
+                    <div className="text-[11px] text-stone-400">
+                      {inr0(li.price)} × {li.qty}
+                      {isSurplusLine(li) && li.fullPrice > li.price && (
+                        <span className="text-leaf-600 font-semibold"> · was <span className="line-through">{inr0(li.fullPrice)}</span></span>
+                      )}
+                    </div>
                     {li.notes && <div className="text-[11px] text-saffron-700 font-semibold mt-0.5 flex items-start gap-1"><span>📝</span><span className="break-words">{li.notes}</span></div>}
                   </div>
-                  <button
-                    onClick={() => { if (noteIdx === idx) { setNoteIdx(null) } else { setNoteIdx(idx); setNoteText(li.notes || '') } }}
-                    title="Add a cooking instruction (prints on the kitchen ticket)"
-                    className={`w-7 h-7 rounded-md text-sm shrink-0 ${li.notes ? 'bg-saffron-100 text-saffron-700' : 'bg-stone-100 text-stone-400 hover:text-saffron-600'}`}
-                  >📝</button>
+                  {/* no cooking instruction on a surplus line — it never reaches a
+                      kitchen ticket, so a note typed here would go nowhere */}
+                  {!isSurplusLine(li) && (
+                    <button
+                      onClick={() => { if (noteIdx === idx) { setNoteIdx(null) } else { setNoteIdx(idx); setNoteText(li.notes || '') } }}
+                      title="Add a cooking instruction (prints on the kitchen ticket)"
+                      className={`w-7 h-7 rounded-md text-sm shrink-0 ${li.notes ? 'bg-saffron-100 text-saffron-700' : 'bg-stone-100 text-stone-400 hover:text-saffron-600'}`}
+                    >📝</button>
+                  )}
                   <div className="flex items-center gap-1">
-                    {li.deducted ? (
+                    {isSurplusLine(li) ? (
+                      /* Plain ± on a surplus line, no manager PIN and no void reason:
+                         there is no cooked-to-order dish to cancel, the tray is right
+                         there, and every portion taken off goes straight back on sale.
+                         ＋ goes through addSurplus so a portion is always paired with a
+                         takeSurplus, and it greys out the moment the listing is gone. */
+                      <>
+                        <QtyBtn onClick={() => changeSurplusQty(li, -1)}>−</QtyBtn>
+                        <span className="w-6 text-center text-sm font-bold">{li.qty}</span>
+                        <QtyBtn
+                          onClick={() => addSurplus(li.surplusId)}
+                          disabled={!surplusAddable(li.surplusId)}
+                          title="No portions left on this listing"
+                        >＋</QtyBtn>
+                      </>
+                    ) : li.deducted ? (
                       editUnlock ? (
                         <>
                           <QtyBtn onClick={() => setVoidAsk({ li, delta: -1 })}>−</QtyBtn>
@@ -574,7 +787,14 @@ export default function Billing() {
           line={voidAsk.li}
           remove={voidAsk.delta === 'remove'}
           onClose={() => setVoidAsk(null)}
-          onOk={(reason) => { rectifyLine(orderId, voidAsk.li, voidAsk.delta, authManager, reason); setVoidAsk(null) }}
+          /* A surplus line can't reach here from the buttons above, but if any future
+             path sends one, it must NOT go through rectifyLine: that credits a KOT'd
+             line's recipe back into stock, and this line never took stock out. */
+          onOk={(reason) => {
+            if (isSurplusLine(voidAsk.li)) changeSurplusQty(voidAsk.li, voidAsk.delta)
+            else rectifyLine(orderId, voidAsk.li, voidAsk.delta, authManager, reason)
+            setVoidAsk(null)
+          }}
         />
       )}
       {modQueue.length > 0 && (
@@ -769,8 +989,8 @@ function ManagerPinModal({ title, onClose, verify, onOk }) {
 const CatChip = ({ active, onClick, children }) => (
   <button onClick={onClick} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${active ? 'bg-ink-900 text-white' : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'}`}>{children}</button>
 )
-const QtyBtn = ({ onClick, disabled, children }) => (
-  <button onClick={onClick} disabled={disabled} title={disabled ? 'Sent to kitchen — add a fresh line instead' : undefined} className="w-6 h-6 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm leading-none disabled:opacity-30 disabled:cursor-not-allowed">{children}</button>
+const QtyBtn = ({ onClick, disabled, title, children }) => (
+  <button onClick={onClick} disabled={disabled} title={disabled ? (title || 'Sent to kitchen — add a fresh line instead') : undefined} className="w-6 h-6 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm leading-none disabled:opacity-30 disabled:cursor-not-allowed">{children}</button>
 )
 const Row = ({ l, v, muted, cls = '' }) => (
   <div className={`flex justify-between ${muted ? 'text-stone-400 text-xs' : 'text-stone-600'} ${cls}`}><span>{l}</span><span>{v}</span></div>

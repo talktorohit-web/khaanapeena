@@ -1,4 +1,4 @@
-import { uid } from './utils.js'
+import { uid, dayKey } from './utils.js'
 import { buildPortionGroup } from './portions.js'
 import { toPunjabi } from './translit.js'
 import { seedPrinters } from './stations.js'
@@ -247,6 +247,28 @@ export function makeSeed() {
     waste: [
       { id: uid('w'), date: new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10), itemName: 'Dal Makhani (leftover)', qty: '2 kg', reason: 'Over-production', lossValue: 340 },
       { id: uid('w'), date: new Date(Date.now() - 1 * 864e5).toISOString().slice(0, 10), itemName: 'Tomatoes', qty: '3 kg', reason: 'Spoilage', lossValue: 120 },
+    ],
+    // a live surplus counter and yesterday's feed pickup, so both halves of the
+    // Leftovers screen have something in them on a fresh install
+    surplus: (() => {
+      const now = Date.now()
+      const sellBy = new Date(); sellBy.setHours(22, 30, 0, 0)
+      return [
+        { id: uid('sp'), kind: 'item', itemId: 'i06', name: 'Dal Makhani', fullPrice: 220, price: 110,
+          qty: 6, soldQty: 2, taxClass: 'gst', note: 'Cooked for a booking that shrank',
+          madeAt: now - 3 * 3600e3, until: sellBy.getTime(), createdAt: now - 40 * 60e3, by: 'Owner' },
+        { id: uid('sp'), kind: 'bag', itemId: null, name: 'Surprise bag — whatever is left', fullPrice: 350, price: 99,
+          qty: 8, soldQty: 3, taxClass: 'gst', note: 'Mixed sabji, dal and 4 rotis',
+          madeAt: now - 2 * 3600e3, until: sellBy.getTime(), createdAt: now - 30 * 60e3, by: 'Owner' },
+      ]
+    })(),
+    plateWaste: [
+      { id: uid('pw'), at: Date.now() - 864e5, date: dayKey(Date.now() - 864e5),
+        kg: 11.5, destination: 'gaushala', collector: { name: 'Shri Krishna Gaushala', phone: '9815577001' },
+        dishes: 'Mixed plate scraps, rice', note: 'Evening pickup', by: 'Owner' },
+      { id: uid('pw'), at: Date.now() - 2 * 864e5, date: dayKey(Date.now() - 2 * 864e5),
+        kg: 4.2, destination: 'strays', collector: { name: 'Manjit (feeds street dogs)', phone: '9815577002' },
+        dishes: 'Roti, dal', note: '', by: 'Owner' },
     ],
     feedback: [
       { id: uid('f'), rating: 5, text: 'Butter chicken was amazing, best in Jalandhar!', sentiment: 'positive', source: 'qr-guest', tableId: 'T4', resolved: false, reply: null, date: Date.now() - 3 * 864e5 },

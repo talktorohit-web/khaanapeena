@@ -21,7 +21,7 @@ const D = {
   register: ['Cash Register', 'कैश रजिस्टर', 'ਕੈਸ਼ ਰਜਿਸਟਰ'],
   expenses: ['Expenses', 'खर्च', 'ਖਰਚੇ'],
   ai: ['AI Insights', 'AI इनसाइट्स', 'AI ਇਨਸਾਈਟਸ'],
-  waste: ['Waste Tracker', 'वेस्ट ट्रैकर', 'ਵੇਸਟ ਟਰੈਕਰ'],
+  waste: ['Leftovers & waste', 'बचा खाना', 'ਬਚਿਆ ਖਾਣਾ'],
   staff: ['Staff', 'स्टाफ', 'ਸਟਾਫ'],
   settings: ['Settings', 'सेटिंग्स', 'ਸੈਟਿੰਗਜ਼'],
   todaySales: ["Today's Sales", 'आज की बिक्री', 'ਅੱਜ ਦੀ ਵਿਕਰੀ'],

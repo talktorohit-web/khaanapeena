@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { VegDot } from '../components.jsx'
-import { inr0, uid, upiLink, sentiment, billTotals } from '../utils.js'
+import { inr0, fmtTime, uid, upiLink, sentiment, billTotals } from '../utils.js'
 import { hasModifiers, effectivePrice, modsKey, modsLabel, modsTotal, repriceMods } from '../modifiers.js'
+import { liveSurplus, remaining, discountPct } from '../surplus.js'
 import ModifierPicker from '../ModifierPicker.jsx'
 import { fetchMenu, pushGuestOrder, updateGuestOrder, pushGuestFeedback } from '../cloud.js'
 import { signInAnon } from '../auth.js'
@@ -43,6 +44,25 @@ export default function QRMenu({ hash }) {
   const categories = src?.categories || []
 
   const items = allItems.filter((i) => i.available && (!vegOnly || i.veg))
+
+  /**
+   * Today's surplus, shown to the guest but NOT addable to the cart. Read from `src`
+   * on purpose, which is the reason this is safe: in guest mode `src` is the cloud
+   * menu snapshot, and menuSnapshot() carries only settings/categories/items — so
+   * this list is empty on a stranger's phone and can never surface the surplus sitting
+   * in that phone's own local store. See the note above the section for why it stays
+   * informational rather than going into the cart.
+   */
+  const surplusDeals = liveSurplus(src)
+  // live/expired is DERIVED from the clock, never stored (src/surplus.js), so a deal
+  // whose sell-by passes while a guest reads the menu has to leave the page by itself
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    if (!surplusDeals.length) return
+    const id = setInterval(() => setClockTick((n) => n + 1), 30000)
+    return () => clearInterval(id)
+  }, [surplusDeals.length])
+
   const count = cart.reduce((a, l) => a + l.qty, 0)
   const total = useMemo(() => cart.reduce((sum, l) => {
     const it = allItems.find((x) => x.id === l.itemId)
@@ -210,6 +230,55 @@ export default function QRMenu({ hash }) {
             <button onClick={() => setVegOnly(!vegOnly)} className={`text-xs font-bold rounded-full px-3 py-1.5 border ${vegOnly ? 'bg-green-600 text-white border-green-600' : 'bg-white border-stone-200 text-stone-600'}`}>🟢 Veg only</button>
           </div>
           <div className="flex-1 px-3 pb-28">
+            {/* LAST-HOUR DEALS — informational, deliberately not in the cart.
+                placeOrder() rebuilds every line from the menu and re-prices it there
+                (that re-price is the security check that stops a tampered guest payload
+                setting its own price). A surplus portion has no menu price: a surprise
+                bag has no menu item at all, and a marked-down dish would be re-priced
+                straight back up to full. Claiming one also has to decrement the tray,
+                and that count lives only on the till — surplus is not in the cloud
+                snapshot a remote guest reads. So the offer is shown honestly and
+                claimed at the counter, where one tap is one portion off the tray. */}
+            {surplusDeals.length > 0 && (
+              <div className="mt-3 mb-4 bg-white rounded-2xl border-2 border-leaf-500 overflow-hidden">
+                <div className="px-4 pt-3 pb-2">
+                  <h3 className="font-black text-ink-900 text-sm">🌱 Last-hour deals</h3>
+                  <p className="text-[11px] text-stone-500 leading-relaxed mt-0.5">
+                    Cooked fresh in our kitchen today. Whatever we have over at the end of service goes
+                    out at a lower price instead of being thrown away — same food, same kitchen, smaller bill.
+                  </p>
+                </div>
+                <div className="divide-y divide-stone-50">
+                  {surplusDeals.map((l) => {
+                    const off = discountPct(l)
+                    const left = remaining(l)
+                    return (
+                      <div key={l.id} className="px-4 py-2.5 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm text-ink-900">{l.name}</div>
+                          {l.note && <div className="text-[11px] text-stone-400 leading-tight">{l.note}</div>}
+                          <div className="text-[11px] text-stone-500 mt-0.5">
+                            {left} portion{left === 1 ? '' : 's'} left
+                            {l.until ? ` · till ${fmtTime(l.until)}` : ''}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-leaf-600 font-black text-sm">{inr0(l.price)}</div>
+                          {l.fullPrice > l.price && (
+                            <div className="text-[11px] text-stone-400 line-through">{inr0(l.fullPrice)}</div>
+                          )}
+                          {off > 0 && <div className="text-[10px] font-bold text-leaf-600">−{off}%</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="bg-green-50 px-4 py-2 text-[11px] text-green-800 font-semibold">
+                  🙋 Ask at the counter to claim one — first come, first served.
+                </div>
+              </div>
+            )}
+
             {categories.map((c) => {
               const its = items.filter((i) => i.catId === c.id)
               if (!its.length) return null

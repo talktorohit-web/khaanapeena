@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { Modal, Field, inputCls, btnPrimary } from '../components.jsx'
 import { inr, inr0, billTotals, upiLink, verifyManagerPin, payModeLabel, DISCOUNT_REASONS } from '../utils.js'
 import { memberTier } from '../membership.js'
+import { isSurplusLine } from '../surplus.js'
 import QRCode from 'qrcode'
 
 const PAY = [['upi', '📲 UPI'], ['cash', '💵 Cash'], ['card', '💳 Card'], ['credit', '📒 Udhaar'], ['nc', '🚫 Not chargeable']]
@@ -93,8 +94,16 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
 
   // never let a discount exceed the bill, whichever way it was entered
   const pctVal = Math.max(0, Math.min(100, +discPct || 0))
+  // A PERCENTAGE is worked out on food sold at menu price only. A rescued surplus
+  // portion is already marked down — stacking happy hour or a member's rate on top
+  // sells it below cost, and it would drag the rescue into the discount report,
+  // which is the one place the surplus model says it must never appear. A flat ₹
+  // amount is left alone: that is a manager deliberately knocking money off a
+  // specific bill, not an automatic rate applying itself.
+  const rescued = (order.items || []).reduce((n, li) => n + (isSurplusLine(li) ? li.price * li.qty : 0), 0)
+  const discountableSub = Math.max(0, totals.sub - rescued)
   const discount = discMode === 'pct'
-    ? Math.round((totals.sub * pctVal) / 100)
+    ? Math.round((discountableSub * pctVal) / 100)
     : Math.min(totals.sub, Math.max(0, Math.round(+discAmt || 0)))
 
   // the live bill, recomputed as the cashier changes things
@@ -267,6 +276,11 @@ export default function SettleModal({ order, totals, onClose, onDone, happyHourN
           <span className="text-[11px] text-stone-500">{inr0(discount)} off — that's {((discount / totals.sub) * 100).toFixed(1)}% of the bill</span>
         )}
         {allowDiscount && happyHourNow && <span className="text-[11px] text-amber-600 block">Happy hour −{hh.discountPct}% auto-applied</span>}
+        {rescued > 0 && discMode === 'pct' && pctVal > 0 && (
+          <span className="text-[11px] text-stone-500 block">
+            {pctVal}% applies to {inr0(discountableSub)}, not the {inr0(rescued)} of rescued food — that is already marked down.
+          </span>
+        )}
         {memberT && (
           <span className="text-[11px] text-leaf-600 block font-semibold">
             {memberT.icon} {memberT.name} member {cust.member.memberId} — {memberApplied

@@ -13,6 +13,7 @@ import Staff from '../reports/Staff.jsx'
 import Discounts from '../reports/Discounts.jsx'
 import Customers from '../reports/Customers.jsx'
 import FoodCost from '../reports/FoodCost.jsx'
+import SurplusReport from '../reports/Surplus.jsx'
 import Profit from '../reports/Profit.jsx'
 import Tax from '../reports/Tax.jsx'
 import Inventory from '../reports/Inventory.jsx'
@@ -59,6 +60,7 @@ const GROUPS = [
     title: 'Money',
     tabs: [
       ['foodcost', '🍲 Food cost', FoodCost],
+      ['surplus', '♻️ Surplus rescue', SurplusReport],
       ['expenses', '💸 Expenses', ExpensesReport],
       ['cashinhand', '💰 Cash in hand', CashInHand],
       ['udhaar', '📒 Udhaar', Udhaar],

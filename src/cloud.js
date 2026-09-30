@@ -58,6 +58,7 @@ export const COLLECTIONS = [
   'categories', 'items', 'ingredients', 'tables', 'customers',
   'staff', 'waste', 'feedback', 'reservations', 'shifts', 'voidLog',
   'vendors', 'purchaseOrders', 'grns', 'stockTakes', 'expenses',
+  'bookings', 'surplus', 'plateWaste',
 ]
 
 const stripMeta = (o) => { const { _u, ...rest } = o || {}; return rest }
@@ -128,6 +129,13 @@ export function menuSnapshot(state) {
     },
     categories: state.categories || [],
     items: (state.items || []).filter((i) => i.available),
+    // Surplus is public by design: the whole point is that a guest sees tonight's
+    // deals on their own phone. Without this the QR section only ever renders on the
+    // owner's own device, which is the half of the feature nobody would notice was
+    // missing. Sell-by and counts travel with it so the guest page can expire a deal
+    // by the clock exactly as the till does. Plate waste is NOT sent — it is not
+    // food and has no business on a menu.
+    surplus: (state.surplus || []).filter((l) => !l.cancelled),
   }
 }
 

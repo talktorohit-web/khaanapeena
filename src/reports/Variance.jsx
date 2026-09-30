@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { StatCard, Badge, Empty, btnPrimary } from '../components.jsx'
 import { HBars } from '../charts.jsx'
 import { inr0 } from '../utils.js'
+import { isSurplusLine } from '../surplus.js'
 import { Card, DataTable, Exports, Note, pct } from './shared.jsx'
 
 /**
@@ -38,6 +39,11 @@ export default function Variance() {
     ;(state.orders || []).forEach((o) => {
       if (!o.kotAt || o.kotAt <= from || o.kotAt > to || o.status === 'cancelled') return
       ;(o.items || []).forEach((li) => {
+        // A rescued surplus portion was cooked hours earlier and its ingredients left
+        // stock THEN. Counting its recipe again here would invent a shortage exactly
+        // the size of the food we managed to save. The test is isSurplusLine, NOT
+        // li.deducted — every ordinary KOT'd line is deducted too.
+        if (isSurplusLine(li)) return
         const item = (state.items || []).find((i) => i.id === li.itemId)
         item?.recipe?.forEach(({ ingId, qty }) => { u[ingId] = (u[ingId] || 0) + qty * li.qty })
       })
