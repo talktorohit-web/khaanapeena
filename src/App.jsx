@@ -61,6 +61,27 @@ const PAGES = {
 // screens shown in the mobile bottom tab bar (the rest live in the "More" drawer)
 const BOTTOM_NAV = ['dashboard', 'billing', 'tables', 'kds']
 
+// ---- sidebar grouping ----
+// Nineteen flat rows did not fit without scrolling, and a nav you scroll is a nav
+// where half the app is behind a gesture nobody makes mid-service.
+//
+// These four stay FLAT and always visible. They are the screens a shift actually
+// lives in — a cashier touches Billing and Tables a hundred times a service and must
+// never pay a dropdown to reach them. (Same four the mobile tab bar pins, for the
+// same reason.) Everything else is opened a few times a day, or once a month, and
+// can afford one click.
+const PINNED = ['dashboard', 'billing', 'tables', 'kds']
+
+const NAV_GROUPS = [
+  { id: 'orders', title: 'Orders & guests', icon: '📋', ids: ['reservations', 'online', 'parties', 'customers', 'feedback'] },
+  { id: 'kitchen', title: 'Kitchen & stock', icon: '📦', ids: ['menu', 'inventory', 'purchase', 'waste'] },
+  { id: 'money', title: 'Money', icon: '💰', ids: ['reports', 'register', 'expenses'] },
+  { id: 'setup', title: 'Setup', icon: '⚙️', ids: ['staff', 'ai', 'settings'] },
+]
+
+const GROUP_OF = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.ids.map((id) => [id, g.id])))
+const NAV_OPEN_KEY = 'khaanapeena_nav_open'
+
 export default function App() {
   const { state, t, update, cloud, cloudStatus, authUser, authReady, unlockSession, lockSession } = useStore()
   const [page, setPage] = useState('dashboard')
@@ -68,6 +89,25 @@ export default function App() {
   const [hash, setHash] = useState(window.location.hash)
   const [helpOpen, setHelpOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // ---- collapsible sidebar state ----
+  // These three sit with the other hooks and ABOVE the auth/loading early returns.
+  // Declared further down they ran on some renders and not others, and React threw
+  // "Rendered more hooks than during the previous render" — a hook cannot live after
+  // a conditional return.
+  const [navOpen, setNavOpen] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(NAV_OPEN_KEY)) || {} } catch { return {} }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(navOpen)) } catch { /* private mode */ }
+  }, [navOpen])
+  // Navigating INTO a collapsed group opens it — including by keyboard shortcut,
+  // which is the case that would otherwise leave you on a screen your own sidebar
+  // gives no sign of. It can still be collapsed again afterwards.
+  useEffect(() => {
+    const g = GROUP_OF[page]
+    if (g) setNavOpen((o) => (o[g] ? o : { ...o, [g]: true }))
+  }, [page])
   // demo (no-account) mode: explicit '1' opts in, '0' forces the login screen
   // (set on sign-out). With neither flag, grandfather anyone who already has
   // data so existing users aren't suddenly locked out by the new login gate.
@@ -150,6 +190,40 @@ export default function App() {
   const openKots = state.orders.filter((o) => o.status === 'kot').length
   const pendingOnline = state.orders.filter((o) => ['zomato', 'swiggy', 'whatsapp'].includes(o.type) && o.status === 'new').length
 
+  // ---- collapsible sidebar ----
+  // A collapsed group still shows the SUM of its children's badges. Without that a
+  // pending Zomato order sits silently behind a closed dropdown, and a badge whose
+  // whole job is to pull attention would be hidden by the thing meant to tidy it.
+  const badgeOf = (id) => (id === 'kds' ? openKots : id === 'online' ? pendingOnline : 0)
+  // One renderer for both pinned rows and group children — two copies of this
+  // markup would drift the moment either gained a badge the other lacked.
+  const navRow = (n, nested = false) => (
+    <button
+      key={n.id}
+      onClick={() => goTo(n.id)}
+      title={`${t(n.key)}  —  shortcut: ${PAGE_KEYS[n.id]}`}
+      className={`group w-full flex items-center gap-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+        nested ? 'pl-7 pr-3' : 'px-3'
+      } ${page === n.id ? 'bg-saffron-600 text-white' : 'hover:bg-white/5'}`}
+    >
+      <span className="text-base">{n.icon}</span>
+      <span className="flex-1 text-left truncate">{t(n.key)}</span>
+      {badgeOf(n.id) > 0 && (
+        <span className={`bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full shrink-0 ${n.id === 'online' ? 'kp-pulse' : ''}`}>{badgeOf(n.id)}</span>
+      )}
+      <span className={`text-[10px] font-mono font-bold rounded px-1 py-0.5 border shrink-0 transition-colors ${
+        page === n.id ? 'border-white/30 text-white/90' : 'border-white/10 text-stone-500 group-hover:border-white/25 group-hover:text-stone-300'
+      }`}>{PAGE_KEYS[n.id]}</span>
+    </button>
+  )
+
+  const pinnedNav = visibleNav.filter((n) => PINNED.includes(n.id))
+  // a group whose every screen is hidden from this role must not render as an
+  // empty dropdown
+  const groupedNav = NAV_GROUPS
+    .map((g) => ({ ...g, items: visibleNav.filter((n) => g.ids.includes(n.id)) }))
+    .filter((g) => g.items.length)
+
   const cloudDot = cloud ? (cloudStatus === 'live' ? 'text-green-400' : cloudStatus === 'error' ? 'text-red-400' : 'text-amber-400 kp-pulse') : 'text-stone-500'
   const currentLabel = t(NAV.find((n) => n.id === page)?.key || 'dashboard')
 
@@ -164,24 +238,33 @@ export default function App() {
           <div className="text-[10px] text-stone-500 mt-0.5">Restaurant OS · Made for India 🇮🇳</div>
         </div>
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {visibleNav.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => goTo(n.id)}
-              title={`${t(n.key)}  —  shortcut: ${PAGE_KEYS[n.id]}`}
-              className={`group w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
-                page === n.id ? 'bg-saffron-600 text-white' : 'hover:bg-white/5'
-              }`}
-            >
-              <span className="text-base">{n.icon}</span>
-              <span className="flex-1 text-left">{t(n.key)}</span>
-              {n.id === 'kds' && openKots > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">{openKots}</span>}
-              {n.id === 'online' && pendingOnline > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full kp-pulse">{pendingOnline}</span>}
-              <span className={`text-[10px] font-mono font-bold rounded px-1 py-0.5 border transition-colors ${
-                page === n.id ? 'border-white/30 text-white/90' : 'border-white/10 text-stone-500 group-hover:border-white/25 group-hover:text-stone-300'
-              }`}>{PAGE_KEYS[n.id]}</span>
-            </button>
-          ))}
+          {pinnedNav.map((n) => navRow(n))}
+
+          {groupedNav.map((g) => {
+            const open = !!navOpen[g.id]
+            const badge = g.items.reduce((sum, n) => sum + badgeOf(n.id), 0)
+            const holdsActive = g.items.some((n) => n.id === page)
+            return (
+              <div key={g.id} className="pt-0.5">
+                <button
+                  onClick={() => setNavOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}
+                  aria-expanded={open}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                    holdsActive && !open ? 'bg-white/10 text-white' : 'hover:bg-white/5 text-stone-300'
+                  }`}
+                >
+                  <span className="text-base">{g.icon}</span>
+                  <span className="flex-1 text-left">{g.title}</span>
+                  {/* only while closed — once open the child row carries its own */}
+                  {!open && badge > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full kp-pulse">{badge}</span>
+                  )}
+                  <span className={`text-stone-500 text-[11px] transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
+                </button>
+                {open && <div className="mt-0.5 space-y-0.5">{g.items.map((n) => navRow(n, true))}</div>}
+              </div>
+            )
+          })}
         </nav>
         <div className="p-3 border-t border-white/10">
           {/* No-PIN handover. With staff PIN login off, this is how a mid-shift
